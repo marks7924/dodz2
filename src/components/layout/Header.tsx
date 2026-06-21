@@ -148,7 +148,7 @@ export default function Header() {
                 </button>
 
                 {showRoleSelect && (
-                  <div className="absolute right-0 rtl:left-0 rtl:right-auto mt-2 w-48 rounded-xl bg-card border border-card-border shadow-2xl p-2 z-50">
+                  <div className="absolute right-0 mt-2 w-48 max-w-[calc(100vw-2rem)] rounded-xl bg-card border border-card-border shadow-2xl p-2 z-50">
                     <p className="text-[10px] font-bold text-text-muted px-3 py-1 uppercase tracking-wider border-b border-card-border mb-1 flex items-center gap-1">
                       <ShieldAlert className="h-3 w-3 text-accent-amber" /> Switch Account Role
                     </p>
