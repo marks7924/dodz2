@@ -59,6 +59,24 @@ export default function Header() {
   };
 
   return (
+    <>
+      {/* Temporary Role Switcher Nav Bar for Prototype */}
+      {mounted && currentUser && (
+        <div className="w-full bg-[#1A1A1D] py-1.5 px-2 flex justify-center items-center gap-1.5 overflow-x-auto text-[10px] z-[60] relative border-b border-card-border shadow-md">
+          <span className="text-text-muted font-bold whitespace-nowrap">SWITCH ROLE:</span>
+          {(['CUSTOMER', 'DRIVER', 'STAFF', 'OWNER'] as const).map((r) => (
+            <button
+              key={r}
+              onClick={() => handleRoleChange(r)}
+              className={`px-2 py-1 rounded font-bold transition-colors whitespace-nowrap ${
+                currentUser.role === r ? 'bg-primary-red text-white' : 'bg-card text-foreground hover:bg-card-border'
+              }`}
+            >
+              {r}
+            </button>
+          ))}
+        </div>
+      )}
     <header className="sticky top-0 z-50 w-full glass-panel border-b border-card-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 md:h-20">
@@ -133,40 +151,14 @@ export default function Header() {
               )}
             </button>
 
-            {/* Simulated Auth / Role Switcher for Testing */}
+            {/* Simulated Auth (Role Switcher moved to top bar) */}
             {mounted && currentUser && (
-              <div className="relative">
-                <button
-                  onClick={() => setShowRoleSelect(!showRoleSelect)}
-                  className="flex items-center gap-1 md:gap-2 px-3 py-1.5 rounded-full bg-card hover:bg-card-border border border-card-border transition-all text-xs font-medium text-foreground"
-                >
-                  <User className="h-4 w-4 text-accent-amber" />
-                  <span className="max-w-[80px] truncate hidden md:inline">{currentUser.name}</span>
-                  <span className="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold bg-primary-red/10 text-primary-red border border-primary-red/20">
-                    {currentUser.role}
-                  </span>
-                </button>
-
-                {showRoleSelect && (
-                  <div className="absolute right-0 mt-2 w-48 max-w-[calc(100vw-2rem)] rounded-xl bg-card border border-card-border shadow-2xl p-2 z-50">
-                    <p className="text-[10px] font-bold text-text-muted px-3 py-1 uppercase tracking-wider border-b border-card-border mb-1 flex items-center gap-1">
-                      <ShieldAlert className="h-3 w-3 text-accent-amber" /> Switch Account Role
-                    </p>
-                    {(['CUSTOMER', 'DRIVER', 'STAFF', 'OWNER'] as const).map((r) => (
-                      <button
-                        key={r}
-                        onClick={() => handleRoleChange(r)}
-                        className={`w-full text-left rtl:text-right px-3 py-2 text-xs rounded-lg transition-colors flex items-center justify-between ${currentUser.role === r
-                            ? 'bg-primary-red/10 text-primary-red font-semibold'
-                            : 'hover:bg-card-border text-foreground'
-                          }`}
-                      >
-                        <span>{r}</span>
-                        {currentUser.role === r && <span className="h-1.5 w-1.5 rounded-full bg-primary-red" />}
-                      </button>
-                    ))}
-                  </div>
-                )}
+              <div className="flex items-center gap-1 md:gap-2 px-3 py-1.5 rounded-full bg-card border border-card-border text-xs font-medium text-foreground">
+                <User className="h-4 w-4 text-accent-amber" />
+                <span className="max-w-[80px] truncate hidden md:inline">{currentUser.name}</span>
+                <span className="px-1.5 py-0.5 rounded text-[10px] uppercase font-bold bg-primary-red/10 text-primary-red border border-primary-red/20">
+                  {currentUser.role}
+                </span>
               </div>
             )}
 
@@ -175,5 +167,6 @@ export default function Header() {
         </div>
       </div>
     </header>
+    </>
   );
 }
