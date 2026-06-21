@@ -1,0 +1,126 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CUSTOMER
+  DRIVER
+  STAFF
+  OWNER
+}
+
+enum OrderStatus {
+  PENDING
+  PREPARING
+  ON_THE_WAY
+  DELIVERED
+  CANCELLED
+}
+
+enum OrderType {
+  DELIVERY
+  PICKUP
+}
+
+enum SizeOption {
+  SINGLE
+  DOUBLE
+  NONE
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(CUSTOMER)
+  phone     String?
+  createdAt DateTime @default(now())
+  
+  // Relations
+  orders         Order[]  @relation("CustomerOrders")
+  assignedOrders Order[]  @relation("DriverOrders")
+  reviews        Review[]
+}
+
+model Category {
+  id       String    @id @default(uuid())
+  nameEn   String
+  nameAr   String
+  products Product[]
+}
+
+model Product {
+  id           String      @id @default(uuid())
+  nameEn       String
+  nameAr       String
+  descEn       String
+  descAr       String
+  priceSingle  Float
+  priceDouble  Float?      // Optional for items with Single/Double size options
+  isAvailable  Boolean     @default(true)
+  imageUrl     String
+  categoryId   String
+  category     Category    @relation(fields: [categoryId], references: [id])
+  
+  orderItems   OrderItem[]
+  reviews      Review[]
+}
+
+model Order {
+  id           String      @id @default(uuid())
+  userId       String
+  user         User        @relation("CustomerOrders", fields: [userId], references: [id])
+  type         OrderType
+  status       OrderStatus @default(PENDING)
+  total        Float
+  deliveryFee  Float
+  address      String?
+  lat          Float?
+  lng          Float?
+  couponCode   String?
+  discount     Float       @default(0)
+  paymentMethod String     // COD, FAWRY, CARD
+  driverId     String?
+  driver       User?       @relation("DriverOrders", fields: [driverId], references: [id])
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  
+  items        OrderItem[]
+}
+
+model OrderItem {
+  id        String     @id @default(uuid())
+  orderId   String
+  order     Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product    @relation(fields: [productId], references: [id])
+  size      SizeOption @default(NONE)
+  quantity  Int
+  price     Float
+}
+
+model Review {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  productId String
+  product   Product  @relation(fields: [productId], references: [id])
+  rating    Int
+  comment   String
+  createdAt DateTime @default(now())
+}
+
+model Coupon {
+  id            String   @id @default(uuid())
+  code          String   @unique
+  discountType  String   // PERCENT or FIXED
+  discountValue Float
+  expiryDate    DateTime
+  isActive      Boolean  @default(true)
+}
