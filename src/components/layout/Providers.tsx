@@ -1,25 +1,27 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LanguageProvider } from '@/context/LanguageContext';
+import { AuthProvider } from '@/context/AuthContext';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      retry: 1,
+    },
+  },
+});
 
 export default function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            refetchOnWindowFocus: false,
-            staleTime: 1000 * 60 * 5, // 5 minutes
-          },
-        },
-      })
-  );
-
   return (
     <QueryClientProvider client={queryClient}>
-      <LanguageProvider>{children}</LanguageProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
+      </LanguageProvider>
     </QueryClientProvider>
   );
 }

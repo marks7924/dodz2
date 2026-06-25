@@ -5,10 +5,14 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useCartStore } from '@/store/useCartStore';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
+import Link from 'next/link';
+
 import CartSidebar from '@/components/cart/CartSidebar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, Product, Category, Review } from '@/lib/db';
 import { ShoppingBag, Star, Flame, Sparkles, Plus, Check, StarIcon, X, MessageCircle, Send } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+
 
 export default function Home() {
   const { t, locale, dir } = useLanguage();
@@ -27,34 +31,65 @@ export default function Home() {
   const [chatText, setChatText] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      const parsed = JSON.parse(savedUser);
-      setIsAdmin(parsed.role === 'STAFF' || parsed.role === 'OWNER');
-    }
-  }, []);
+  const { user, profile, isAuthenticated } = useAuth();
+  const [chatSessionId, setChatSessionId] = useState<string | null>(null);
 
-  const { data: chatMessages = [] } = useQuery({
-    queryKey: ['chat-messages'],
-    queryFn: () => {
-      const savedUser = localStorage.getItem('user');
-      const uid = savedUser ? JSON.parse(savedUser).id : 'user-cust';
-      return db.getChatMessages(uid);
+  useEffect(() => {
+    if (profile) {
+      setIsAdmin(['STAFF', 'OWNER', 'ADMIN', 'DEVELOPER'].includes(profile.role));
+    }
+  }, [profile]);
+
+  // Get or create chat session once user is loaded
+  useEffect(() => {
+    if (chatOpen && isAuthenticated && user) {
+      import('@/lib/chat').then(({ getOrCreateChatSession }) => {
+        getOrCreateChatSession(user.id)
+          .then((sid) => setChatSessionId(sid))
+          .catch((err) => console.error('Error fetching chat session:', err));
+      });
+    }
+  }, [chatOpen, isAuthenticated, user]);
+
+  // Query message history
+  const { data: chatMessages = [] } = useQuery<any[]>({
+    queryKey: ['chat-messages', chatSessionId],
+    queryFn: async () => {
+      if (!chatSessionId) return [];
+      const { getChatMessages } = await import('@/lib/chat');
+      return getChatMessages(chatSessionId);
     },
-    refetchInterval: 2000,
-    enabled: chatOpen,
+    enabled: !!chatSessionId,
   });
 
+  // Subscribe to real-time messages
+  useEffect(() => {
+    if (!chatSessionId) return;
+
+    let channel: any;
+    import('@/lib/chat').then(({ subscribeToChatMessages }) => {
+      channel = subscribeToChatMessages(chatSessionId, (newMsg) => {
+        queryClient.setQueryData(['chat-messages', chatSessionId], (oldMsgs: any = []) => {
+          if (oldMsgs.some((m: any) => m.id === newMsg.id)) return oldMsgs;
+          return [...oldMsgs, newMsg];
+        });
+      });
+    });
+
+    return () => {
+      if (channel) channel.unsubscribe();
+    };
+  }, [chatSessionId, queryClient]);
+
   const sendChatMutation = useMutation({
-    mutationFn: (data: { text: string }) => {
-      const savedUser = localStorage.getItem('user');
-      const user = savedUser ? JSON.parse(savedUser) : { id: 'user-cust', name: 'Mina Ramzy' };
-      return db.sendChatMessage(user.id, 'CUSTOMER', user.name, data.text);
+    mutationFn: async (data: { text: string }) => {
+      if (!chatSessionId || !user) return;
+      const { sendChatMessage } = await import('@/lib/chat');
+      return sendChatMessage(chatSessionId, user.id, 'CUSTOMER', data.text);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chat-messages'] });
       setChatText('');
+      queryClient.invalidateQueries({ queryKey: ['chat-messages', chatSessionId] });
     },
   });
 
@@ -63,6 +98,7 @@ export default function Home() {
       chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [chatMessages, chatOpen]);
+
 
   // Queries
   const { data: categories = [] } = useQuery<Category[]>({
@@ -616,62 +652,82 @@ export default function Home() {
             </div>
 
             {/* Messages */}
-            <div className="flex-grow p-3 overflow-y-auto space-y-2 text-[11px]">
-              {chatMessages.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-text-muted italic">
-                  Ask us anything! Our team is online.
-                </div>
-              ) : (
-                chatMessages.map((msg) => {
-                  const isMe = msg.senderRole === 'CUSTOMER';
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                    >
-                      <span className="text-[9px] text-text-muted mb-0.5">{msg.senderName}</span>
-                      <div
-                        className={`px-3 py-2 rounded-2xl max-w-[85%] ${
-                          isMe
-                            ? 'bg-primary-red text-white rounded-tr-none'
-                            : 'bg-card-border text-foreground rounded-tl-none'
-                        }`}
-                      >
-                        {msg.text}
-                      </div>
+            {!isAuthenticated ? (
+              <div className="flex-grow p-4 flex flex-col items-center justify-center text-center space-y-4 text-white">
+                <p className="text-xs text-text-muted">
+                  {locale === 'en' ? 'Please login to chat with our support team.' : 'يرجى تسجيل الدخول للتحدث مع فريق الدعم.'}
+                </p>
+                <Link
+                  href="/auth/login"
+                  onClick={() => setChatOpen(false)}
+                  className="px-4 py-2 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all block text-center"
+                >
+                  {t('login')}
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="flex-grow p-3 overflow-y-auto space-y-2 text-[11px] text-white">
+                  {chatMessages.length === 0 ? (
+                    <div className="h-full flex items-center justify-center text-text-muted italic">
+                      Ask us anything! Our team is online.
                     </div>
-                  );
-                })
-              )}
-              <div ref={chatBottomRef} />
-            </div>
+                  ) : (
+                    chatMessages.map((msg) => {
+                      const isMe = msg.sender_role === 'CUSTOMER';
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
+                        >
+                          <span className="text-[9px] text-text-muted mb-0.5">
+                            {isMe ? (locale === 'en' ? 'Me' : 'أنا') : (locale === 'en' ? 'Support' : 'الدعم')}
+                          </span>
+                          <div
+                            className={`px-3 py-2 rounded-2xl max-w-[85%] ${
+                              isMe
+                                ? 'bg-primary-red text-white rounded-tr-none'
+                                : 'bg-card-border text-foreground rounded-tl-none'
+                            }`}
+                          >
+                            {msg.content}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={chatBottomRef} />
+                </div>
 
-            {/* Form */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!chatText.trim()) return;
-                sendChatMutation.mutate({ text: chatText.trim() });
-              }}
-              className="p-2 border-t border-card-border bg-[#0C0C0E] flex gap-2"
-            >
-              <input
-                type="text"
-                placeholder="Type your message..."
-                value={chatText}
-                onChange={(e) => setChatText(e.target.value)}
-                className="flex-grow bg-card-border text-[11px] px-3 py-2 rounded-xl text-white focus:outline-none placeholder:text-text-muted"
-              />
-              <button
-                type="submit"
-                className="p-2 bg-primary-red hover:bg-primary-red-hover text-white rounded-xl transition-all flex items-center justify-center cursor-pointer"
-              >
-                <Send className="h-4.5 w-4.5" />
-              </button>
-            </form>
+                {/* Form */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!chatText.trim()) return;
+                    sendChatMutation.mutate({ text: chatText.trim() });
+                  }}
+                  className="p-2 border-t border-card-border bg-[#0C0C0E] flex gap-2"
+                >
+                  <input
+                    type="text"
+                    placeholder="Type your message..."
+                    value={chatText}
+                    onChange={(e) => setChatText(e.target.value)}
+                    className="flex-grow bg-card-border text-[11px] px-3 py-2 rounded-xl text-white focus:outline-none placeholder:text-text-muted"
+                  />
+                  <button
+                    type="submit"
+                    className="p-2 bg-primary-red hover:bg-primary-red-hover text-white rounded-xl transition-all flex items-center justify-center cursor-pointer"
+                  >
+                    <Send className="h-4.5 w-4.5" />
+                  </button>
+                </form>
+              </>
+            )}
           </div>
         )}
       </div>
+
     </>
   );
 }

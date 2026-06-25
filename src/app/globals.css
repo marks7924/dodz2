@@ -89,3 +89,46 @@ body {
 [dir="rtl"] .rtl-flip {
   transform: scaleX(-1);
 }
+
+/* Hide scrollbar while preserving scroll functionality */
+.no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari */
+}
+
+/* Mobile Drawer Animations */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+.animate-slide-in-right {
+  animation: slide-in-right 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.animate-slide-in-left {
+  animation: slide-in-left 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Safe-area inset for bottom nav/buttons on iOS */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Touch targets — minimum 44px tap area for mobile */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Smooth momentum scrolling for scroll containers */
+.scroll-smooth-mobile {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+

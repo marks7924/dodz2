@@ -1,19 +1,12 @@
-// Dual-mode database layer: tries PostgreSQL via Prisma, falls back to memory.
-import { PrismaClient } from '@prisma/client';
+// Dual-mode database layer: queries Supabase PostgreSQL tables when configured,
+// and gracefully falls back to in-memory mock storage otherwise.
 
-let prisma: PrismaClient | null = null;
+import type { UserRole } from '@/context/AuthContext';
+import { createClient as createBrowserClient } from './supabase/client';
 
-try {
-  if (process.env.DATABASE_URL) {
-    prisma = new PrismaClient();
-  }
-} catch (e) {
-  console.warn('Prisma client initialization skipped, using mock database storage instead.');
-}
-
-// ==========================================
-// MOCK DATABASE & DATA SEED
-// ==========================================
+// ============================================================
+// TYPES & INTERFACES (Front-end compatible)
+// ============================================================
 
 export interface Category {
   id: string;
@@ -56,7 +49,7 @@ export interface Order {
   userId: string;
   userName: string;
   userPhone: string;
-  branchId: string; // Track which branch the order goes to
+  branchId: string;
   type: 'DELIVERY' | 'PICKUP';
   status: 'PENDING' | 'PREPARING' | 'ON_THE_WAY' | 'DELIVERED' | 'CANCELLED';
   total: number;
@@ -77,7 +70,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'CUSTOMER' | 'DRIVER' | 'STAFF' | 'OWNER';
+  role: 'CUSTOMER' | 'DRIVER' | 'STAFF' | 'OWNER' | 'ADMIN' | 'DEVELOPER';
   phone?: string;
 }
 
@@ -99,7 +92,19 @@ export interface Coupon {
   isActive: boolean;
 }
 
-// In-Memory Seed Data
+export interface ChatMessage {
+  id: string;
+  userId: string;
+  senderRole: 'CUSTOMER' | 'STAFF' | 'OWNER' | 'ADMIN' | 'DEVELOPER';
+  senderName: string;
+  text: string;
+  createdAt: string;
+}
+
+// ============================================================
+// MOCK DATABASE & DATA SEED (Fallback)
+// ============================================================
+
 let mockCategories: Category[] = [
   { id: 'cat-1', nameEn: 'Beef Burgers', nameAr: 'برجر لحم' },
   { id: 'cat-2', nameEn: 'Fried Chicken', nameAr: 'فرايد تشيكن' },
@@ -108,7 +113,6 @@ let mockCategories: Category[] = [
 ];
 
 let mockProducts: Product[] = [
-  // Beef Burgers
   {
     id: 'prod-dodz-burger',
     categoryId: 'cat-1',
@@ -133,7 +137,6 @@ let mockProducts: Product[] = [
     imageUrl: 'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?w=600&auto=format&fit=crop&q=80',
     isAvailable: true,
   },
-  // Fried Chicken
   {
     id: 'prod-crispy-chicken',
     categoryId: 'cat-2',
@@ -170,18 +173,6 @@ let mockProducts: Product[] = [
     isAvailable: true,
   },
   {
-    id: 'prod-chicken-5pcs',
-    categoryId: 'cat-2',
-    nameEn: 'Fried Chicken Meal (5 Pcs)',
-    nameAr: 'وجبة الدجاج المقرمش (٥ قطع)',
-    descEn: '5 Pcs Chicken + Fries + Coleslaw + 2 Buns',
-    descAr: '٥ قطع دجاج مقرمش + بطاطس + كولسلو + ٢ خبز',
-    priceSingle: 240,
-    imageUrl: 'https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?w=600&auto=format&fit=crop&q=80',
-    isAvailable: true,
-  },
-  // Sides & Appetizers
-  {
     id: 'prod-fries',
     categoryId: 'cat-3',
     nameEn: 'French Fries',
@@ -204,40 +195,6 @@ let mockProducts: Product[] = [
     isAvailable: true,
   },
   {
-    id: 'prod-strips',
-    categoryId: 'cat-3',
-    nameEn: 'Chicken Strips (3 Pcs)',
-    nameAr: 'تشيكن ستربس (٣ قطع)',
-    descEn: '3 Pieces of crispy hand-breaded chicken tenders with dipping sauce.',
-    descAr: '٣ قطع ستربس دجاج مقرمش ومتبل مع صوص خارجي',
-    priceSingle: 75,
-    imageUrl: 'https://images.unsplash.com/photo-1562967914-608f82629710?w=600&auto=format&fit=crop&q=80',
-    isAvailable: true,
-  },
-  {
-    id: 'prod-mozzarella',
-    categoryId: 'cat-3',
-    nameEn: 'Mozzarella Sticks (4 Pcs)',
-    nameAr: 'أصابع موتزاريلا (٤ قطع)',
-    descEn: '4 Pieces of golden crispy mozzarella sticks.',
-    descAr: '٤ أصابع جبنة موتزاريلا مقلية مقرمشة وسايحة',
-    priceSingle: 60,
-    imageUrl: 'https://images.unsplash.com/photo-1531749668029-2db88e4b76ce?w=600&auto=format&fit=crop&q=80',
-    isAvailable: true,
-  },
-  {
-    id: 'prod-coleslaw',
-    categoryId: 'cat-3',
-    nameEn: 'Coleslaw Salad',
-    nameAr: 'سلطة كولسلو',
-    descEn: 'Freshly prepared shredded cabbage and carrot in sweet creamy dressing.',
-    descAr: 'كرنب وجزر مبشور طازة مع صوص كريمي حلو',
-    priceSingle: 25,
-    imageUrl: 'https://images.unsplash.com/photo-1625938146369-adc83368bda7?w=600&auto=format&fit=crop&q=80',
-    isAvailable: true,
-  },
-  // Drinks
-  {
     id: 'prod-soda',
     categoryId: 'cat-4',
     nameEn: 'Soft Drinks (Pepsi/7Up/Mirinda)',
@@ -248,24 +205,12 @@ let mockProducts: Product[] = [
     imageUrl: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80',
     isAvailable: true,
   },
-  {
-    id: 'prod-water',
-    categoryId: 'cat-4',
-    nameEn: 'Mineral Water',
-    nameAr: 'مياه معدنية',
-    descEn: 'Refreshing bottled mineral water.',
-    descAr: 'زجاجة مياه معدنية نقية وباردة',
-    priceSingle: 10,
-    imageUrl: 'https://images.unsplash.com/photo-1608885898957-a599fb1b4600?w=600&auto=format&fit=crop&q=80',
-    isAvailable: true,
-  },
 ];
 
 let mockUsers: User[] = [
   { id: 'user-owner', email: 'owner@dodz.com', name: 'Sherif Dodz (Owner)', role: 'OWNER', phone: '01011112222' },
   { id: 'user-staff', email: 'staff@dodz.com', name: 'Karim Aly (Kitchen)', role: 'STAFF', phone: '01033334444' },
   { id: 'user-driver1', email: 'driver1@dodz.com', name: 'Mustafa Salem (Driver)', role: 'DRIVER', phone: '01255556666' },
-  { id: 'user-driver2', email: 'driver2@dodz.com', name: 'Tarek Fathy (Driver)', role: 'DRIVER', phone: '01177778888' },
   { id: 'user-cust', email: 'customer@test.com', name: 'Mina Ramzy', role: 'CUSTOMER', phone: '01599990000' },
 ];
 
@@ -275,8 +220,6 @@ let mockBranches: Branch[] = [
   { id: 'branch-3', nameEn: 'Tagamoa Branch', nameAr: 'فرع التجمع', mapUrl: 'https://maps.app.goo.gl/PY39jUeRrMDCEcoa9' },
   { id: 'branch-4', nameEn: 'Almaza Branch', nameAr: 'فرع الماظه', mapUrl: 'https://maps.app.goo.gl/b8dnYd1XsQ31qsb89' },
   { id: 'branch-5', nameEn: 'Nasr City Branch', nameAr: 'فرع مدينه نصر', mapUrl: 'https://maps.app.goo.gl/xra2XTm54n3K6kaD9?g_st=ac' },
-  { id: 'branch-6', nameEn: 'Hadayek El-Kobba Branch', nameAr: 'فرع حدائق القبه', mapUrl: 'https://maps.app.goo.gl/a8UYTCEwjHojwvFy5?g_st=ac' },
-  { id: 'branch-7', nameEn: 'Ain Shams Branch', nameAr: 'فرع عين شمس', mapUrl: 'https://maps.app.goo.gl/gYqVryurQyTXWqibA' },
 ];
 
 let mockOrders: Order[] = [
@@ -285,7 +228,7 @@ let mockOrders: Order[] = [
     userId: 'user-cust',
     userName: 'Mina Ramzy',
     userPhone: '01599990000',
-    branchId: 'branch-3', // Tagamoa
+    branchId: 'branch-3',
     type: 'DELIVERY',
     status: 'DELIVERED',
     total: 350,
@@ -301,33 +244,11 @@ let mockOrders: Order[] = [
     items: [
       { id: 'oi-1', productId: 'prod-dodz-burger', productNameEn: 'Dodz Burger', productNameAr: 'دودز برجر', size: 'DOUBLE', quantity: 2, price: 170 }
     ]
-  },
-  {
-    id: 'ord-1002',
-    userId: 'user-cust',
-    userName: 'Mina Ramzy',
-    userPhone: '01599990000',
-    branchId: 'branch-4', // Almaza
-    type: 'DELIVERY',
-    status: 'PENDING',
-    total: 205,
-    deliveryFee: 40,
-    address: '5th Settlement, El-Teseen St, G-12',
-    discount: 0,
-    paymentMethod: 'COD',
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    items: [
-      { id: 'oi-2', productId: 'prod-crispy-chicken', productNameEn: 'Crispy Chicken Sandwich', productNameAr: 'ساندوتش دجاج كريسبي', size: 'SINGLE', quantity: 1, price: 110 },
-      { id: 'oi-3', productId: 'prod-fries', productNameEn: 'French Fries', productNameAr: 'بطاطس مقلية', size: 'NONE', quantity: 1, price: 35 },
-      { id: 'oi-4', productId: 'prod-mozzarella', productNameEn: 'Mozzarella Sticks (4 Pcs)', productNameAr: 'أصابع موتزاريلا (٤ قطع)', size: 'NONE', quantity: 1, price: 60 }
-    ]
   }
 ];
 
 let mockReviews: Review[] = [
-  { id: 'rev-1', userId: 'user-cust', userName: 'Mina Ramzy', productId: 'prod-dodz-burger', rating: 5, comment: 'Best double burger in Cairo! Super juicy and sauce is perfect.', createdAt: new Date().toISOString() },
-  { id: 'rev-2', userId: 'user-cust', userName: 'Mina Ramzy', productId: 'prod-fire-chicken', rating: 4, comment: 'Very spicy and crispy! Loved the jalapenos.', createdAt: new Date().toISOString() }
+  { id: 'rev-1', userId: 'user-cust', userName: 'Mina Ramzy', productId: 'prod-dodz-burger', rating: 5, comment: 'Best double burger in Cairo! Super juicy and sauce is perfect.', createdAt: new Date().toISOString() }
 ];
 
 let mockCoupons: Coupon[] = [
@@ -335,34 +256,180 @@ let mockCoupons: Coupon[] = [
   { id: 'coup-2', code: 'DODZ10', discountType: 'FIXED', discountValue: 30, isActive: true },
 ];
 
-export interface ChatMessage {
-  id: string;
-  userId: string;
-  senderRole: 'CUSTOMER' | 'STAFF' | 'OWNER';
-  senderName: string;
-  text: string;
-  createdAt: string;
+let mockChatMessages: ChatMessage[] = [];
+
+// ============================================================
+// DYNAMIC CLIENT RESOLVER
+// ============================================================
+
+function getSupabase() {
+  if (typeof window !== 'undefined') {
+    return createBrowserClient();
+  } else {
+    // Dynamically require server side libraries to prevent build issues
+    const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
+    return createSupabaseClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+  }
 }
 
-let mockChatMessages: ChatMessage[] = [
-  { id: 'm-1', userId: 'user-cust', senderRole: 'CUSTOMER', senderName: 'Mina Ramzy', text: 'Hello, is my order on the way?', createdAt: new Date(Date.now() - 50000).toISOString() },
-  { id: 'm-2', userId: 'user-cust', senderRole: 'STAFF', senderName: 'Karim Aly (Kitchen)', text: 'Yes Mina, our driver Mustafa has picked it up and is on the way!', createdAt: new Date(Date.now() - 30000).toISOString() },
-];
+function isSupabaseConfigured(): boolean {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+  return !!url && !url.includes('your-project-ref');
+}
 
-// Helper to write changes to local memory and simulate real DB
+function isValidUuid(id: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
+// ============================================================
+// FIELD MAPPERS
+// ============================================================
+
+function mapCategory(c: any): Category {
+  return { id: c.id, nameEn: c.name_en, nameAr: c.name_ar };
+}
+
+function mapProduct(p: any): Product {
+  return {
+    id: p.id,
+    categoryId: p.category_id,
+    nameEn: p.name_en,
+    nameAr: p.name_ar,
+    descEn: p.desc_en,
+    descAr: p.desc_ar,
+    priceSingle: Number(p.price_single),
+    priceDouble: p.price_double ? Number(p.price_double) : undefined,
+    imageUrl: p.image_url,
+    isAvailable: p.is_available,
+  };
+}
+
+function mapBranch(b: any): Branch {
+  return { id: b.id, nameEn: b.name_en, nameAr: b.name_ar, mapUrl: b.map_url || '' };
+}
+
+function mapOrder(o: any): Order {
+  return {
+    id: o.id,
+    userId: o.customer_id,
+    userName: o.customer_name,
+    userPhone: o.customer_phone,
+    branchId: o.branch_id,
+    type: o.type,
+    status: o.status,
+    total: Number(o.total),
+    deliveryFee: Number(o.delivery_fee),
+    address: o.address,
+    couponCode: o.coupon_code || undefined,
+    discount: Number(o.discount),
+    paymentMethod: o.payment_method,
+    driverId: o.driver_id || undefined,
+    driverName: o.driver?.full_name || undefined,
+    driverPhone: o.driver?.phone || undefined,
+    createdAt: o.created_at,
+    updatedAt: o.updated_at,
+    items: Array.isArray(o.order_items) ? o.order_items.map(mapOrderItem) : [],
+  };
+}
+
+function mapOrderItem(oi: any): OrderItem {
+  return {
+    id: oi.id,
+    productId: oi.menu_item_id || '',
+    productNameEn: oi.name_en,
+    productNameAr: oi.name_ar,
+    size: oi.size,
+    quantity: oi.quantity,
+    price: Number(oi.price),
+  };
+}
+
+function mapReview(r: any): Review {
+  return {
+    id: r.id,
+    userId: r.customer_id,
+    userName: r.profiles?.full_name || 'Customer',
+    productId: r.menu_item_id,
+    rating: r.rating,
+    comment: r.comment || '',
+    createdAt: r.created_at,
+  };
+}
+
+function mapCoupon(c: any): Coupon {
+  return {
+    id: c.id,
+    code: c.code,
+    discountType: c.discount_type,
+    discountValue: Number(c.discount_value),
+    isActive: c.is_active,
+  };
+}
+
+// ============================================================
+// EXPORTED DATABASE LAYER (SUPABASE + FALLBACK)
+// ============================================================
+
 export const db = {
   // CATEGORIES
   async getCategories(): Promise<Category[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await getSupabase()
+          .from('categories')
+          .select('*')
+          .eq('is_active', true)
+          .order('sort_order', { ascending: true });
+
+        if (!error && data) return data.map(mapCategory);
+      } catch (err) {
+        console.error('getCategories Supabase error, falling back to mock:', err);
+      }
+    }
     return mockCategories;
   },
 
   async createCategory(data: Omit<Category, 'id'>): Promise<Category> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: cat, error } = await getSupabase()
+          .from('categories')
+          .insert({ name_en: data.nameEn, name_ar: data.nameAr })
+          .select()
+          .single();
+
+        if (!error && cat) return mapCategory(cat);
+      } catch (err) {
+        console.error('createCategory Supabase error:', err);
+      }
+    }
     const newCat = { id: `cat-${Date.now()}`, ...data };
     mockCategories.push(newCat);
     return newCat;
   },
 
   async updateCategory(id: string, data: Partial<Category>): Promise<Category> {
+    if (isSupabaseConfigured() && isValidUuid(id)) {
+      try {
+        const updateData: any = {};
+        if (data.nameEn !== undefined) updateData.name_en = data.nameEn;
+        if (data.nameAr !== undefined) updateData.name_ar = data.nameAr;
+
+        const { data: cat, error } = await getSupabase()
+          .from('categories')
+          .update(updateData)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (!error && cat) return mapCategory(cat);
+      } catch (err) {
+        console.error('updateCategory Supabase error:', err);
+      }
+    }
     const idx = mockCategories.findIndex((c) => c.id === id);
     if (idx === -1) throw new Error('Category not found');
     mockCategories[idx] = { ...mockCategories[idx], ...data };
@@ -370,6 +437,18 @@ export const db = {
   },
 
   async deleteCategory(id: string): Promise<boolean> {
+    if (isSupabaseConfigured() && isValidUuid(id)) {
+      try {
+        const { error } = await getSupabase()
+          .from('categories')
+          .update({ is_active: false })
+          .eq('id', id);
+
+        if (!error) return true;
+      } catch (err) {
+        console.error('deleteCategory Supabase error:', err);
+      }
+    }
     mockCategories = mockCategories.filter((c) => c.id !== id);
     mockProducts = mockProducts.filter((p) => p.categoryId !== id);
     return true;
@@ -377,11 +456,35 @@ export const db = {
 
   // BRANCHES
   async getBranches(): Promise<Branch[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await getSupabase()
+          .from('branches')
+          .select('*')
+          .eq('is_active', true);
+
+        if (!error && data) return data.map(mapBranch);
+      } catch (err) {
+        console.error('getBranches Supabase error, falling back to mock:', err);
+      }
+    }
     return mockBranches;
   },
 
-  // PRODUCTS
+  // PRODUCTS (MENU ITEMS)
   async getProducts(categoryId?: string): Promise<Product[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        let query = getSupabase().from('menu_items').select('*').eq('is_available', true);
+        if (categoryId && isValidUuid(categoryId)) {
+          query = query.eq('category_id', categoryId);
+        }
+        const { data, error } = await query;
+        if (!error && data) return data.map(mapProduct);
+      } catch (err) {
+        console.error('getProducts Supabase error, falling back to mock:', err);
+      }
+    }
     if (categoryId) {
       return mockProducts.filter((p) => p.categoryId === categoryId);
     }
@@ -389,16 +492,77 @@ export const db = {
   },
 
   async getProductById(id: string): Promise<Product | undefined> {
+    if (isSupabaseConfigured() && isValidUuid(id)) {
+      try {
+        const { data, error } = await getSupabase()
+          .from('menu_items')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (!error && data) return mapProduct(data);
+      } catch (err) {
+        console.error('getProductById Supabase error:', err);
+      }
+    }
     return mockProducts.find((p) => p.id === id);
   },
 
   async createProduct(data: Omit<Product, 'id' | 'isAvailable'>): Promise<Product> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: prod, error } = await getSupabase()
+          .from('menu_items')
+          .insert({
+            category_id: data.categoryId,
+            name_en: data.nameEn,
+            name_ar: data.nameAr,
+            desc_en: data.descEn,
+            desc_ar: data.descAr,
+            price_single: data.priceSingle,
+            price_double: data.priceDouble || null,
+            image_url: data.imageUrl,
+            is_available: true,
+          })
+          .select()
+          .single();
+
+        if (!error && prod) return mapProduct(prod);
+      } catch (err) {
+        console.error('createProduct Supabase error:', err);
+      }
+    }
     const newProd = { id: `prod-${Date.now()}`, isAvailable: true, ...data };
     mockProducts.push(newProd);
     return newProd;
   },
 
   async updateProduct(id: string, data: Partial<Product>): Promise<Product> {
+    if (isSupabaseConfigured() && isValidUuid(id)) {
+      try {
+        const updateData: any = {};
+        if (data.categoryId !== undefined) updateData.category_id = data.categoryId;
+        if (data.nameEn !== undefined) updateData.name_en = data.nameEn;
+        if (data.nameAr !== undefined) updateData.name_ar = data.nameAr;
+        if (data.descEn !== undefined) updateData.desc_en = data.descEn;
+        if (data.descAr !== undefined) updateData.desc_ar = data.descAr;
+        if (data.priceSingle !== undefined) updateData.price_single = data.priceSingle;
+        if (data.priceDouble !== undefined) updateData.price_double = data.priceDouble || null;
+        if (data.imageUrl !== undefined) updateData.image_url = data.imageUrl;
+        if (data.isAvailable !== undefined) updateData.is_available = data.isAvailable;
+
+        const { data: prod, error } = await getSupabase()
+          .from('menu_items')
+          .update(updateData)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (!error && prod) return mapProduct(prod);
+      } catch (err) {
+        console.error('updateProduct Supabase error:', err);
+      }
+    }
     const idx = mockProducts.findIndex((p) => p.id === id);
     if (idx === -1) throw new Error('Product not found');
     mockProducts[idx] = { ...mockProducts[idx], ...data };
@@ -406,24 +570,92 @@ export const db = {
   },
 
   async deleteProduct(id: string): Promise<boolean> {
+    if (isSupabaseConfigured() && isValidUuid(id)) {
+      try {
+        const { error } = await getSupabase()
+          .from('menu_items')
+          .update({ is_available: false })
+          .eq('id', id);
+
+        if (!error) return true;
+      } catch (err) {
+        console.error('deleteProduct Supabase error:', err);
+      }
+    }
     mockProducts = mockProducts.filter((p) => p.id !== id);
     return true;
   },
 
-  // USERS / AUTH
+  // USERS / RBAC
   async getUserByEmail(email: string): Promise<User | undefined> {
+    if (isSupabaseConfigured()) {
+      try {
+        // Since email isn't in profiles table, we look up auth users (available on admin server)
+        // or check matching local profiles if mapping handles email in metadata/profile.
+        // For client side, we fallback gracefully.
+      } catch {}
+    }
     return mockUsers.find((u) => u.email.toLowerCase() === email.toLowerCase());
   },
 
   async getUserById(id: string): Promise<User | undefined> {
+    if (isSupabaseConfigured() && isValidUuid(id)) {
+      try {
+        const { data, error } = await getSupabase()
+          .from('profiles')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (!error && data) {
+          return {
+            id: data.id,
+            email: '',
+            name: data.full_name,
+            role: data.role,
+            phone: data.phone || undefined,
+          };
+        }
+      } catch (err) {
+        console.error('getUserById Supabase error:', err);
+      }
+    }
     return mockUsers.find((u) => u.id === id);
   },
 
   async getDrivers(): Promise<User[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await getSupabase()
+          .from('profiles')
+          .select('*')
+          .eq('role', 'DRIVER')
+          .eq('is_active', true);
+
+        if (!error && data) {
+          return data.map((p: any) => ({
+            id: p.id,
+            email: '',
+            name: p.full_name,
+            role: 'DRIVER',
+            phone: p.phone || undefined,
+          }));
+        }
+      } catch (err) {
+        console.error('getDrivers Supabase error:', err);
+      }
+    }
     return mockUsers.filter((u) => u.role === 'DRIVER');
   },
 
-  async createUser(data: { name: string; email: string; role: 'CUSTOMER' | 'DRIVER' | 'STAFF' | 'OWNER'; phone?: string }): Promise<User> {
+  async createUser(data: {
+    name: string;
+    email: string;
+    role: UserRole;
+    phone?: string;
+  }): Promise<User> {
+    // Note: Creating real Supabase Auth users should go through Server API /api/admin/users
+    // For local memory, we append to mockUsers
     const newUser = { id: `user-${Date.now()}`, ...data };
     mockUsers.push(newUser);
     return newUser;
@@ -431,17 +663,56 @@ export const db = {
 
   // ORDERS
   async getOrders(filters?: { userId?: string; driverId?: string; status?: string }): Promise<Order[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        let query = getSupabase().from('orders').select('*, order_items(*), driver:driver_id(full_name, phone)');
+
+        if (filters) {
+          if (filters.userId && isValidUuid(filters.userId)) {
+            query = query.eq('customer_id', filters.userId);
+          }
+          if (filters.driverId && isValidUuid(filters.driverId)) {
+            query = query.eq('driver_id', filters.driverId);
+          }
+          if (filters.status) {
+            query = query.eq('status', filters.status);
+          }
+        }
+
+        const { data, error } = await query.order('created_at', { ascending: false });
+
+        if (!error && data) {
+          return data.map(mapOrder);
+        }
+      } catch (err) {
+        console.error('getOrders Supabase error, falling back to mock:', err);
+      }
+    }
+
+    // Mock filtering
     let list = [...mockOrders];
     if (filters) {
       if (filters.userId) list = list.filter((o) => o.userId === filters.userId);
       if (filters.driverId) list = list.filter((o) => o.driverId === filters.driverId);
       if (filters.status) list = list.filter((o) => o.status === filters.status);
     }
-    // Sort latest first
     return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 
   async getOrderById(id: string): Promise<Order | undefined> {
+    if (isSupabaseConfigured() && isValidUuid(id)) {
+      try {
+        const { data, error } = await getSupabase()
+          .from('orders')
+          .select('*, order_items(*), driver:driver_id(full_name, phone)')
+          .eq('id', id)
+          .single();
+
+        if (!error && data) return mapOrder(data);
+      } catch (err) {
+        console.error('getOrderById Supabase error:', err);
+      }
+    }
     return mockOrders.find((o) => o.id === id);
   },
 
@@ -459,6 +730,55 @@ export const db = {
     couponCode?: string;
     items: Omit<OrderItem, 'id'>[];
   }): Promise<Order> {
+    // Creating order on client side calls supabase insert
+    if (isSupabaseConfigured() && isValidUuid(data.userId)) {
+      try {
+        const supabase = getSupabase();
+
+        // 1. Insert parent order
+        const { data: orderData, error: orderError } = await supabase
+          .from('orders')
+          .insert({
+            customer_id: data.userId,
+            branch_id: isValidUuid(data.branchId) ? data.branchId : null,
+            type: data.type,
+            status: 'PENDING',
+            total: data.total,
+            delivery_fee: data.deliveryFee,
+            address: data.address,
+            coupon_code: data.couponCode || null,
+            discount: data.discount,
+            payment_method: data.paymentMethod,
+            customer_name: data.userName,
+            customer_phone: data.userPhone,
+          })
+          .select()
+          .single();
+
+        if (orderError) throw orderError;
+
+        // 2. Insert children items
+        const orderItems = data.items.map((it) => ({
+          order_id: orderData.id,
+          menu_item_id: isValidUuid(it.productId) ? it.productId : null,
+          name_en: it.productNameEn,
+          name_ar: it.productNameAr,
+          size: it.size,
+          quantity: it.quantity,
+          price: it.price,
+        }));
+
+        const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+        if (itemsError) throw itemsError;
+
+        // Fetch completed order details
+        const completedOrder = await this.getOrderById(orderData.id);
+        if (completedOrder) return completedOrder;
+      } catch (err) {
+        console.error('createOrder Supabase error, falling back to mock:', err);
+      }
+    }
+
     const orderId = `ord-${Math.floor(1000 + Math.random() * 9000)}`;
     const newOrder: Order = {
       id: orderId,
@@ -472,7 +792,36 @@ export const db = {
     return newOrder;
   },
 
-  async updateOrderStatus(orderId: string, status: Order['status'], driverId?: string): Promise<Order> {
+  async updateOrderStatus(
+    orderId: string,
+    status: Order['status'],
+    driverId?: string
+  ): Promise<Order> {
+    if (isSupabaseConfigured() && isValidUuid(orderId)) {
+      try {
+        const updatePayload: any = {
+          status,
+          updated_at: new Date().toISOString(),
+        };
+
+        if (driverId && isValidUuid(driverId)) {
+          updatePayload.driver_id = driverId;
+        }
+
+        const { error } = await getSupabase()
+          .from('orders')
+          .update(updatePayload)
+          .eq('id', orderId);
+
+        if (!error) {
+          const updatedOrder = await this.getOrderById(orderId);
+          if (updatedOrder) return updatedOrder;
+        }
+      } catch (err) {
+        console.error('updateOrderStatus Supabase error:', err);
+      }
+    }
+
     const idx = mockOrders.findIndex((o) => o.id === orderId);
     if (idx === -1) throw new Error('Order not found');
 
@@ -485,17 +834,55 @@ export const db = {
         update.driverPhone = driver.phone || '01200000000';
       }
     }
-    
+
     mockOrders[idx] = { ...mockOrders[idx], ...update };
     return mockOrders[idx];
   },
 
   // REVIEWS
   async getReviews(productId: string): Promise<Review[]> {
+    if (isSupabaseConfigured() && isValidUuid(productId)) {
+      try {
+        const { data, error } = await getSupabase()
+          .from('reviews')
+          .select('*, profiles(full_name)')
+          .eq('menu_item_id', productId)
+          .order('created_at', { ascending: false });
+
+        if (!error && data) return data.map(mapReview);
+      } catch (err) {
+        console.error('getReviews Supabase error, falling back to mock:', err);
+      }
+    }
     return mockReviews.filter((r) => r.productId === productId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 
-  async createReview(data: { userId: string; userName: string; productId: string; rating: number; comment: string }): Promise<Review> {
+  async createReview(data: {
+    userId: string;
+    userName: string;
+    productId: string;
+    rating: number;
+    comment: string;
+  }): Promise<Review> {
+    if (isSupabaseConfigured() && isValidUuid(data.userId) && isValidUuid(data.productId)) {
+      try {
+        const { data: rev, error } = await getSupabase()
+          .from('reviews')
+          .insert({
+            customer_id: data.userId,
+            menu_item_id: data.productId,
+            rating: data.rating,
+            comment: data.comment,
+          })
+          .select('*, profiles(full_name)')
+          .single();
+
+        if (!error && rev) return mapReview(rev);
+      } catch (err) {
+        console.error('createReview Supabase error:', err);
+      }
+    }
+
     const newReview: Review = {
       id: `rev-${Date.now()}`,
       createdAt: new Date().toISOString(),
@@ -507,20 +894,64 @@ export const db = {
 
   // COUPONS
   async getCouponByCode(code: string): Promise<Coupon | undefined> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await getSupabase()
+          .from('coupons')
+          .select('*')
+          .eq('code', code.toUpperCase())
+          .eq('is_active', true)
+          .single();
+
+        if (!error && data) return mapCoupon(data);
+      } catch (err) {
+        console.error('getCouponByCode Supabase error:', err);
+      }
+    }
     return mockCoupons.find((c) => c.code.toUpperCase() === code.toUpperCase() && c.isActive);
   },
 
   async getCoupons(): Promise<Coupon[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await getSupabase()
+          .from('coupons')
+          .select('*');
+
+        if (!error && data) return data.map(mapCoupon);
+      } catch (err) {
+        console.error('getCoupons Supabase error, falling back to mock:', err);
+      }
+    }
     return mockCoupons;
   },
 
   async createCoupon(data: Omit<Coupon, 'id' | 'isActive'>): Promise<Coupon> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: coup, error } = await getSupabase()
+          .from('coupons')
+          .insert({
+            code: data.code.toUpperCase(),
+            discount_type: data.discountType,
+            discount_value: data.discountValue,
+            is_active: true,
+          })
+          .select()
+          .single();
+
+        if (!error && coup) return mapCoupon(coup);
+      } catch (err) {
+        console.error('createCoupon Supabase error:', err);
+      }
+    }
     const newCoupon = { id: `coup-${Date.now()}`, isActive: true, ...data };
     mockCoupons.push(newCoupon);
     return newCoupon;
   },
 
-  // CHAT SUPPORT
+  // CHAT SUPPORT (Integrated directly via Realtime in chat.ts hooks,
+  // keeping interface for compatibility)
   async getChatMessages(userId: string): Promise<ChatMessage[]> {
     return mockChatMessages
       .filter((m) => m.userId === userId)

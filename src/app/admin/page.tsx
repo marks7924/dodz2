@@ -6,14 +6,16 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import CartSidebar from '@/components/cart/CartSidebar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { db, Order, Product, Category, User } from '@/lib/db';
-import { Plus, Edit2, Trash2, Eye, ShieldAlert, Sparkles, Bell, DollarSign, ListOrdered, Check, AlertTriangle, EyeOff, RotateCcw } from 'lucide-react';
+import { db, Order, Product, Category } from '@/lib/db';
+import { Plus, Edit2, Trash2, ShieldAlert, Bell, DollarSign, ListOrdered, Check, AlertTriangle, EyeOff, RotateCcw } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import Link from 'next/link';
 
 export default function AdminDashboardPage() {
   const { t, locale } = useLanguage();
   const queryClient = useQueryClient();
   const [mounted, setMounted] = useState(false);
-  const [adminUser, setAdminUser] = useState<User | null>(null);
+  const { user, profile, role, isAuthenticated, isLoading } = useAuth();
 
   // Tab state: 'ORDERS', 'MENU', 'COUPONS', or 'CHAT'
   const [activeTab, setActiveTab] = useState<'ORDERS' | 'MENU' | 'COUPONS' | 'CHAT'>('ORDERS');
@@ -29,22 +31,13 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     setMounted(true);
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      const parsed = JSON.parse(savedUser);
-      if (parsed.role === 'STAFF' || parsed.role === 'OWNER') {
-        setAdminUser(parsed);
-      }
-    }
 
     // Handle auto-edit redirect param
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const editId = params.get('edit');
       if (editId) {
-        const savedUser = localStorage.getItem('user');
-        const userRole = savedUser ? JSON.parse(savedUser).role : 'STAFF';
-        if (userRole === 'OWNER') {
+        if (role === 'OWNER' || role === 'ADMIN') {
           setActiveTab('MENU');
           db.getProductById(editId).then((prod) => {
             if (prod) {
@@ -57,33 +50,33 @@ export default function AdminDashboardPage() {
         }
       }
     }
-  }, []);
+  }, [role]);
 
   // Poll orders database every 2 seconds for live kitchen updates!
   const { data: orders = [] } = useQuery<Order[]>({
     queryKey: ['admin-orders'],
     queryFn: () => db.getOrders(),
     refetchInterval: 2000,
-    enabled: !!adminUser,
+    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
   const { data: products = [] } = useQuery<Product[]>({
     queryKey: ['admin-products'],
     queryFn: () => db.getProducts(),
     refetchInterval: 2000,
-    enabled: !!adminUser,
+    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['admin-categories'],
     queryFn: () => db.getCategories(),
-    enabled: !!adminUser,
+    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
   const { data: branches = [] } = useQuery<any[]>({
     queryKey: ['admin-branches'],
     queryFn: () => db.getBranches(),
-    enabled: !!adminUser,
+    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
   // Coupons states & React Query
@@ -96,7 +89,7 @@ export default function AdminDashboardPage() {
   const { data: coupons = [] } = useQuery({
     queryKey: ['admin-coupons'],
     queryFn: () => db.getCoupons(),
-    enabled: !!adminUser,
+    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
   const createCouponMutation = useMutation({
@@ -121,20 +114,20 @@ export default function AdminDashboardPage() {
     queryKey: ['active-chats'],
     queryFn: () => db.getActiveChats(),
     refetchInterval: 2000,
-    enabled: !!adminUser,
+    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
   const { data: adminChatMessages = [] } = useQuery({
     queryKey: ['admin-chat-messages', activeChatUserId],
     queryFn: () => (activeChatUserId ? db.getChatMessages(activeChatUserId) : Promise.resolve([])),
     refetchInterval: 2000,
-    enabled: !!adminUser && !!activeChatUserId,
+    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || '') && !!activeChatUserId,
   });
 
   const sendAdminChatMutation = useMutation({
     mutationFn: (data: { text: string }) => {
-      if (!activeChatUserId || !adminUser) throw new Error('No active chat session');
-      return db.sendChatMessage(activeChatUserId, adminUser.role as any, adminUser.name, data.text);
+      if (!activeChatUserId || !user) throw new Error('No active chat session');
+      return db.sendChatMessage(activeChatUserId, role as any, profile?.full_name || 'Staff', data.text);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-chat-messages', activeChatUserId] });
@@ -150,7 +143,7 @@ export default function AdminDashboardPage() {
 
   // Audio beep notifier when a new order is received!
   useEffect(() => {
-    if (adminUser && orders.length > 0) {
+    if (role && orders.length > 0) {
       const pendingOrders = orders.filter((o) => o.status === 'PENDING');
       const count = pendingOrders.length;
 
@@ -199,7 +192,7 @@ export default function AdminDashboardPage() {
       }
       previousOrdersCountRef.current = count;
     }
-  }, [orders, adminUser, alertAudioEnabled]);
+  }, [orders, role, alertAudioEnabled]);
 
   // MUTATIONS
   const acceptOrderMutation = useMutation({
@@ -239,14 +232,15 @@ export default function AdminDashboardPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-products'] }),
   });
 
-  if (!mounted) return null;
+  if (!mounted || isLoading) return null;
 
   // Access Protection
-  if (!adminUser) {
+  const hasAccess = isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || '');
+  if (!hasAccess) {
     return (
       <>
         <Header />
-        <main className="flex-grow max-w-md mx-auto px-4 py-16 flex flex-col justify-center items-center text-center space-y-6">
+        <main className="flex-grow max-w-md mx-auto px-4 py-16 flex flex-col justify-center items-center text-center space-y-6 text-white">
           <div className="h-16 w-16 rounded-full bg-primary-red/10 text-primary-red flex items-center justify-center border border-primary-red/20">
             <ShieldAlert className="h-8 w-8" />
           </div>
@@ -254,32 +248,16 @@ export default function AdminDashboardPage() {
             <h1 className="text-xl font-bold text-white">{locale === 'en' ? 'Staff Panel Access' : 'بوابة الموظفين'}</h1>
             <p className="text-xs text-text-muted">
               {locale === 'en'
-                ? 'This area is restricted to Kitchen Staff & Restaurant Owners. Please switch your account role to STAFF or OWNER to continue.'
-                : 'هذا القسم خاص بموظفي المطبخ وإدارة المطعم. يرجى تبديل دور الحساب إلى (STAFF) أو (OWNER) للمتابعة.'}
+                ? 'This area is restricted to Authorized Staff. Please log in with a Staff or Admin account.'
+                : 'هذا القسم خاص بالموظفين المصرح لهم. يرجى تسجيل الدخول بحساب موظف أو مسؤول.'}
             </p>
           </div>
-          <div className="flex flex-col gap-2 w-full">
-            <button
-              onClick={() => {
-                const staff = { id: 'user-staff', name: 'Karim Aly (Kitchen)', email: 'staff@dodz.com', role: 'STAFF', phone: '01033334444' };
-                localStorage.setItem('user', JSON.stringify(staff));
-                window.location.reload();
-              }}
-              className="w-full py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all"
-            >
-              {locale === 'en' ? 'Switch Role to KITCHEN STAFF' : 'تبديل دور الحساب إلى موظف مطبخ'}
-            </button>
-            <button
-              onClick={() => {
-                const owner = { id: 'user-owner', name: 'Sherif Dodz (Owner)', email: 'owner@dodz.com', role: 'OWNER', phone: '01011112222' };
-                localStorage.setItem('user', JSON.stringify(owner));
-                window.location.reload();
-              }}
-              className="w-full py-3 bg-card hover:bg-card-border border border-card-border text-foreground text-xs font-bold rounded-xl transition-all"
-            >
-              {locale === 'en' ? 'Switch Role to OWNER' : 'تبديل دور الحساب إلى مالك المطعم'}
-            </button>
-          </div>
+          <Link
+            href="/auth/login"
+            className="w-full py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all block text-center"
+          >
+            {locale === 'en' ? 'Go to Login' : 'الذهاب لتسجيل الدخول'}
+          </Link>
         </main>
         <Footer />
       </>
@@ -312,16 +290,15 @@ export default function AdminDashboardPage() {
     setIsEditingProduct(true);
   };
 
-  const handleOpenEditProduct = (prod: Product) => {
-    setEditingProduct(prod);
+  const handleOpenEditProduct = (product: Product) => {
+    setEditingProduct({ ...product });
     setIsEditingProduct(true);
   };
 
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingProduct) {
-      saveProductMutation.mutate(editingProduct);
-    }
+    if (!editingProduct) return;
+    saveProductMutation.mutate(editingProduct);
   };
 
   return (
@@ -329,30 +306,30 @@ export default function AdminDashboardPage() {
       <Header />
       <CartSidebar />
 
-      <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 space-y-6">
+      <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 py-8 pb-24 md:pb-8 space-y-6">
         
         {/* Dashboard Title & Admin Metadata */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-card-border pb-6">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-card-border pb-6 font-semibold">
           <div className="space-y-1">
-            <h1 className="text-2xl md:text-3xl font-black text-white flex items-center gap-2">
+            <h1 className="text-xl md:text-3xl font-black text-white flex items-center gap-2 flex-wrap">
               <span>{t('adminDashboard')}</span>
               <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-primary-red/10 text-primary-red border border-primary-red/20">
-                {adminUser.role}
+                {role}
               </span>
             </h1>
             <p className="text-xs text-text-muted">
-              {locale === 'en' ? 'Welcome back,' : 'مرحباً بك،'} <span className="text-white font-bold">{adminUser.name}</span>
+              {locale === 'en' ? 'Welcome back,' : 'مرحباً بك،'} <span className="text-white font-bold">{profile?.full_name || user?.email}</span>
             </p>
           </div>
 
-          <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+          <div className="flex flex-col items-stretch sm:items-end gap-3 w-full sm:w-auto">
             {/* Branch Filter Dropdown */}
-            <div className="flex items-center gap-2 bg-card border border-card-border px-4 py-2.5 rounded-2xl">
-              <span className="text-[10px] text-text-muted font-bold uppercase">{locale === 'en' ? 'Filter Branch:' : 'تصفية حسب الفرع:'}</span>
+            <div className="flex items-center gap-2 bg-card border border-card-border px-4 py-2.5 rounded-2xl w-full sm:w-auto">
+              <span className="text-[10px] text-text-muted font-bold uppercase shrink-0">{locale === 'en' ? 'Branch:' : 'الفرع:'}</span>
               <select
                 value={filterBranchId}
                 onChange={(e) => setFilterBranchId(e.target.value)}
-                className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer pr-1"
+                className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer flex-1 sm:flex-none"
               >
                 <option value="ALL" className="bg-[#18181B] text-white font-bold">{locale === 'en' ? 'All Branches' : 'جميع الفروع'}</option>
                 {branches.map((b: any) => (
@@ -363,50 +340,32 @@ export default function AdminDashboardPage() {
               </select>
             </div>
 
-            {/* Tab buttons control */}
-            <div className="flex gap-2 bg-card border border-card-border p-1 rounded-2xl">
-              <button
-                onClick={() => setActiveTab('ORDERS')}
-                className={`px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'ORDERS' ? 'bg-primary-red text-white' : 'text-text-muted hover:text-white'
-                }`}
-              >
-                {t('liveOrdersCenter')}
-              </button>
-              {adminUser.role === 'OWNER' && (
+            {/* Sub-pages Navigation for Admins — visible on desktop only; on mobile use Header links */}
+            <div className="hidden sm:flex gap-2 flex-wrap items-center">
+              {['OWNER', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
                 <>
-                  <button
-                    onClick={() => setActiveTab('MENU')}
-                    className={`px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      activeTab === 'MENU' ? 'bg-primary-red text-white' : 'text-text-muted hover:text-white'
-                    }`}
-                  >
-                    {t('menuManagement')}
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('COUPONS')}
-                    className={`px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                      activeTab === 'COUPONS' ? 'bg-primary-red text-white' : 'text-text-muted hover:text-white'
-                    }`}
-                  >
-                    {locale === 'en' ? 'Coupons & Offers' : 'الأكواد والعروض'}
-                  </button>
+                  <Link href="/admin/users" className="px-4 py-2 rounded-xl text-xs font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all">
+                    {locale === 'en' ? 'Users' : 'المستخدمين'}
+                  </Link>
+                  <Link href="/admin/analytics" className="px-4 py-2 rounded-xl text-xs font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all">
+                    {locale === 'en' ? 'Analytics' : 'التحليلات'}
+                  </Link>
+                  <Link href="/admin/logs" className="px-4 py-2 rounded-xl text-xs font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all">
+                    {locale === 'en' ? 'Logs' : 'السجلات'}
+                  </Link>
                 </>
               )}
-              <button
-                onClick={() => setActiveTab('CHAT')}
-                className={`px-5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  activeTab === 'CHAT' ? 'bg-primary-red text-white' : 'text-text-muted hover:text-white'
-                }`}
-              >
-                {locale === 'en' ? 'Support Chat' : 'الدعم والمحادثة'}
-              </button>
+              {['OWNER', 'DEVELOPER'].includes(role || '') && (
+                <Link href="/admin/settings" className="px-4 py-2 rounded-xl text-xs font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all">
+                  {locale === 'en' ? 'Settings' : 'الإعدادات'}
+                </Link>
+              )}
             </div>
           </div>
         </div>
 
         {/* OWNER METRICS PANEL (Only visible if role === OWNER) */}
-        {adminUser.role === 'OWNER' && (
+        {role === 'OWNER' && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 bg-card border border-card-border rounded-3xl p-6">
             <div className="space-y-1 sm:col-span-1">
               <span className="text-[10px] text-accent-amber font-extrabold uppercase tracking-widest">Business Report</span>
@@ -414,7 +373,7 @@ export default function AdminDashboardPage() {
               <p className="text-[10px] text-text-muted">Real-time metrics compiled from live database stores.</p>
             </div>
             
-            <div className="p-4 rounded-2xl bg-[#18181B] border border-card-border flex items-center gap-4">
+            <div className="p-4 rounded-2xl bg-[#18181B] border border-card-border flex items-center gap-4 text-white">
               <div className="h-10 w-10 rounded-xl bg-green-500/10 text-green-500 flex items-center justify-center">
                 <DollarSign className="h-5 w-5" />
               </div>
@@ -424,7 +383,7 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-[#18181B] border border-card-border flex items-center gap-4">
+            <div className="p-4 rounded-2xl bg-[#18181B] border border-card-border flex items-center gap-4 text-white">
               <div className="h-10 w-10 rounded-xl bg-accent-amber/10 text-accent-amber flex items-center justify-center">
                 <ListOrdered className="h-5 w-5" />
               </div>
@@ -440,7 +399,7 @@ export default function AdminDashboardPage() {
         {/* ACTIVE ORDERS CONTROLLER TAB */}
         {/* ========================================================================= */}
         {activeTab === 'ORDERS' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* INCOMING PENDING ORDERS (Needs driver assignment or acceptance) */}
             <div className="space-y-4">
@@ -858,9 +817,9 @@ export default function AdminDashboardPage() {
         {/* LIVE SUPPORT CHAT ADMIN PANEL TAB */}
         {/* ========================================================================= */}
         {activeTab === 'CHAT' && (
-          <div className="bg-card border border-card-border rounded-3xl p-6 flex flex-col md:flex-row gap-6 min-h-[450px]">
+          <div className="bg-card border border-card-border rounded-3xl p-4 sm:p-6 flex flex-col md:flex-row gap-6 min-h-[450px]">
             {/* Left list: active chats */}
-            <div className="md:w-1/3 border-r rtl:border-r-0 rtl:border-l border-card-border pr-6 rtl:pr-0 rtl:pl-6 space-y-4">
+            <div className="md:w-1/3 border-b md:border-b-0 md:border-r rtl:md:border-r-0 rtl:md:border-l border-card-border pb-4 md:pb-0 md:pr-6 rtl:md:pr-0 rtl:md:pl-6 space-y-4">
               <h3 className="text-xs font-bold text-white uppercase tracking-wider">Active Chat Sessions</h3>
               <div className="space-y-2">
                 {activeChats.length === 0 ? (
@@ -1092,6 +1051,54 @@ export default function AdminDashboardPage() {
         )}
 
       </main>
+
+      {/* ===== STICKY BOTTOM TAB BAR — Mobile Only (md:hidden) ===== */}
+      <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-[#0E0E10]/95 backdrop-blur-md border-t border-card-border safe-bottom">
+        <div className="flex items-stretch h-16">
+          <button
+            onClick={() => setActiveTab('ORDERS')}
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
+              activeTab === 'ORDERS' ? 'text-primary-red' : 'text-text-muted'
+            }`}
+          >
+            <ListOrdered className="h-5 w-5" />
+            <span>{locale === 'en' ? 'Orders' : 'الطلبات'}</span>
+          </button>
+
+          {role === 'OWNER' && (
+            <>
+              <button
+                onClick={() => setActiveTab('MENU')}
+                className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
+                  activeTab === 'MENU' ? 'text-primary-red' : 'text-text-muted'
+                }`}
+              >
+                <EyeOff className="h-5 w-5" />
+                <span>{locale === 'en' ? 'Menu' : 'المنيو'}</span>
+              </button>
+              <button
+                onClick={() => setActiveTab('COUPONS')}
+                className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
+                  activeTab === 'COUPONS' ? 'text-primary-red' : 'text-text-muted'
+                }`}
+              >
+                <DollarSign className="h-5 w-5" />
+                <span>{locale === 'en' ? 'Coupons' : 'كوبون'}</span>
+              </button>
+            </>
+          )}
+
+          <button
+            onClick={() => setActiveTab('CHAT')}
+            className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
+              activeTab === 'CHAT' ? 'text-primary-red' : 'text-text-muted'
+            }`}
+          >
+            <Bell className="h-5 w-5" />
+            <span>{locale === 'en' ? 'Chat' : 'دردشة'}</span>
+          </button>
+        </div>
+      </nav>
 
       <Footer />
     </>

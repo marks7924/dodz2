@@ -7,37 +7,95 @@ import Footer from '@/components/layout/Footer';
 import CartSidebar from '@/components/cart/CartSidebar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, Order, User } from '@/lib/db';
+import { useAuth } from '@/context/AuthContext';
+import { createClient } from '@/lib/supabase/client';
 import { Truck, CheckCircle, Clock, MapPin, Phone, ShieldAlert, DollarSign, ListOrdered } from 'lucide-react';
+import Link from 'next/link';
 
 export default function DriverPortalPage() {
   const { t, locale } = useLanguage();
   const queryClient = useQueryClient();
+  const { user, profile } = useAuth();
   const [mounted, setMounted] = useState(false);
-  const [driverUser, setDriverUser] = useState<User | null>(null);
+  const [driverUser, setDriverUser] = useState<any>(null);
+
+  const isMock = !process.env.NEXT_PUBLIC_SUPABASE_URL || 
+                 process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project-ref');
 
   useEffect(() => {
     setMounted(true);
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      const parsed = JSON.parse(savedUser);
-      if (parsed.role === 'DRIVER') {
-        setDriverUser(parsed);
-      }
-    }
   }, []);
 
-  // Poll driver assigned orders every 2 seconds
+  useEffect(() => {
+    if (profile && profile.role === 'DRIVER') {
+      setDriverUser({
+        id: profile.id,
+        name: profile.full_name,
+        email: user?.email || 'driver@dodz.com',
+        role: profile.role,
+        phone: profile.phone || '',
+      });
+    } else if (isMock) {
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (parsed.role === 'DRIVER') {
+          setDriverUser(parsed);
+        }
+      }
+    } else {
+      setDriverUser(null);
+    }
+  }, [profile, user, isMock]);
+
+  // Poll driver assigned orders (with subscription handling)
   const { data: allOrders = [] } = useQuery<Order[]>({
     queryKey: ['driver-orders'],
     queryFn: () => db.getOrders(),
-    refetchInterval: 2000,
+    refetchInterval: isMock ? 2000 : false, // Poll only in mock mode
     enabled: !!driverUser,
   });
 
-  // Mutator to update order status
+  // Set up Supabase Realtime subscription for real-time order updates
+  useEffect(() => {
+    if (!driverUser || isMock) return;
+
+    const supabase = createClient();
+    const channel = supabase
+      .channel('driver-orders-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `driver_id=eq.${driverUser.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['driver-orders'] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [driverUser, isMock, queryClient]);
+
+  // Mutator to update order status via route handler
   const updateStatusMutation = useMutation({
-    mutationFn: (data: { orderId: string; status: Order['status'] }) =>
-      db.updateOrderStatus(data.orderId, data.status),
+    mutationFn: async (data: { orderId: string; status: Order['status'] }) => {
+      const response = await fetch(`/api/orders/${data.orderId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: data.status }),
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to update order status');
+      }
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['driver-orders'] });
     },
@@ -57,22 +115,34 @@ export default function DriverPortalPage() {
           <div className="space-y-2">
             <h1 className="text-xl font-bold text-white">{locale === 'en' ? 'Driver Portal Access' : 'بوابة السائق'}</h1>
             <p className="text-xs text-text-muted">
-              {locale === 'en'
-                ? 'This portal is restricted to active Delivery Drivers. Please switch your role to DRIVER using the account widget in the header.'
-                : 'هذا القسم خاص بسائقي التوصيل المعتمدين فقط. يرجى تبديل دور الحساب إلى (DRIVER) من القائمة العلوية للتجربة.'}
+              {isMock
+                ? (locale === 'en'
+                  ? 'This portal is restricted to active Delivery Drivers. Please switch your role to DRIVER using the switch helper below or the header widget.'
+                  : 'هذا القسم خاص بسائقي التوصيل المعتمدين فقط. يرجى تبديل دور الحساب إلى (DRIVER) من القائمة العلوية أو الزر بالأسفل.')
+                : (locale === 'en'
+                  ? 'This portal is restricted to active Delivery Drivers. Please login using a driver account.'
+                  : 'هذا القسم خاص بسائقي التوصيل المعتمدين فقط. يرجى تسجيل الدخول بحساب سائق.')}
             </p>
           </div>
-          <button
-            onClick={() => {
-              // Quick helper to switch role to driver automatically
-              const driver = { id: 'user-driver1', name: 'Mustafa Salem (Driver)', email: 'driver1@dodz.com', role: 'DRIVER', phone: '01255556666' };
-              localStorage.setItem('user', JSON.stringify(driver));
-              window.location.reload();
-            }}
-            className="w-full py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all"
-          >
-            {locale === 'en' ? 'Switch Role to DRIVER' : 'تبديل دور الحساب إلى سائق'}
-          </button>
+          {isMock ? (
+            <button
+              onClick={() => {
+                const driver = { id: 'user-driver1', name: 'Mustafa Salem (Driver)', email: 'driver1@dodz.com', role: 'DRIVER', phone: '01255556666' };
+                localStorage.setItem('user', JSON.stringify(driver));
+                window.location.reload();
+              }}
+              className="w-full py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+            >
+              {locale === 'en' ? 'Switch Role to DRIVER (Mock)' : 'تبديل دور الحساب إلى سائق (تجريبي)'}
+            </button>
+          ) : (
+            <Link
+              href="/auth/login"
+              className="w-full py-3 bg-primary-red hover:bg-primary-red-hover text-white text-center text-xs font-bold rounded-xl transition-all cursor-pointer"
+            >
+              {locale === 'en' ? 'Login as Driver' : 'تسجيل دخول السائق'}
+            </Link>
+          )}
         </main>
         <Footer />
       </>
@@ -93,9 +163,11 @@ export default function DriverPortalPage() {
 
   const handleUpdateStatus = (orderId: string, currentStatus: Order['status']) => {
     let nextStatus: Order['status'] = 'PENDING';
-    if (currentStatus === 'PENDING') nextStatus = 'PREPARING';
-    else if (currentStatus === 'PREPARING') nextStatus = 'ON_THE_WAY';
-    else if (currentStatus === 'ON_THE_WAY') nextStatus = 'DELIVERED';
+    if (currentStatus === 'PENDING' || currentStatus === 'PREPARING') {
+      nextStatus = 'ON_THE_WAY'; // Transition from Assigned/Preparing to On the way (picked up)
+    } else if (currentStatus === 'ON_THE_WAY') {
+      nextStatus = 'DELIVERED'; // Transition from On the way to Delivered
+    }
 
     updateStatusMutation.mutate({ orderId, status: nextStatus });
   };
@@ -216,16 +288,10 @@ export default function DriverPortalPage() {
                       onClick={() => handleUpdateStatus(order.id, order.status)}
                       className="w-full py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-primary-red/15 flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      {order.status === 'PENDING' && (
-                        <>
-                          <Clock className="h-4 w-4" />
-                          <span>{t('markPreparing')}</span>
-                        </>
-                      )}
-                      {order.status === 'PREPARING' && (
+                      {(order.status === 'PENDING' || order.status === 'PREPARING') && (
                         <>
                           <Truck className="h-4 w-4 animate-bounce" />
-                          <span>{t('markShipped')}</span>
+                          <span>{locale === 'en' ? 'Confirm Pickup & Start Delivery' : 'تأكيد الاستلام وبدء التوصيل'}</span>
                         </>
                       )}
                       {order.status === 'ON_THE_WAY' && (

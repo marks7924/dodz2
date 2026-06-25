@@ -8,7 +8,8 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import CartSidebar from '@/components/cart/CartSidebar';
 import { db } from '@/lib/db';
-import { MapPin, Phone, User, CreditCard, ChevronRight, CheckCircle, Navigation } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { MapPin, Phone, User, CreditCard, ChevronRight, CheckCircle, Navigation, ArrowRight } from 'lucide-react';
 
 export default function CheckoutPage() {
   const { t, locale, dir } = useLanguage();
@@ -32,10 +33,9 @@ export default function CheckoutPage() {
   const [address, setAddress] = useState('');
   const [payment, setPayment] = useState<'COD' | 'FAWRY' | 'CARD'>('COD');
   
-  // Card input states
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
+  // Fawry reference states
+  const [fawryCode, setFawryCode] = useState<string | null>(null);
+  const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
 
   // Map mock states
   const [pinLat, setPinLat] = useState(30.0444); // Cairo center
@@ -43,21 +43,21 @@ export default function CheckoutPage() {
   const [customDeliveryFee, setCustomDeliveryFee] = useState(40);
   const [isPinning, setIsPinning] = useState(false);
   const [isOrdering, setIsOrdering] = useState(false);
-
+  const { user, profile } = useAuth();
   const [mounted, setMounted] = useState(false);
   const [branches, setBranches] = useState<any[]>([]);
 
   useEffect(() => {
     setMounted(true);
     db.getBranches().then(setBranches);
-    // Load customer name and phone if logged in
-    const savedUser = localStorage.getItem('user');
-    if (savedUser) {
-      const user = JSON.parse(savedUser);
-      setName(user.name || '');
-      setPhone(user.phone || '');
-    }
   }, []);
+
+  useEffect(() => {
+    if (profile) {
+      setName(profile.full_name || '');
+      setPhone(profile.phone || '');
+    }
+  }, [profile]);
 
   const selectedBranch = branches.find(b => b.id === selectedBranchId);
 
@@ -97,45 +97,69 @@ export default function CheckoutPage() {
 
     setIsOrdering(true);
 
-    // Retrieve simulated user id
-    const savedUser = localStorage.getItem('user');
-    const user = savedUser ? JSON.parse(savedUser) : { id: 'user-cust' };
-
     const branchName = selectedBranch
       ? (locale === 'en' ? selectedBranch.nameEn : selectedBranch.nameAr)
       : 'Dodz Restaurant Main Branch';
 
+    const orderPayload = {
+      userId: profile?.id || 'guest-user',
+      userName: name,
+      userPhone: phone,
+      branchId: selectedBranchId,
+      type: deliveryType,
+      address: deliveryType === 'DELIVERY' ? address : `PICKUP - ${branchName}`,
+      paymentMethod: payment,
+      total: getTotal(),
+      deliveryFee: deliveryType === 'DELIVERY' ? customDeliveryFee : 0,
+      discount: getDiscountAmount(),
+      couponCode: coupon?.code || undefined,
+      items: items.map((it) => ({
+        productId: it.productId as string,
+        productNameEn: it.nameEn,
+        productNameAr: it.nameAr,
+        size: it.size,
+        quantity: it.quantity,
+        price: it.price,
+      })),
+      lat: deliveryType === 'DELIVERY' ? pinLat : undefined,
+      lng: deliveryType === 'DELIVERY' ? pinLng : undefined,
+    };
+
     try {
-      const order = await db.createOrder({
-        userId: user.id,
-        userName: name,
-        userPhone: phone,
-        branchId: selectedBranchId,
-        type: deliveryType,
-        address: deliveryType === 'DELIVERY' ? address : `PICKUP - ${branchName}`,
-        paymentMethod: payment,
-        total: getTotal(),
-        deliveryFee: deliveryType === 'DELIVERY' ? customDeliveryFee : 0,
-        discount: getDiscountAmount(),
-        couponCode: coupon?.code || undefined,
-        items: items.map((it) => ({
-          productId: it.productId as string,
-          productNameEn: it.nameEn,
-          productNameAr: it.nameAr,
-          size: it.size,
-          quantity: it.quantity,
-          price: it.price,
-        })),
+      const response = await fetch('/api/payment/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderPayload),
       });
 
-      // Clear the local cart
-      clearCart();
-      setIsOrdering(false);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Payment initiation failed');
+      }
 
-      // Redirect to Order tracking page
-      router.push(`/track/${order.id}`);
-    } catch (err) {
-      console.error(err);
+      const data = await response.json();
+
+      if (payment === 'COD') {
+        clearCart();
+        setIsOrdering(false);
+        router.push(`/track/${data.orderId}`);
+      } else if (payment === 'CARD') {
+        clearCart();
+        setIsOrdering(false);
+        if (data.iframeUrl) {
+          window.location.href = data.iframeUrl;
+        } else {
+          throw new Error('No iframe URL returned');
+        }
+      } else if (payment === 'FAWRY') {
+        clearCart();
+        setIsOrdering(false);
+        setFawryCode(data.fawryRefNumber);
+        setSuccessOrderId(data.orderId);
+      }
+    } catch (err: any) {
+      console.error('Checkout place order failure:', err);
+      alert(locale === 'en' ? `Error: ${err.message}` : `خطأ: ${err.message}`);
       setIsOrdering(false);
     }
   };
@@ -360,35 +384,15 @@ export default function CheckoutPage() {
                   </label>
                 </div>
 
-                {/* Card input details display */}
+                {/* Card payment redirection notice */}
                 {payment === 'CARD' && (
-                  <div className="p-4 rounded-2xl bg-card-border/40 border border-card-border space-y-3 animate-in fade-in duration-200">
-                    <input
-                      type="text"
-                      placeholder="Card Number"
-                      value={cardNumber}
-                      onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').substring(0, 16))}
-                      required
-                      className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-foreground placeholder:text-text-muted focus:outline-none focus:border-primary-red/50 transition-colors"
-                    />
-                    <div className="grid grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        placeholder="MM/YY"
-                        value={cardExpiry}
-                        onChange={(e) => setCardExpiry(e.target.value.substring(0, 5))}
-                        required
-                        className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-foreground placeholder:text-text-muted focus:outline-none focus:border-primary-red/50 transition-colors"
-                      />
-                      <input
-                        type="password"
-                        placeholder="CVV"
-                        value={cardCvv}
-                        onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, '').substring(0, 3))}
-                        required
-                        className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-foreground placeholder:text-text-muted focus:outline-none focus:border-primary-red/50 transition-colors"
-                      />
-                    </div>
+                  <div className="p-4 rounded-2xl bg-card-border/45 border border-card-border text-center space-y-2 animate-in fade-in duration-200 text-xs text-text-muted">
+                    <CreditCard className="h-8 w-8 text-accent-amber mx-auto" />
+                    <p>
+                      {locale === 'en'
+                        ? 'You will be redirected to Paymob\'s secure window to complete your payment.'
+                        : 'سيتم توجيهك إلى نافذة دفع بي موب الآمنة لإتمام عملية الدفع.'}
+                    </p>
                   </div>
                 )}
               </div>
@@ -462,6 +466,53 @@ export default function CheckoutPage() {
           </div>
         )}
       </main>
+
+      {/* Fawry Reference Code Modal */}
+      {fawryCode && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-[#0E0E10] border border-[#27272A] rounded-3xl p-8 max-w-md w-full text-center space-y-6 shadow-2xl relative overflow-hidden">
+            {/* Background decoration */}
+            <div className="absolute -top-12 -left-12 w-24 h-24 bg-amber-500/10 rounded-full blur-3xl" />
+            <div className="absolute -bottom-12 -right-12 w-24 h-24 bg-red-600/10 rounded-full blur-3xl" />
+
+            <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-500">
+              <span className="text-3xl">⚡</span>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-extrabold text-white">
+                {locale === 'en' ? 'Fawry Reference Code' : 'كود الدفع فوري'}
+              </h3>
+              <p className="text-xs text-[#A1A1AA]">
+                {locale === 'en'
+                  ? 'Please use the following reference number to pay at any Fawry kiosk:'
+                  : 'برجاء استخدام الرقم المرجعي التالي للدفع من أي منفذ فوري:'}
+              </p>
+            </div>
+
+            <div className="bg-[#18181B] border border-[#27272A] rounded-2xl py-4 px-6 text-center space-y-1">
+              <span className="text-[10px] text-[#A1A1AA] uppercase font-bold tracking-wider">
+                {locale === 'en' ? 'Reference Number' : 'الرقم المرجعي'}
+              </span>
+              <div className="text-2xl font-mono font-black text-amber-500 tracking-widest select-all">
+                {fawryCode}
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                if (successOrderId) {
+                  router.push(`/track/${successOrderId}`);
+                }
+              }}
+              className="w-full py-3 bg-[#E11D48] hover:bg-[#BE123C] text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-red-600/20 flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>{locale === 'en' ? 'Track Order' : 'تتبع طلبك'}</span>
+              <ArrowRight className="h-4 w-4 rtl:rotate-180" />
+            </button>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </>
