@@ -379,4 +379,6 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 | 2026-06-26 | 11 | Fix: driver/page.tsx Link import missing (TSC error) | ✅ |
 | 2026-06-26 | 11 | Fix: Add default fallbacks for Supabase client configuration in client.ts, server.ts, middleware.ts, and db.ts to prevent Next.js build-time static prerendering crash | ✅ |
 | 2026-06-26 | 11 | Fix: Move viewport configuration out of layout.tsx metadata export into its own dedicated viewport export to resolve Next.js 14+ warnings | ✅ |
+| 2026-06-26 | 2 | Fix: Supabase seed data syntax error due to non-hex digit 'm' in menu item UUIDs (replaced 'm1000000-' with 'f1000000-') | ✅ |
+
 

@@ -33,7 +33,7 @@ INSERT INTO public.categories (id, name_en, name_ar, sort_order) VALUES
 
 INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_ar, price_single, price_double, image_url, sort_order) VALUES
   -- Beef Burgers
-  ('m1000000-0000-0000-0000-000000000001',
+  ('f1000000-0000-0000-0000-000000000001',
    'c1000000-0000-0000-0000-000000000001',
    'Dodz Burger', 'دودز برجر',
    'Charcoal grilled beef patty, lettuce, tomatoes, pickled cucumbers, cheddar cheese, and Dodz special sauce.',
@@ -41,7 +41,7 @@ INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_
    120, 170,
    'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=80', 1),
 
-  ('m1000000-0000-0000-0000-000000000002',
+  ('f1000000-0000-0000-0000-000000000002',
    'c1000000-0000-0000-0000-000000000001',
    'Mushroom Burger', 'مشروم برجر',
    'Grilled beef patty with fresh mushroom pieces and creamy mushroom sauce.',
@@ -50,7 +50,7 @@ INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_
    'https://images.unsplash.com/photo-1586190848861-99aa4a171e90?w=600&auto=format&fit=crop&q=80', 2),
 
   -- Fried Chicken
-  ('m1000000-0000-0000-0000-000000000003',
+  ('f1000000-0000-0000-0000-000000000003',
    'c1000000-0000-0000-0000-000000000002',
    'Crispy Chicken Sandwich', 'ساندوتش دجاج كريسبي',
    'Crunchy fried chicken breast, turkey, lettuce, pickled cucumbers, and melted cheese sauce.',
@@ -58,7 +58,7 @@ INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_
    110, 155,
    'https://images.unsplash.com/photo-1627662236973-4f8259fa2441?w=600&auto=format&fit=crop&q=80', 1),
 
-  ('m1000000-0000-0000-0000-000000000004',
+  ('f1000000-0000-0000-0000-000000000004',
    'c1000000-0000-0000-0000-000000000002',
    'Dodz Fire Chicken 🌶️', 'دودز فاير تشيكن 🌶️',
    'Spicy crispy chicken, jalapenos, spicy fire sauce, and cheddar cheese.',
@@ -66,7 +66,7 @@ INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_
    115, 160,
    'https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?w=600&auto=format&fit=crop&q=80', 2),
 
-  ('m1000000-0000-0000-0000-000000000005',
+  ('f1000000-0000-0000-0000-000000000005',
    'c1000000-0000-0000-0000-000000000002',
    'Fried Chicken Meal (3 Pcs)', 'وجبة الدجاج المقرمش (٣ قطع)',
    '3 Pcs Chicken + Fries + Coleslaw + Bun',
@@ -74,7 +74,7 @@ INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_
    165, NULL,
    'https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?w=600&auto=format&fit=crop&q=80', 3),
 
-  ('m1000000-0000-0000-0000-000000000006',
+  ('f1000000-0000-0000-0000-000000000006',
    'c1000000-0000-0000-0000-000000000002',
    'Fried Chicken Meal (5 Pcs)', 'وجبة الدجاج المقرمش (٥ قطع)',
    '5 Pcs Chicken + Fries + Coleslaw + 2 Buns',
@@ -83,7 +83,7 @@ INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_
    'https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?w=600&auto=format&fit=crop&q=80', 4),
 
   -- Sides & Appetizers
-  ('m1000000-0000-0000-0000-000000000007',
+  ('f1000000-0000-0000-0000-000000000007',
    'c1000000-0000-0000-0000-000000000003',
    'French Fries', 'بطاطس مقلية',
    'Golden, crispy classic French fries.',
@@ -91,7 +91,7 @@ INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_
    35, NULL,
    'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=600&auto=format&fit=crop&q=80', 1),
 
-  ('m1000000-0000-0000-0000-000000000008',
+  ('f1000000-0000-0000-0000-000000000008',
    'c1000000-0000-0000-0000-000000000003',
    'Cheesy Fries', 'بطاطس بالجبنة',
    'French fries loaded with hot melted cheddar cheese sauce.',
@@ -99,7 +99,7 @@ INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_
    55, NULL,
    'https://images.unsplash.com/photo-1585109649139-366815a0d713?w=600&auto=format&fit=crop&q=80', 2),
 
-  ('m1000000-0000-0000-0000-000000000009',
+  ('f1000000-0000-0000-0000-000000000009',
    'c1000000-0000-0000-0000-000000000003',
    'Chicken Strips (3 Pcs)', 'تشيكن ستربس (٣ قطع)',
    '3 Pieces of crispy hand-breaded chicken tenders with dipping sauce.',
@@ -107,7 +107,7 @@ INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_
    75, NULL,
    'https://images.unsplash.com/photo-1562967914-608f82629710?w=600&auto=format&fit=crop&q=80', 3),
 
-  ('m1000000-0000-0000-0000-000000000010',
+  ('f1000000-0000-0000-0000-000000000010',
    'c1000000-0000-0000-0000-000000000003',
    'Mozzarella Sticks (4 Pcs)', 'أصابع موتزاريلا (٤ قطع)',
    '4 Pieces of golden crispy mozzarella sticks.',
@@ -115,7 +115,7 @@ INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_
    60, NULL,
    'https://images.unsplash.com/photo-1531749668029-2db88e4b76ce?w=600&auto=format&fit=crop&q=80', 4),
 
-  ('m1000000-0000-0000-0000-000000000011',
+  ('f1000000-0000-0000-0000-000000000011',
    'c1000000-0000-0000-0000-000000000003',
    'Coleslaw Salad', 'سلطة كولسلو',
    'Freshly prepared shredded cabbage and carrot in sweet creamy dressing.',
@@ -124,7 +124,7 @@ INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_
    'https://images.unsplash.com/photo-1625938146369-adc83368bda7?w=600&auto=format&fit=crop&q=80', 5),
 
   -- Drinks
-  ('m1000000-0000-0000-0000-000000000012',
+  ('f1000000-0000-0000-0000-000000000012',
    'c1000000-0000-0000-0000-000000000004',
    'Soft Drinks (Pepsi/7Up/Mirinda)', 'مشروب غازي (بيبسي/سفن اب/ميرندا)',
    'Chilled soft drinks of your choice.',
@@ -132,7 +132,7 @@ INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_
    20, NULL,
    'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?w=600&auto=format&fit=crop&q=80', 1),
 
-  ('m1000000-0000-0000-0000-000000000013',
+  ('f1000000-0000-0000-0000-000000000013',
    'c1000000-0000-0000-0000-000000000004',
    'Mineral Water', 'مياه معدنية',
    'Refreshing bottled mineral water.',
