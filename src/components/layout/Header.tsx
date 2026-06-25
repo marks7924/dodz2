@@ -7,6 +7,7 @@ import { ShoppingBag, Globe, User, LogOut, ShieldAlert, Menu, X } from 'lucide-r
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import NotificationBell from './NotificationBell';
+import CustomerOrderTracker from '@/components/orders/CustomerOrderTracker';
 
 export default function Header() {
   const { locale, toggleLocale, t } = useLanguage();
@@ -309,6 +310,11 @@ export default function Header() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Global Customer Active Order Tracker */}
+      {mounted && isAuthenticated && role === 'CUSTOMER' && user?.id && (
+        <CustomerOrderTracker userId={user.id} />
       )}
     </header>
   );

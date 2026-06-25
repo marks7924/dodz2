@@ -104,6 +104,12 @@ export default function AdminDashboardPage() {
     },
   });
 
+  const { data: drivers = [] } = useQuery({
+    queryKey: ['admin-drivers'],
+    queryFn: () => db.getDrivers(),
+    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+  });
+
   // Support Chat admin states
   const [activeChatUserId, setActiveChatUserId] = useState<string | null>(null);
   const [activeChatUserName, setActiveChatUserName] = useState('');
@@ -476,8 +482,9 @@ export default function AdminDashboardPage() {
                             className="w-full bg-[#18181B] text-[11px] px-2 py-2 rounded-lg border border-card-border focus:outline-none focus:border-primary-red/50 text-white"
                           >
                             <option value="">-- Choose Driver --</option>
-                            <option value="user-driver1">Mustafa Salem (Driver)</option>
-                            <option value="user-driver2">Tarek Fathy (Driver)</option>
+                            {drivers.map(driver => (
+                              <option key={driver.id} value={driver.id}>{driver.name} ({driver.email || 'Driver'})</option>
+                            ))}
                           </select>
                         </div>
                       ) : (
