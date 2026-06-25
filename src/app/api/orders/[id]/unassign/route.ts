@@ -54,7 +54,7 @@ export async function POST(
           .in('role', ['OWNER', 'ADMIN', 'STAFF']);
 
         if (staffUsers && staffUsers.length > 0) {
-          const notifications = staffUsers.map((staff) => ({
+          const notifications = staffUsers.map((staff: { id: string }) => ({
             user_id: staff.id,
             type: 'system_alert',
             title: 'Driver Declined Order 🚨',
