@@ -352,25 +352,58 @@ export default function AdminDashboardPage() {
               </select>
             </div>
 
+            {/* Desktop Navigation for Main Tabs */}
+            <div className="hidden md:flex gap-1 bg-[#18181B] p-1 rounded-xl border border-card-border">
+              <button
+                onClick={() => setActiveTab('ORDERS')}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeTab === 'ORDERS' ? 'bg-primary-red text-white shadow-md shadow-primary-red/20' : 'text-text-muted hover:text-white hover:bg-card-border'
+                }`}
+              >
+                {locale === 'en' ? 'Orders' : 'الطلبات'}
+              </button>
+              
+              {['OWNER', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
+                <>
+                  <button
+                    onClick={() => setActiveTab('MENU')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      activeTab === 'MENU' ? 'bg-primary-red text-white shadow-md shadow-primary-red/20' : 'text-text-muted hover:text-white hover:bg-card-border'
+                    }`}
+                  >
+                    {locale === 'en' ? 'Menu' : 'المنيو'}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('COUPONS')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      activeTab === 'COUPONS' ? 'bg-primary-red text-white shadow-md shadow-primary-red/20' : 'text-text-muted hover:text-white hover:bg-card-border'
+                    }`}
+                  >
+                    {locale === 'en' ? 'Coupons' : 'كوبونات'}
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('CHAT')}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                      activeTab === 'CHAT' ? 'bg-primary-red text-white shadow-md shadow-primary-red/20' : 'text-text-muted hover:text-white hover:bg-card-border'
+                    }`}
+                  >
+                    {locale === 'en' ? 'Chat' : 'المحادثة'}
+                  </button>
+                </>
+              )}
+            </div>
+
             {/* Sub-pages Navigation for Admins — visible on desktop only; on mobile use Header links */}
             <div className="hidden sm:flex gap-2 flex-wrap items-center">
               {['OWNER', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
                 <>
-                  <Link href="/admin/users" className="px-4 py-2 rounded-xl text-xs font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all">
-                    {locale === 'en' ? 'Users' : 'المستخدمين'}
+                  <Link href="/admin/users" className="px-4 py-2 rounded-xl text-[10px] font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all uppercase tracking-wider">
+                    {locale === 'en' ? 'Users Mgmt' : 'المستخدمين'}
                   </Link>
-                  <Link href="/admin/analytics" className="px-4 py-2 rounded-xl text-xs font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all">
+                  <Link href="/admin/analytics" className="px-4 py-2 rounded-xl text-[10px] font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all uppercase tracking-wider">
                     {locale === 'en' ? 'Analytics' : 'التحليلات'}
                   </Link>
-                  <Link href="/admin/logs" className="px-4 py-2 rounded-xl text-xs font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all">
-                    {locale === 'en' ? 'Logs' : 'السجلات'}
-                  </Link>
                 </>
-              )}
-              {['OWNER', 'DEVELOPER'].includes(role || '') && (
-                <Link href="/admin/settings" className="px-4 py-2 rounded-xl text-xs font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all">
-                  {locale === 'en' ? 'Settings' : 'الإعدادات'}
-                </Link>
               )}
             </div>
           </div>
@@ -1092,7 +1125,7 @@ export default function AdminDashboardPage() {
             <span>{locale === 'en' ? 'Orders' : 'الطلبات'}</span>
           </button>
 
-          {role === 'OWNER' && (
+          {['OWNER', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
             <>
               <button
                 onClick={() => setActiveTab('MENU')}
@@ -1110,20 +1143,22 @@ export default function AdminDashboardPage() {
                 }`}
               >
                 <DollarSign className="h-5 w-5" />
-                <span>{locale === 'en' ? 'Coupons' : 'كوبون'}</span>
+                <span>{locale === 'en' ? 'Coupons' : 'كوبونات'}</span>
               </button>
             </>
           )}
 
-          <button
-            onClick={() => setActiveTab('CHAT')}
-            className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
-              activeTab === 'CHAT' ? 'text-primary-red' : 'text-text-muted'
-            }`}
-          >
-            <Bell className="h-5 w-5" />
-            <span>{locale === 'en' ? 'Chat' : 'دردشة'}</span>
-          </button>
+          {['OWNER', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
+            <button
+              onClick={() => setActiveTab('CHAT')}
+              className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
+                activeTab === 'CHAT' ? 'text-primary-red' : 'text-text-muted'
+              }`}
+            >
+              <Bell className="h-5 w-5" />
+              <span>{locale === 'en' ? 'Chat' : 'محادثة'}</span>
+            </button>
+          )}
         </div>
       </nav>
 
