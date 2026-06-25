@@ -101,6 +101,23 @@ export default function DriverPortalPage() {
     },
   });
 
+  // Mutator to unassign (decline) an order
+  const declineOrderMutation = useMutation({
+    mutationFn: async (orderId: string) => {
+      const response = await fetch(`/api/orders/${orderId}/unassign`, {
+        method: 'POST',
+      });
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to decline order');
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['driver-orders'] });
+    },
+  });
+
   if (!mounted) return null;
 
   // RBAC Access Protection Check
@@ -284,24 +301,38 @@ export default function DriverPortalPage() {
                     </div>
 
                     {/* Action update status button */}
-                    <button
-                      onClick={() => handleUpdateStatus(order.id, order.status)}
-                      className="w-full py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-primary-red/15 flex items-center justify-center gap-2 cursor-pointer"
-                    >
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleUpdateStatus(order.id, order.status)}
+                        className="flex-1 py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all shadow-md shadow-primary-red/15 flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        {(order.status === 'PENDING' || order.status === 'PREPARING') && (
+                          <>
+                            <Truck className="h-4 w-4 animate-bounce" />
+                            <span>{locale === 'en' ? 'Confirm & Start' : 'تأكيد وبدء'}</span>
+                          </>
+                        )}
+                        {order.status === 'ON_THE_WAY' && (
+                          <>
+                            <CheckCircle className="h-4 w-4" />
+                            <span>{t('markDelivered')}</span>
+                          </>
+                        )}
+                      </button>
+                      
                       {(order.status === 'PENDING' || order.status === 'PREPARING') && (
-                        <>
-                          <Truck className="h-4 w-4 animate-bounce" />
-                          <span>{locale === 'en' ? 'Confirm Pickup & Start Delivery' : 'تأكيد الاستلام وبدء التوصيل'}</span>
-                        </>
+                        <button
+                          onClick={() => {
+                            if (confirm(locale === 'en' ? 'Are you sure you want to decline this order?' : 'هل أنت متأكد أنك تريد رفض هذا الطلب؟')) {
+                              declineOrderMutation.mutate(order.id);
+                            }
+                          }}
+                          className="px-4 py-3 bg-card hover:bg-card-border border border-card-border hover:border-red-500/30 text-text-muted hover:text-red-400 text-xs font-bold rounded-xl transition-all flex items-center justify-center cursor-pointer"
+                        >
+                          {locale === 'en' ? 'Decline' : 'رفض'}
+                        </button>
                       )}
-                      {order.status === 'ON_THE_WAY' && (
-                        <>
-                          <CheckCircle className="h-4 w-4" />
-                          <span>{t('markDelivered')}</span>
-                        </>
-                      )}
-                    </button>
-
+                    </div>
                   </div>
                 ))}
               </div>

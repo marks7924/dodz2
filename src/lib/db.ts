@@ -838,6 +838,35 @@ export const db = {
     return mockOrders[idx];
   },
 
+  async unassignDriver(orderId: string): Promise<Order> {
+    if (isSupabaseConfigured() && isValidUuid(orderId)) {
+      try {
+        const { error } = await getSupabase()
+          .from('orders')
+          .update({ driver_id: null, updated_at: new Date().toISOString() })
+          .eq('id', orderId);
+
+        if (!error) {
+          const updatedOrder = await this.getOrderById(orderId);
+          if (updatedOrder) return updatedOrder;
+        }
+      } catch (err) {
+        console.error('unassignDriver Supabase error:', err);
+      }
+    }
+
+    const idx = mockOrders.findIndex((o) => o.id === orderId);
+    if (idx === -1) throw new Error('Order not found');
+    mockOrders[idx] = { 
+      ...mockOrders[idx], 
+      driverId: undefined, 
+      driverName: undefined, 
+      driverPhone: undefined,
+      updatedAt: new Date().toISOString()
+    };
+    return mockOrders[idx];
+  },
+
   // REVIEWS
   async getReviews(productId: string): Promise<Review[]> {
     if (isSupabaseConfigured() && isValidUuid(productId)) {
