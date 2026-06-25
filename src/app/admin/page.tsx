@@ -212,6 +212,12 @@ export default function AdminDashboardPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-orders'] }),
   });
 
+  const reassignDriverMutation = useMutation({
+    mutationFn: (data: { orderId: string; driverId: string; currentStatus: Order['status'] }) =>
+      db.updateOrderStatus(data.orderId, data.currentStatus, data.driverId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-orders'] }),
+  });
+
   const toggleAvailabilityMutation = useMutation({
     mutationFn: (data: { productId: string; isAvailable: boolean }) =>
       db.updateProduct(data.productId, { isAvailable: data.isAvailable }),
@@ -555,10 +561,24 @@ export default function AdminDashboardPage() {
                         {order.type === 'DELIVERY' && <div>📍 {order.address}</div>}
                       </div>
 
-                      {/* Driver Assigned label */}
+                      {/* Driver Assigned / Reassign widget */}
                       {order.type === 'DELIVERY' && (
-                        <div className="p-2.5 rounded-xl bg-card-border/40 text-[10px] text-text-muted">
-                          Driver: <b className="text-white">{order.driverName || 'No Driver Assigned'}</b>
+                        <div className="space-y-1">
+                          <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Driver Assigned:</label>
+                          <select
+                            value={order.driverId || ''}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                reassignDriverMutation.mutate({ orderId: order.id, driverId: e.target.value, currentStatus: order.status });
+                              }
+                            }}
+                            className="w-full bg-[#18181B] text-[11px] px-2 py-2 rounded-lg border border-card-border focus:outline-none focus:border-primary-red/50 text-white"
+                          >
+                            <option value="">-- Choose Driver --</option>
+                            {drivers.map(driver => (
+                              <option key={driver.id} value={driver.id}>{driver.name} ({driver.email || 'Driver'})</option>
+                            ))}
+                          </select>
                         </div>
                       )}
 
