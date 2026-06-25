@@ -113,6 +113,43 @@ export default function LoginPage() {
             </h1>
           </div>
 
+          {/* Quick Access Developer / Test Accounts */}
+          <div className="mb-6">
+            <p className="text-[10px] text-text-muted uppercase tracking-wider font-bold mb-2 text-center">
+              Quick Access (Demo)
+            </p>
+            <div className="flex flex-wrap gap-2 justify-center">
+              <button
+                type="button"
+                onClick={() => { setEmail('admin@dodz.com'); setPassword('admin123'); }}
+                className="px-3 py-1 bg-primary-red/10 border border-primary-red/30 text-primary-red text-[10px] font-bold rounded-lg hover:bg-primary-red hover:text-white transition-all"
+              >
+                Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEmail('manager@dodz.com'); setPassword('manager123'); }}
+                className="px-3 py-1 bg-accent-amber/10 border border-accent-amber/30 text-accent-amber text-[10px] font-bold rounded-lg hover:bg-accent-amber hover:text-black transition-all"
+              >
+                Manager
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEmail('driver@dodz.com'); setPassword('driver123'); }}
+                className="px-3 py-1 bg-blue-500/10 border border-blue-500/30 text-blue-400 text-[10px] font-bold rounded-lg hover:bg-blue-500 hover:text-white transition-all"
+              >
+                Driver
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEmail('customer@dodz.com'); setPassword('customer123'); }}
+                className="px-3 py-1 bg-green-500/10 border border-green-500/30 text-green-400 text-[10px] font-bold rounded-lg hover:bg-green-500 hover:text-white transition-all"
+              >
+                Customer
+              </button>
+            </div>
+          </div>
+
           {error && (
             <div className="mb-4 p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2 text-xs text-red-400">
               <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />

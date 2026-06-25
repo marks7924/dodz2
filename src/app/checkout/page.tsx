@@ -31,6 +31,7 @@ export default function CheckoutPage() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [saveDetails, setSaveDetails] = useState(false);
   const [payment, setPayment] = useState<'COD' | 'FAWRY' | 'CARD'>('COD');
   
   // Fawry reference states
@@ -53,10 +54,29 @@ export default function CheckoutPage() {
   }, []);
 
   useEffect(() => {
-    if (profile) {
-      setName(profile.full_name || '');
-      setPhone(profile.phone || '');
+    let initialName = '';
+    let initialPhone = '';
+    let initialAddress = '';
+
+    const savedState = localStorage.getItem('dodz_saved_delivery');
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        initialName = parsed.name || '';
+        initialPhone = parsed.phone || '';
+        initialAddress = parsed.address || '';
+        setSaveDetails(true);
+      } catch (e) {}
     }
+
+    if (profile) {
+      if (profile.full_name) initialName = profile.full_name;
+      if (profile.phone) initialPhone = profile.phone;
+    }
+
+    setName(initialName);
+    setPhone(initialPhone);
+    setAddress(initialAddress);
   }, [profile]);
 
   const selectedBranch = branches.find(b => b.id === selectedBranchId);
@@ -124,6 +144,16 @@ export default function CheckoutPage() {
       lat: deliveryType === 'DELIVERY' ? pinLat : undefined,
       lng: deliveryType === 'DELIVERY' ? pinLng : undefined,
     };
+
+    if (saveDetails) {
+      localStorage.setItem('dodz_saved_delivery', JSON.stringify({
+        name,
+        phone,
+        address: deliveryType === 'DELIVERY' ? address : ''
+      }));
+    } else {
+      localStorage.removeItem('dodz_saved_delivery');
+    }
 
     try {
       const response = await fetch('/api/payment/initiate', {
@@ -275,6 +305,19 @@ export default function CheckoutPage() {
                       required
                       className="w-full text-xs bg-card-border border border-card-border rounded-xl pl-10 pr-3 rtl:pr-10 rtl:pl-3 py-3.5 text-foreground placeholder:text-text-muted focus:outline-none focus:border-primary-red/50 transition-colors"
                     />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="saveDetails"
+                      checked={saveDetails}
+                      onChange={(e) => setSaveDetails(e.target.checked)}
+                      className="rounded border-card-border bg-card-border text-primary-red focus:ring-primary-red/50 focus:ring-offset-background"
+                    />
+                    <label htmlFor="saveDetails" className="text-xs text-text-muted cursor-pointer select-none">
+                      {locale === 'en' ? 'Save delivery details for next time' : 'حفظ تفاصيل التوصيل للمرة القادمة'}
+                    </label>
                   </div>
 
                   {/* HIGH FIDELITY SIMULATED GOOGLE MAPS COMPONENT */}
