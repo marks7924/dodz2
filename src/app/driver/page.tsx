@@ -99,6 +99,9 @@ export default function DriverPortalPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['driver-orders'] });
     },
+    onError: (err: any) => {
+      alert(err.message || 'Failed to update order status');
+    },
   });
 
   // Mutator to unassign (decline) an order
@@ -115,6 +118,9 @@ export default function DriverPortalPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['driver-orders'] });
+    },
+    onError: (err: any) => {
+      alert(err.message || 'Failed to decline order');
     },
   });
 

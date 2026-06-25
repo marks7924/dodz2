@@ -40,15 +40,67 @@ export async function PATCH(
     }
 
     // 1. Update order status in the database
-    const updatedOrder = await db.updateOrderStatus(orderId, status, driverId);
-
-    // 2. Trigger notification to customer if database is Supabase
     const useSupabase =
       process.env.NEXT_PUBLIC_SUPABASE_URL &&
-      !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project-ref') &&
-      isValidUuid(updatedOrder.userId);
+      !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project-ref');
+
+    let updatedOrder: any = null;
 
     if (useSupabase) {
+      const adminClient = createAdminClient();
+      const updatePayload: any = {
+        status,
+        updated_at: new Date().toISOString(),
+      };
+      if (driverId && isValidUuid(driverId)) {
+        updatePayload.driver_id = driverId;
+      }
+
+      const { data, error } = await adminClient
+        .from('orders')
+        .update(updatePayload)
+        .eq('id', orderId)
+        .select('*, order_items(*), driver:driver_id(full_name, phone)')
+        .single();
+      
+      if (error) throw error;
+      
+      // Map it to frontend Order interface
+      updatedOrder = {
+        id: data.id,
+        userId: data.customer_id,
+        userName: data.customer_name || 'Customer',
+        userPhone: data.customer_phone || '',
+        branchId: data.branch_id || '',
+        type: data.type,
+        status: data.status,
+        total: data.total,
+        deliveryFee: data.delivery_fee,
+        address: data.delivery_address || '',
+        couponCode: data.coupon_code || undefined,
+        discount: data.discount_value,
+        paymentMethod: data.payment_method,
+        driverId: data.driver_id || undefined,
+        driverName: data.driver?.full_name || undefined,
+        driverPhone: data.driver?.phone || undefined,
+        createdAt: data.created_at,
+        updatedAt: data.updated_at,
+        items: data.order_items ? data.order_items.map((i: any) => ({
+          id: i.id,
+          productId: i.menu_item_id,
+          productNameEn: i.product_name_en,
+          productNameAr: i.product_name_ar,
+          size: i.size,
+          quantity: i.quantity,
+          price: i.unit_price,
+        })) : [],
+      };
+    } else {
+      updatedOrder = await db.updateOrderStatus(orderId, status, driverId);
+    }
+
+    // 2. Trigger notification to customer if database is Supabase
+    if (useSupabase && isValidUuid(updatedOrder.userId)) {
       try {
         const supabase = createAdminClient();
 

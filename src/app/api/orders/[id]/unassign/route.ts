@@ -36,13 +36,28 @@ export async function POST(
     }
 
     // 1. Unassign driver in the database
-    const updatedOrder = await db.unassignDriver(orderId);
-
-    // 2. Trigger notification to staff if database is Supabase
     const useSupabase =
       process.env.NEXT_PUBLIC_SUPABASE_URL &&
       !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project-ref');
 
+    let updatedOrder: any = null;
+
+    if (useSupabase) {
+      const adminClient = createAdminClient();
+      const { data, error } = await adminClient
+        .from('orders')
+        .update({ driver_id: null, updated_at: new Date().toISOString() })
+        .eq('id', orderId)
+        .select('*, order_items(*), driver:driver_id(full_name, phone)')
+        .single();
+      
+      if (error) throw error;
+      updatedOrder = data; // the front-end doesn't strictly need mapped order for this endpoint
+    } else {
+      updatedOrder = await db.unassignDriver(orderId);
+    }
+
+    // 2. Trigger notification to staff if database is Supabase
     if (useSupabase) {
       try {
         const adminSupabase = createAdminClient();
