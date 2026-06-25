@@ -16,7 +16,7 @@ BEGIN
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
     NEW.raw_user_meta_data->>'phone',
-    COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'CUSTOMER')
+    COALESCE(NEW.raw_user_meta_data->>'role', 'CUSTOMER')::user_role
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;

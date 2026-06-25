@@ -381,6 +381,8 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 | 2026-06-26 | 11 | Fix: Move viewport configuration out of layout.tsx metadata export into its own dedicated viewport export to resolve Next.js 14+ warnings | ✅ |
 | 2026-06-26 | 2 | Fix: Supabase seed data syntax error due to non-hex digit 'm' in menu item UUIDs (replaced 'm1000000-' with 'f1000000-') | ✅ |
 | 2026-06-26 | 3 | Fix: Strip trailing slashes from redirect URLs in signup and password recovery pages to prevent double-slash navigation issues | ✅ |
+| 2026-06-26 | 3 | Fix: Supabase user creation trigger function type mismatch error on user_role (COALESCE text mixed with enum) | ✅ |
+
 
 
 
