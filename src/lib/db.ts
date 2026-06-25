@@ -268,16 +268,15 @@ function getSupabase() {
   } else {
     // Dynamically require server side libraries to prevent build issues
     const { createClient: createSupabaseClient } = require('@supabase/supabase-js');
-    return createSupabaseClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder-project-ref.supabase.co';
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key-here';
+    return createSupabaseClient(supabaseUrl, supabaseAnonKey);
   }
 }
 
 function isSupabaseConfigured(): boolean {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  return !!url && !url.includes('your-project-ref');
+  return !!url && !url.includes('your-project-ref') && !url.includes('placeholder-project-ref');
 }
 
 function isValidUuid(id: string): boolean {
