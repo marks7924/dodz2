@@ -30,9 +30,12 @@ function ResetPasswordContent() {
     setError('');
     setIsLoading(true);
     try {
+      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
+      const redirectUrl = `${appUrl}/auth/reset-password?type=recovery`;
+
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(
         email.trim().toLowerCase(),
-        { redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/reset-password?type=recovery` }
+        { redirectTo: redirectUrl }
       );
       if (resetError) throw resetError;
       setSuccess(true);

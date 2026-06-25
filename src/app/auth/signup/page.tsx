@@ -45,6 +45,9 @@ export default function SignupPage() {
 
     setIsLoading(true);
     try {
+      const appUrl = (process.env.NEXT_PUBLIC_APP_URL || '').replace(/\/+$/, '');
+      const redirectUrl = `${appUrl}/auth/callback`;
+
       const { error: authError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
@@ -54,7 +57,7 @@ export default function SignupPage() {
             phone: phone.trim() || null,
             role: 'CUSTOMER',
           },
-          emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+          emailRedirectTo: redirectUrl,
         },
       });
 
