@@ -7,9 +7,10 @@ import Footer from '@/components/layout/Footer';
 import CartSidebar from '@/components/cart/CartSidebar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, Order, Product, Category } from '@/lib/db';
-import { Plus, Edit2, Trash2, ShieldAlert, Bell, DollarSign, ListOrdered, Check, AlertTriangle, EyeOff, RotateCcw } from 'lucide-react';
+import { Plus, Edit2, Trash2, ShieldAlert, Bell, DollarSign, ListOrdered, Check, AlertTriangle, EyeOff, RotateCcw, Tag, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 
 export default function AdminDashboardPage() {
   const { t, locale } = useLanguage();
@@ -77,6 +78,50 @@ export default function AdminDashboardPage() {
     queryKey: ['admin-branches'],
     queryFn: () => db.getBranches(),
     enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+  });
+
+  // Category management state
+  const supabase = createClient();
+  const canManageCategories = role && ['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCatNameEn, setNewCatNameEn] = useState('');
+  const [newCatNameAr, setNewCatNameAr] = useState('');
+
+  const { data: adminCategories = [], refetch: refetchCategories } = useQuery({
+    queryKey: ['admin-categories-list'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('categories').select('*').order('sort_order');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: isAuthenticated,
+  });
+
+  const addCategoryMutation = useMutation({
+    mutationFn: async ({ nameEn, nameAr }: { nameEn: string; nameAr: string }) => {
+      const maxOrder = adminCategories.reduce((m: number, c: any) => Math.max(m, c.sort_order || 0), 0);
+      const { error } = await supabase.from('categories').insert({
+        name_en: nameEn,
+        name_ar: nameAr || nameEn,
+        sort_order: maxOrder + 1,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refetchCategories();
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      setIsAddingCategory(false);
+      setNewCatNameEn('');
+      setNewCatNameAr('');
+    },
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('categories').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => refetchCategories(),
   });
 
   // Coupons states & React Query
@@ -765,6 +810,84 @@ export default function AdminDashboardPage() {
                 </tbody>
               </table>
             </div>
+
+            {/* ── Categories Management (OWNER / HEAD_ADMIN / DEVELOPER) ── */}
+            {canManageCategories && (
+              <div className="border-t border-card-border pt-6 space-y-4">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <Tag className="h-4 w-4 text-accent-amber" />
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-accent-amber">
+                      {locale === 'en' ? 'Menu Categories' : 'أقسام المنيو'}
+                    </h3>
+                  </div>
+                  <button
+                    onClick={() => setIsAddingCategory(true)}
+                    className="px-3 py-1.5 bg-accent-amber/10 border border-accent-amber/30 text-accent-amber text-xs font-bold rounded-xl hover:bg-accent-amber hover:text-black transition-all flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {locale === 'en' ? 'Add Category' : 'إضافة قسم'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {adminCategories.map((cat: any) => (
+                    <div key={cat.id} className="flex items-center justify-between bg-[#18181B] border border-card-border rounded-xl px-4 py-3">
+                      <div>
+                        <p className="text-xs font-bold text-white">{cat.name_en}</p>
+                        <p className="text-[10px] text-text-muted">{cat.name_ar}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          if (confirm(locale === 'en' ? 'Delete this category? Products inside will lose their category.' : 'حذف هذا القسم؟')) {
+                            deleteCategoryMutation.mutate(cat.id);
+                          }
+                        }}
+                        className="p-1.5 rounded-lg bg-card border border-card-border text-text-muted hover:text-primary-red transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {isAddingCategory && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsAddingCategory(false)} />
+                    <div className="relative w-full max-w-sm bg-[#111113] border border-[#27272A] rounded-2xl p-6 shadow-2xl space-y-4 z-10">
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-sm font-extrabold text-white">{locale === 'en' ? 'New Category' : 'قسم جديد'}</h3>
+                        <button onClick={() => setIsAddingCategory(false)} className="p-1 rounded-full hover:bg-[#27272A] text-text-muted cursor-pointer">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider mb-1">Name (English) *</label>
+                          <input type="text" value={newCatNameEn} onChange={(e) => setNewCatNameEn(e.target.value)} placeholder="e.g. Wraps & Rolls"
+                            className="w-full bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-primary-red/50" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider mb-1">Name (Arabic)</label>
+                          <input type="text" value={newCatNameAr} onChange={(e) => setNewCatNameAr(e.target.value)} placeholder="مثال: لفائف" dir="rtl"
+                            className="w-full bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-primary-red/50" />
+                        </div>
+                      </div>
+                      <div className="flex gap-2 justify-end pt-1">
+                        <button onClick={() => setIsAddingCategory(false)} className="px-3 py-1.5 border border-[#27272A] rounded-xl text-xs font-bold text-text-muted hover:text-white cursor-pointer">
+                          {locale === 'en' ? 'Cancel' : 'إلغاء'}
+                        </button>
+                        <button disabled={!newCatNameEn.trim() || addCategoryMutation.isPending}
+                          onClick={() => addCategoryMutation.mutate({ nameEn: newCatNameEn.trim(), nameAr: newCatNameAr.trim() })}
+                          className="px-4 py-1.5 bg-primary-red text-white text-xs font-bold rounded-xl hover:bg-primary-red-hover flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                          {addCategoryMutation.isPending ? '...' : (locale === 'en' ? 'Add Category' : 'إضافة')}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
           </div>
         )}
