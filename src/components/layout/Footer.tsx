@@ -167,12 +167,26 @@ export default function Footer() {
         </div>
 
         {/* Footer Bottom */}
-        <div className="border-t border-card-border mt-8 pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-text-muted">
+        <div className="border-t border-card-border mt-8 pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-[10px] text-text-muted">
           <p>© {new Date().getFullYear()} {t('appName')}. All rights reserved.</p>
           <p className="flex items-center gap-1">
             <span>Made with</span>
             <Heart className="h-3 w-3 text-primary-red fill-current" />
             <span>in Egypt</span>
+          </p>
+          <p className="flex items-center gap-1.5">
+            <span className="opacity-50">⌨️</span>
+            <span>
+              Built by{' '}
+              <a
+                href="https://linktr.ee/Mark7924"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-accent-amber hover:text-white transition-colors underline underline-offset-2 decoration-dotted"
+              >
+                Mark
+              </a>
+            </span>
           </p>
         </div>
       </div>
