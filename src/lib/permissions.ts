@@ -37,6 +37,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, PermissionAction[]> = {
     'MANAGE_USERS',
     'ASSIGN_ROLES',
     'VIEW_ANALYTICS',
+    'SYSTEM_SETTINGS',
     'VIEW_LOGS',
     'STAFF_CHAT',
   ],

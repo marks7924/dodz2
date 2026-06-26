@@ -46,7 +46,7 @@ export default function Header() {
     }
   };
 
-  const showAdminLink = role && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role);
+  const showAdminLink = role && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role);
   const showDriverLink = role === 'DRIVER';
 
   return (
@@ -227,9 +227,13 @@ export default function Header() {
           />
           {/* Drawer Panel */}
           <div
-            className={`fixed top-0 bottom-0 z-[60] w-72 max-w-[85vw] p-6 space-y-6 shadow-2xl flex flex-col justify-between md:hidden bg-[#0A0A0B] border-card-border ${
+            className={`fixed top-0 bottom-0 z-[60] w-72 max-w-[85vw] p-6 space-y-6 shadow-2xl flex flex-col justify-between ${
               locale === 'ar' ? 'left-0 border-r border-[#27272A]' : 'right-0 border-l border-[#27272A]'
             }`}
+            style={{
+              backgroundColor: '#0A0A0B',
+              background: 'linear-gradient(180deg, #111113 0%, #0A0A0B 100%)',
+            }}
           >
             <div className="space-y-6">
               {/* Drawer Title Header */}

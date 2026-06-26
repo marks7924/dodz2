@@ -7,10 +7,11 @@ import { createClient } from '@/lib/supabase/client';
 import { useLanguage } from '@/context/LanguageContext';
 import { Eye, EyeOff, Flame, AlertCircle, Loader2, Lock, Mail } from 'lucide-react';
 
-type UserRole = 'CUSTOMER' | 'DRIVER' | 'STAFF' | 'ADMIN' | 'DEVELOPER' | 'OWNER';
+type UserRole = 'CUSTOMER' | 'DRIVER' | 'STAFF' | 'ADMIN' | 'HEAD_ADMIN' | 'DEVELOPER' | 'OWNER';
 
 const ROLE_REDIRECTS: Record<UserRole, string> = {
   OWNER: '/admin',
+  HEAD_ADMIN: '/admin',
   ADMIN: '/admin',
   DEVELOPER: '/admin',
   STAFF: '/admin',
