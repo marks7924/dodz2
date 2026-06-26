@@ -18,8 +18,8 @@ export default function AdminDashboardPage() {
   const [mounted, setMounted] = useState(false);
   const { user, profile, role, isAuthenticated, isLoading } = useAuth();
 
-  // Tab state: 'ORDERS', 'MENU', 'COUPONS', or 'CHAT'
-  const [activeTab, setActiveTab] = useState<'ORDERS' | 'MENU' | 'COUPONS' | 'CHAT'>('ORDERS');
+  // Tab state: 'ORDERS', 'MENU', 'COUPONS', 'CHAT', or 'LOGS'
+  const [activeTab, setActiveTab] = useState<'ORDERS' | 'MENU' | 'COUPONS' | 'CHAT' | 'LOGS'>('ORDERS');
   const [filterBranchId, setFilterBranchId] = useState<string>('ALL');
   
   // Audio state
@@ -136,6 +136,7 @@ export default function AdminDashboardPage() {
       if (error) throw error;
     },
     onSuccess: () => {
+      db.logActivity('CREATED_CATEGORY', 'category', '', { name: newCatNameEn });
       refetchCategories();
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
@@ -151,6 +152,7 @@ export default function AdminDashboardPage() {
       if (error) throw error;
     },
     onSuccess: () => {
+      db.logActivity('DELETED_CATEGORY', 'category', '');
       refetchCategories();
       queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
@@ -174,6 +176,7 @@ export default function AdminDashboardPage() {
     mutationFn: (data: { code: string; discountType: 'PERCENT' | 'FIXED'; discountValue: number; expiryDate: Date }) =>
       db.createCoupon(data),
     onSuccess: () => {
+      db.logActivity('CREATED_COUPON', 'coupon', '', { code: newCouponCode });
       queryClient.invalidateQueries({ queryKey: ['admin-coupons'] });
       setIsAddingCoupon(false);
       setNewCouponCode('');
@@ -199,6 +202,7 @@ export default function AdminDashboardPage() {
     mutationFn: (data: { name: string; discountType: 'PERCENT' | 'FIXED'; discountValue: number; appliesTo: string }) =>
       db.createDiscount(data),
     onSuccess: () => {
+      db.logActivity('CREATED_DISCOUNT', 'discount', '', { name: newDiscountName });
       queryClient.invalidateQueries({ queryKey: ['admin-discounts'] });
       setIsAddingDiscount(false);
       setNewDiscountName('');
@@ -210,7 +214,8 @@ export default function AdminDashboardPage() {
   const toggleDiscountMutation = useMutation({
     mutationFn: (data: { id: string; isActive: boolean }) =>
       db.toggleDiscount(data.id, data.isActive),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      db.logActivity('TOGGLED_DISCOUNT', 'discount', variables.id, { isActive: variables.isActive });
       queryClient.invalidateQueries({ queryKey: ['admin-discounts'] });
     },
   });
@@ -227,11 +232,13 @@ export default function AdminDashboardPage() {
   const [adminChatText, setAdminChatText] = useState('');
   const adminChatBottomRef = useRef<HTMLDivElement>(null);
 
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
+
   const { data: activeChats = [] } = useQuery({
     queryKey: ['active-chats'],
-    queryFn: () => db.getActiveChats(),
+    queryFn: () => db.getActiveChats(['OWNER', 'HEAD_ADMIN', 'DEVELOPER', 'ADMIN'].includes(role || '')),
     refetchInterval: 2000,
-    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
   const { data: adminChatMessages = [] } = useQuery({
@@ -250,6 +257,23 @@ export default function AdminDashboardPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-chat-messages', activeChatUserId] });
       setAdminChatText('');
     },
+  });
+
+  const closeChatMutation = useMutation({
+    mutationFn: (chatId: string) => db.closeChatSession(chatId),
+    onSuccess: () => {
+      db.logActivity('CLOSED_CHAT', 'chat', activeChatId || '');
+      queryClient.invalidateQueries({ queryKey: ['active-chats'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-chat-messages', activeChatUserId] });
+      setActiveChatId(null);
+      setActiveChatUserId(null);
+    },
+  });
+
+  const { data: auditLogs = [] } = useQuery({
+    queryKey: ['admin-audit-logs'],
+    queryFn: () => db.getAuditLogs(),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role || ''),
   });
 
   useEffect(() => {
@@ -343,7 +367,9 @@ export default function AdminDashboardPage() {
         return db.createProduct(prod as any);
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      const action = variables.id ? 'EDITED_PRODUCT' : 'CREATED_PRODUCT';
+      db.logActivity(action, 'product', variables.id, { name: variables.nameEn });
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       setIsEditingProduct(false);
       setEditingProduct(null);
@@ -352,7 +378,10 @@ export default function AdminDashboardPage() {
 
   const deleteProductMutation = useMutation({
     mutationFn: (productId: string) => db.deleteProduct(productId),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-products'] }),
+    onSuccess: (_, productId) => {
+      db.logActivity('DELETED_PRODUCT', 'product', productId);
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+    },
   });
 
   if (!mounted || isLoading) return null;
@@ -502,6 +531,17 @@ export default function AdminDashboardPage() {
                   >
                     {locale === 'en' ? 'Chat' : 'المحادثة'}
                   </button>
+                  {['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role || '') && (
+                    <button
+                      onClick={() => setActiveTab('LOGS')}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${
+                        activeTab === 'LOGS' ? 'bg-indigo-500 text-white shadow-md shadow-indigo-500/20' : 'text-text-muted hover:text-white hover:bg-card-border'
+                      }`}
+                    >
+                      <Activity className="h-3 w-3" />
+                      {locale === 'en' ? 'Activity' : 'النشاطات'}
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -1234,6 +1274,7 @@ export default function AdminDashboardPage() {
                       onClick={() => {
                         setActiveChatUserId(chat.userId);
                         setActiveChatUserName(chat.userName);
+                        setActiveChatId(chat.chatId || null);
                       }}
                       className={`w-full text-left rtl:text-right p-3 rounded-xl border text-xs transition-all flex flex-col gap-1 cursor-pointer ${
                         activeChatUserId === chat.userId
@@ -1242,7 +1283,12 @@ export default function AdminDashboardPage() {
                       }`}
                     >
                       <div className="flex justify-between items-center w-full font-bold">
-                        <span className="text-white">{chat.userName}</span>
+                        <span className="text-white flex items-center gap-1">
+                          {chat.userName}
+                          {chat.status === 'CLOSED' && (
+                            <span className="px-1.5 py-0.5 rounded bg-card-border text-[8px] uppercase">Closed</span>
+                          )}
+                        </span>
                         <span className="text-[9px] text-text-muted">
                           {new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </span>
@@ -1261,10 +1307,24 @@ export default function AdminDashboardPage() {
               {activeChatUserId ? (
                 <>
                   {/* Messages Area */}
-                  <div className="bg-[#121214]/40 border border-card-border rounded-2xl p-4 h-[320px] overflow-y-auto space-y-3 mb-4 text-xs">
-                    <span className="text-[10px] text-text-muted font-bold block mb-1">
-                      Chatting with <b className="text-white">{activeChatUserName}</b>
-                    </span>
+                  <div className="bg-[#121214]/40 border border-card-border rounded-2xl p-4 h-[320px] overflow-y-auto space-y-3 mb-4 text-xs relative">
+                    <div className="flex justify-between items-center mb-2 pb-2 border-b border-card-border/50 sticky top-0 bg-[#121214] z-10 p-1">
+                      <span className="text-[10px] text-text-muted font-bold block">
+                        Chatting with <b className="text-white">{activeChatUserName}</b>
+                      </span>
+                      {activeChatId && activeChats.find(c => c.chatId === activeChatId)?.status !== 'CLOSED' && (
+                        <button
+                          onClick={() => {
+                            if (confirm(locale === 'en' ? 'Are you sure you want to close this chat session?' : 'هل أنت متأكد من إنهاء هذه المحادثة؟')) {
+                              closeChatMutation.mutate(activeChatId);
+                            }
+                          }}
+                          className="px-2 py-1 bg-card border border-card-border rounded text-[9px] text-text-muted hover:text-white hover:bg-card-border cursor-pointer transition-colors"
+                        >
+                          {locale === 'en' ? 'End Chat' : 'إنهاء المحادثة'}
+                        </button>
+                      )}
+                    </div>
                     <div className="space-y-3">
                       {adminChatMessages.map((msg) => {
                         const isStaff = msg.senderRole === 'STAFF' || msg.senderRole === 'OWNER';
@@ -1319,6 +1379,59 @@ export default function AdminDashboardPage() {
                   Select a customer chat session from the list on the left to begin support.
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* ACTIVITY LOGS TAB */}
+        {/* ========================================================================= */}
+        {activeTab === 'LOGS' && (
+          <div className="bg-[#18181B] border border-card-border rounded-3xl p-6">
+            <h2 className="text-lg font-bold text-indigo-400 mb-6 flex items-center gap-2">
+              <Activity className="h-5 w-5" />
+              {locale === 'en' ? 'System Activity Logs' : 'سجل نشاطات النظام'}
+            </h2>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-left rtl:text-right text-xs">
+                <thead className="text-text-muted border-b border-card-border/50">
+                  <tr>
+                    <th className="pb-3 font-bold">{locale === 'en' ? 'Time' : 'الوقت'}</th>
+                    <th className="pb-3 font-bold">{locale === 'en' ? 'Actor' : 'المستخدم'}</th>
+                    <th className="pb-3 font-bold">{locale === 'en' ? 'Action' : 'الحدث'}</th>
+                    <th className="pb-3 font-bold">{locale === 'en' ? 'Resource' : 'العنصر'}</th>
+                    <th className="pb-3 font-bold">{locale === 'en' ? 'Details' : 'التفاصيل'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-card-border/30">
+                  {auditLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-text-muted italic">
+                        {locale === 'en' ? 'No activity logs found.' : 'لا توجد سجلات.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    auditLogs.map((log) => (
+                      <tr key={log.id} className="hover:bg-card-border/10">
+                        <td className="py-3 text-[10px] text-text-muted">
+                          {new Date(log.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                        </td>
+                        <td className="py-3 font-bold text-white">{log.actor_email}</td>
+                        <td className="py-3">
+                          <span className="px-2 py-0.5 rounded bg-card-border text-[9px] uppercase font-bold text-indigo-400">
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="py-3 text-text-muted">{log.resource_type} {log.resource_id ? `#${log.resource_id.substring(0, 8)}` : ''}</td>
+                        <td className="py-3 text-[10px] text-text-muted truncate max-w-[200px]">
+                          {JSON.stringify(log.metadata)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}

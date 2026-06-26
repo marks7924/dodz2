@@ -1072,12 +1072,18 @@ export const db = {
       try {
         const { data: chat } = await getSupabase()
           .from('support_chats')
-          .select('id')
+          .select('id, status, updated_at')
           .eq('customer_id', userId)
-          .eq('status', 'OPEN')
+          .order('updated_at', { ascending: false })
+          .limit(1)
           .single();
         
         if (chat) {
+          const isOlderThan24h = (new Date().getTime() - new Date(chat.updated_at).getTime()) > 24 * 60 * 60 * 1000;
+          if (chat.status === 'CLOSED' || chat.status === 'RESOLVED' || isOlderThan24h) {
+            return []; // Return empty so it acts as a fresh chat for the customer
+          }
+
           const { data: messages, error } = await getSupabase()
             .from('support_messages')
             .select('*, profiles:sender_id(full_name)')
@@ -1105,19 +1111,25 @@ export const db = {
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   },
 
-  async getActiveChats(): Promise<{ userId: string; userName: string; lastMessage: string; updatedAt: string }[]> {
+  async getActiveChats(includeClosed: boolean = false): Promise<{ chatId?: string; status?: string; userId: string; userName: string; lastMessage: string; updatedAt: string }[]> {
     if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await getSupabase()
+        let query = getSupabase()
           .from('support_chats')
           .select(`
+            id,
+            status,
             customer_id,
             updated_at,
             profiles!support_chats_customer_id_fkey(full_name),
             support_messages(content, created_at)
-          `)
-          .eq('status', 'OPEN')
-          .order('updated_at', { ascending: false });
+          `);
+          
+        if (!includeClosed) {
+          query = query.eq('status', 'OPEN');
+        }
+
+        const { data, error } = await query.order('updated_at', { ascending: false });
 
         if (!error && data) {
           return data.map((chat: any) => {
@@ -1125,6 +1137,8 @@ export const db = {
             msgs.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
             const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1].content : '';
             return {
+              chatId: chat.id,
+              status: chat.status,
               userId: chat.customer_id,
               userName: chat.profiles?.full_name || 'Customer',
               lastMessage: lastMsg,
@@ -1165,12 +1179,18 @@ export const db = {
         const supabase = getSupabase();
         let { data: chat } = await supabase
           .from('support_chats')
-          .select('id')
+          .select('id, status, updated_at')
           .eq('customer_id', userId)
-          .eq('status', 'OPEN')
+          .order('updated_at', { ascending: false })
+          .limit(1)
           .single();
 
-        if (!chat) {
+        let isOlderThan24h = false;
+        if (chat) {
+          isOlderThan24h = (new Date().getTime() - new Date(chat.updated_at).getTime()) > 24 * 60 * 60 * 1000;
+        }
+
+        if (!chat || chat.status === 'CLOSED' || chat.status === 'RESOLVED' || isOlderThan24h) {
            const { data: newChat } = await supabase
              .from('support_chats')
              .insert({ customer_id: userId, status: 'OPEN' })
@@ -1221,5 +1241,50 @@ export const db = {
     };
     mockChatMessages.push(newMessage);
     return newMessage;
+  },
+
+  async closeChatSession(chatId: string): Promise<boolean> {
+    if (isSupabaseConfigured() && isValidUuid(chatId)) {
+      try {
+        const { error } = await getSupabase()
+          .from('support_chats')
+          .update({ status: 'CLOSED' })
+          .eq('id', chatId);
+        if (!error) return true;
+      } catch (err) {
+        console.error('closeChatSession error:', err);
+      }
+    }
+    return true;
+  },
+
+  async getAuditLogs(): Promise<any[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await getSupabase()
+          .from('activity_logs')
+          .select('*')
+          .order('created_at', { ascending: false });
+        if (!error && data) return data;
+      } catch (err) {
+        console.error('getAuditLogs error:', err);
+      }
+    }
+    return [];
+  },
+
+  async logActivity(action: string, resourceType: string, resourceId?: string, metadata?: any): Promise<void> {
+    if (isSupabaseConfigured()) {
+      try {
+        await getSupabase().rpc('log_activity', {
+          p_action: action,
+          p_resource_type: resourceType,
+          p_resource_id: resourceId,
+          p_metadata: metadata || {}
+        });
+      } catch (err) {
+        console.error('logActivity error:', err);
+      }
+    }
   }
 };

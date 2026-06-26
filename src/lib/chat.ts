@@ -29,13 +29,17 @@ const supabase = createClient();
 export async function getOrCreateChatSession(customerId: string): Promise<string> {
   const { data: existingChat, error: findError } = await supabase
     .from('support_chats')
-    .select('id')
+    .select('id, updated_at, status')
     .eq('customer_id', customerId)
-    .eq('status', 'OPEN')
+    .order('updated_at', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (existingChat) {
-    return existingChat.id;
+    const isOlderThan24h = (new Date().getTime() - new Date(existingChat.updated_at).getTime()) > 24 * 60 * 60 * 1000;
+    if (existingChat.status !== 'CLOSED' && existingChat.status !== 'RESOLVED' && !isOlderThan24h) {
+      return existingChat.id;
+    }
   }
 
   const { data: newChat, error: createError } = await supabase
@@ -139,4 +143,16 @@ export function subscribeToTyping(chatId: string, onTyping: (userId: string, isT
       channel.unsubscribe();
     }
   };
+}
+
+/**
+ * Closes a chat session.
+ */
+export async function closeChatSession(chatId: string) {
+  const { error } = await supabase
+    .from('support_chats')
+    .update({ status: 'CLOSED' })
+    .eq('id', chatId);
+
+  if (error) throw error;
 }

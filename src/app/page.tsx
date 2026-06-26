@@ -224,6 +224,19 @@ export default function Home() {
     },
   });
 
+  const closeChatMutation = useMutation({
+    mutationFn: async () => {
+      if (!chatSessionId) return;
+      const { closeChatSession } = await import('@/lib/chat');
+      return closeChatSession(chatSessionId);
+    },
+    onSuccess: () => {
+      setChatSessionId(null);
+      setChatOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['chat-messages'] });
+    },
+  });
+
   useEffect(() => {
     if (chatOpen && chatBottomRef.current) {
       chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -850,6 +863,19 @@ export default function Home() {
                 <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
                 <span className="text-xs font-bold text-white">Dodz Live Support</span>
               </div>
+              <div className="flex items-center gap-1">
+                {isAuthenticated && chatSessionId && (
+                  <button
+                    onClick={() => {
+                      if (confirm(locale === 'en' ? 'Are you sure you want to end this chat?' : 'هل أنت متأكد من إنهاء المحادثة؟')) {
+                        closeChatMutation.mutate();
+                      }
+                    }}
+                    className="p-1 rounded bg-card-border/50 hover:bg-primary-red hover:text-white text-[9px] text-text-muted transition-colors"
+                  >
+                    {locale === 'en' ? 'End' : 'إنهاء'}
+                  </button>
+                )}
               <button
                 onClick={() => setChatOpen(false)}
                 className="p-1 rounded hover:bg-card-border text-text-muted hover:text-white"
