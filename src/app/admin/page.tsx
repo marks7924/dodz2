@@ -1312,7 +1312,7 @@ export default function AdminDashboardPage() {
             <span>{locale === 'en' ? 'Orders' : 'الطلبات'}</span>
           </button>
 
-          {['OWNER', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
+          {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
             <>
               <button
                 onClick={() => setActiveTab('MENU')}
@@ -1323,7 +1323,7 @@ export default function AdminDashboardPage() {
                 <EyeOff className="h-5 w-5" />
                 <span>{locale === 'en' ? 'Menu' : 'المنيو'}</span>
               </button>
-              {['OWNER', 'ADMIN'].includes(role || '') && (
+              {['OWNER', 'HEAD_ADMIN', 'ADMIN'].includes(role || '') && (
                 <button
                   onClick={() => setActiveTab('COUPONS')}
                   className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
@@ -1337,7 +1337,7 @@ export default function AdminDashboardPage() {
             </>
           )}
 
-          {['OWNER', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
+          {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
             <button
               onClick={() => setActiveTab('CHAT')}
               className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
