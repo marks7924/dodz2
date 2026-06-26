@@ -29,6 +29,34 @@ export default function AdminDashboardPage() {
   // Menu editor modal state
   const [isEditingProduct, setIsEditingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingImage(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('product-images').getPublicUrl(filePath);
+      
+      setEditingProduct((prev: any) => ({ ...prev, imageUrl: data.publicUrl }));
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert(locale === 'en' ? 'Failed to upload image' : 'فشل تحميل الصورة');
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -1390,16 +1418,41 @@ export default function AdminDashboardPage() {
                   />
                 </div>
 
-                {/* Image URL */}
+                {/* Image URL / Upload */}
                 <div className="space-y-1 sm:col-span-2">
-                  <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">{t('productImage')}</label>
-                  <input
-                    type="text"
-                    value={editingProduct.imageUrl || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, imageUrl: e.target.value })}
-                    required
-                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors"
-                  />
+                  <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                    {t('productImage')} {locale === 'en' ? '(Link or Upload)' : '(رابط أو رفع ملف)'}
+                  </label>
+                  <div className="flex gap-2 items-center">
+                    <input
+                      type="text"
+                      value={editingProduct.imageUrl || ''}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, imageUrl: e.target.value })}
+                      placeholder="https://..."
+                      className="flex-1 text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors"
+                    />
+                    <div className="relative">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageUpload}
+                        disabled={isUploadingImage}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                      />
+                      <button
+                        type="button"
+                        disabled={isUploadingImage}
+                        className="px-4 py-2.5 bg-card border border-card-border text-white text-xs font-bold rounded-xl whitespace-nowrap hover:bg-card-border transition-colors"
+                      >
+                        {isUploadingImage ? '...' : (locale === 'en' ? 'Upload' : 'رفع ملف')}
+                      </button>
+                    </div>
+                  </div>
+                  {editingProduct.imageUrl && (
+                    <div className="mt-2 h-24 w-24 rounded-lg border border-card-border overflow-hidden bg-[#18181B]">
+                      <img src={editingProduct.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                    </div>
+                  )}
                 </div>
 
               </div>

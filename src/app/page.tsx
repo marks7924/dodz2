@@ -556,7 +556,7 @@ export default function Home() {
                         className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
                       />
                       {hasDiscount && (
-                        <span className="absolute top-3 left-3 bg-pink-500 text-white font-extrabold text-[9px] px-2 py-0.5 rounded uppercase shadow-lg shadow-pink-500/20">
+                        <span className="absolute top-3 left-3 bg-primary-red text-white font-extrabold text-[9px] px-2 py-0.5 rounded uppercase shadow-lg shadow-primary-red/20">
                           {discount?.discountType === 'PERCENT' ? `${discount.discountValue}% OFF` : `-${discount?.discountValue} EGP`}
                         </span>
                       )}
@@ -592,12 +592,12 @@ export default function Home() {
                           <span>
                             {t('single')}: {' '}
                             {hasDiscount && <span className="line-through opacity-50 mr-1">{product.priceSingle}</span>}
-                            <b className={hasDiscount ? 'text-pink-400' : 'text-foreground'}>{displayPriceSingle} {t('egp')}</b>
+                            <b className={hasDiscount ? 'text-primary-red' : 'text-foreground'}>{displayPriceSingle} {t('egp')}</b>
                           </span>
                           <span>
                             {t('double')}: {' '}
                             {hasDiscount && <span className="line-through opacity-50 mr-1">{product.priceDouble}</span>}
-                            <b className={hasDiscount ? 'text-pink-400' : 'text-foreground'}>{displayPriceDouble} {t('egp')}</b>
+                            <b className={hasDiscount ? 'text-primary-red' : 'text-foreground'}>{displayPriceDouble} {t('egp')}</b>
                           </span>
                         </div>
                         <div className="flex gap-2">
