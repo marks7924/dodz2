@@ -953,7 +953,13 @@ export const db = {
     }
     return mockCoupons;
   },
-          code: data.code.toUpperCase(),
+  async createCoupon(data: Omit<Coupon, 'id' | 'isActive'>): Promise<Coupon> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: coup, error } = await getSupabase()
+          .from('coupons')
+          .insert({
+            code: data.code.toUpperCase(),
             discount_type: data.discountType,
             discount_value: data.discountValue,
             is_active: true,
