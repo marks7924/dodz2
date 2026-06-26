@@ -10,8 +10,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createClient } from '@/lib/supabase/client';
 import { db } from '@/lib/db';
 import {
-  Plus, Edit2, Trash2, MapPin, Phone, Clock, ShieldAlert, Store,
-  Users, Check, X, Search, ChevronDown, AlertTriangle, Activity
+  Plus, Edit2, Trash2, MapPin, Phone, ShieldAlert, Store,
+  Check, Search, Activity
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -46,41 +46,20 @@ const defaultForm: BranchFormData = {
 // ─────────────────────────────────────────────
 
 export default function BranchManagementPage() {
+  // ─── ALL HOOKS FIRST (Rules of Hooks) ────────
   const { role, isAuthenticated, isLoading: authLoading } = useAuth();
   const { allBranches, refetchBranches } = useBranch();
   const { locale } = useLanguage();
   const queryClient = useQueryClient();
   const supabase = createClient();
   const [mounted, setMounted] = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
-
-  // State
   const [isEditingBranch, setIsEditingBranch] = useState(false);
   const [editingBranch, setEditingBranch] = useState<(BranchFormData & { id?: string }) | null>(null);
   const [activeTab, setActiveTab] = useState<'BRANCHES' | 'ASSIGNMENTS'>('BRANCHES');
   const [searchUser, setSearchUser] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
-  // Access guard
-  const isSuperAdmin = role && ['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role);
-  if (!mounted || authLoading) return null;
-  if (!isAuthenticated || !isSuperAdmin) {
-    return (
-      <>
-        <Header />
-        <main className="flex-grow max-w-md mx-auto px-4 py-20 flex flex-col items-center justify-center text-center space-y-5 text-white">
-          <ShieldAlert className="h-10 w-10 text-primary-red" />
-          <h1 className="text-xl font-black">Access Denied</h1>
-          <p className="text-xs text-text-muted">Branch management is restricted to Owner, Head Admin, and Developer accounts.</p>
-          <Link href="/admin" className="text-primary-red hover:underline text-xs font-bold">← Back to Admin</Link>
-        </main>
-        <Footer />
-      </>
-    );
-  }
-
-  // ─── Mutations ───────────────────────────────────
+  useEffect(() => { setMounted(true); }, []);
 
   const saveBranchMutation = useMutation({
     mutationFn: async (data: BranchFormData & { id?: string }) => {
@@ -120,17 +99,14 @@ export default function BranchManagementPage() {
     onSuccess: () => refetchBranches(),
   });
 
-  // ─── User search ──────────────────────────────────
   const { data: users = [] } = useQuery({
     queryKey: ['admin-users-search', searchUser],
     queryFn: async () => {
       let q = supabase
         .from('profiles')
-        .select('id, full_name, role, branch_id')
+        .select('id, full_name, role')
         .order('full_name');
-      if (searchUser.trim()) {
-        q = q.ilike('full_name', `%${searchUser}%`);
-      }
+      if (searchUser.trim()) q = q.ilike('full_name', `%${searchUser}%`);
       const { data } = await q.limit(20);
       return data || [];
     },
@@ -163,6 +139,25 @@ export default function BranchManagementPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['user-branch-assignments', selectedUserId] }),
   });
 
+  // ─── GUARD RETURNS AFTER ALL HOOKS ──────────
+  if (!mounted || authLoading) return null;
+
+  const isSuperAdmin = role && ['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role);
+  if (!isAuthenticated || !isSuperAdmin) {
+    return (
+      <>
+        <Header />
+        <main className="flex-grow max-w-md mx-auto px-4 py-20 flex flex-col items-center justify-center text-center space-y-5 text-white">
+          <ShieldAlert className="h-10 w-10 text-primary-red" />
+          <h1 className="text-xl font-black">Access Denied</h1>
+          <p className="text-xs text-text-muted">Branch management is restricted to Owner, Head Admin, and Developer accounts.</p>
+          <Link href="/admin" className="text-primary-red hover:underline text-xs font-bold">← Back to Admin</Link>
+        </main>
+        <Footer />
+      </>
+    );
+  }
+
   // ─── Render ──────────────────────────────────────
 
   return (
@@ -180,11 +175,9 @@ export default function BranchManagementPage() {
               {locale === 'en' ? `${allBranches.length} active branches` : `${allBranches.length} فروع نشطة`}
             </p>
           </div>
-          <div className="flex gap-2">
-            <Link href="/admin" className="px-4 py-2 text-xs font-bold border border-card-border rounded-xl text-text-muted hover:text-white transition-colors">
-              ← {locale === 'en' ? 'Admin Panel' : 'لوحة الإدارة'}
-            </Link>
-          </div>
+          <Link href="/admin" className="px-4 py-2 text-xs font-bold border border-card-border rounded-xl text-text-muted hover:text-white transition-colors">
+            ← {locale === 'en' ? 'Admin Panel' : 'لوحة الإدارة'}
+          </Link>
         </div>
 
         {/* Tabs */}
@@ -207,7 +200,6 @@ export default function BranchManagementPage() {
         {/* ─── BRANCHES TAB ─────────────────────────────────── */}
         {activeTab === 'BRANCHES' && (
           <div className="space-y-4">
-            {/* Add button */}
             <button
               onClick={() => { setEditingBranch({ ...defaultForm }); setIsEditingBranch(true); }}
               className="flex items-center gap-2 px-4 py-2 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
@@ -216,7 +208,6 @@ export default function BranchManagementPage() {
               {locale === 'en' ? 'Add Branch' : 'إضافة فرع'}
             </button>
 
-            {/* Branch Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {allBranches.map((branch) => (
                 <div key={branch.id} className="bg-card border border-card-border rounded-2xl p-5 space-y-3">
@@ -231,7 +222,6 @@ export default function BranchManagementPage() {
                       {branch.status}
                     </span>
                   </div>
-
                   {branch.addressEn && (
                     <div className="flex items-start gap-1.5">
                       <MapPin className="h-3 w-3 text-text-muted shrink-0 mt-0.5" />
@@ -244,7 +234,6 @@ export default function BranchManagementPage() {
                       <p className="text-[11px] text-text-muted">{branch.phone}</p>
                     </div>
                   )}
-
                   <div className="flex gap-2 pt-1">
                     <button
                       onClick={() => {
@@ -283,7 +272,6 @@ export default function BranchManagementPage() {
         {/* ─── ASSIGNMENTS TAB ──────────────────────────────── */}
         {activeTab === 'ASSIGNMENTS' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* User list */}
             <div className="bg-card border border-card-border rounded-2xl p-5 space-y-3">
               <h3 className="text-xs font-bold text-white uppercase tracking-wider">
                 {locale === 'en' ? 'Select User' : 'اختر مستخدم'}
@@ -314,7 +302,6 @@ export default function BranchManagementPage() {
               </div>
             </div>
 
-            {/* Branch toggles */}
             <div className="bg-card border border-card-border rounded-2xl p-5 space-y-3">
               <h3 className="text-xs font-bold text-white uppercase tracking-wider">
                 {selectedUserId
@@ -356,7 +343,7 @@ export default function BranchManagementPage() {
           </div>
         )}
 
-        {/* ─── BRANCH FORM MODAL ──────────────────────────────────────────── */}
+        {/* ─── BRANCH FORM MODAL ─────────────── */}
         {isEditingBranch && editingBranch && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsEditingBranch(false)} />
@@ -377,7 +364,7 @@ export default function BranchManagementPage() {
                   { label: 'Phone', key: 'phone' },
                   { label: 'Map URL', key: 'mapUrl' },
                 ].map(({ label, key, required }) => (
-                  <div key={key} className={`space-y-1 ${key === 'addressEn' || key === 'addressAr' || key === 'mapUrl' ? 'col-span-2' : ''}`}>
+                  <div key={key} className={`space-y-1 ${['addressEn', 'addressAr', 'mapUrl'].includes(key) ? 'col-span-2' : ''}`}>
                     <label className="text-[10px] text-text-muted font-bold uppercase tracking-wider block">{label}</label>
                     <input
                       type="text"

@@ -88,7 +88,11 @@ export default function AdminDashboardPage() {
   // Poll orders database every 2 seconds for live kitchen updates!
   const { data: orders = [] } = useQuery<Order[]>({
     queryKey: ['admin-orders', filterBranchId],
-    queryFn: () => db.getOrders(),
+    queryFn: () => db.getOrders(
+      filterBranchId && filterBranchId !== 'ALL'
+        ? { branchId: filterBranchId }
+        : undefined
+    ),
     refetchInterval: 2000,
     enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });

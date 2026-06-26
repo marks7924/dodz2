@@ -689,7 +689,7 @@ export const db = {
   },
 
   // ORDERS
-  async getOrders(filters?: { userId?: string; driverId?: string; status?: string }): Promise<Order[]> {
+  async getOrders(filters?: { userId?: string; driverId?: string; status?: string; branchId?: string }): Promise<Order[]> {
     if (isSupabaseConfigured()) {
       try {
         let query = getSupabase().from('orders').select('*, order_items(*), driver:driver_id(full_name, phone)');
@@ -703,6 +703,9 @@ export const db = {
           }
           if (filters.status) {
             query = query.eq('status', filters.status);
+          }
+          if (filters.branchId && isValidUuid(filters.branchId)) {
+            query = query.eq('branch_id', filters.branchId);
           }
         }
 
@@ -722,6 +725,7 @@ export const db = {
       if (filters.userId) list = list.filter((o) => o.userId === filters.userId);
       if (filters.driverId) list = list.filter((o) => o.driverId === filters.driverId);
       if (filters.status) list = list.filter((o) => o.status === filters.status);
+      if (filters.branchId) list = list.filter((o) => o.branchId === filters.branchId);
     }
     return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
