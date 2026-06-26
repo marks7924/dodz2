@@ -57,26 +57,26 @@ export default function AdminDashboardPage() {
     queryKey: ['admin-orders'],
     queryFn: () => db.getOrders(),
     refetchInterval: 2000,
-    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
   const { data: products = [] } = useQuery<Product[]>({
     queryKey: ['admin-products'],
     queryFn: () => db.getProducts(),
     refetchInterval: 2000,
-    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['admin-categories'],
     queryFn: () => db.getCategories(),
-    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
   const { data: branches = [] } = useQuery<any[]>({
     queryKey: ['admin-branches'],
     queryFn: () => db.getBranches(),
-    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
   // Coupons states & React Query
@@ -89,7 +89,7 @@ export default function AdminDashboardPage() {
   const { data: coupons = [] } = useQuery({
     queryKey: ['admin-coupons'],
     queryFn: () => db.getCoupons(),
-    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
   const createCouponMutation = useMutation({
@@ -101,6 +101,39 @@ export default function AdminDashboardPage() {
       setNewCouponCode('');
       setNewCouponValue(0);
       setNewCouponExpiry('');
+    },
+  });
+
+  // Discounts states & React Query
+  const [isAddingDiscount, setIsAddingDiscount] = useState(false);
+  const [newDiscountName, setNewDiscountName] = useState('');
+  const [newDiscountType, setNewDiscountType] = useState<'PERCENT' | 'FIXED'>('PERCENT');
+  const [newDiscountValue, setNewDiscountValue] = useState(0);
+  const [newDiscountAppliesTo, setNewDiscountAppliesTo] = useState('ALL');
+
+  const { data: discounts = [] } = useQuery({
+    queryKey: ['admin-discounts'],
+    queryFn: () => db.getDiscounts(),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+  });
+
+  const createDiscountMutation = useMutation({
+    mutationFn: (data: { name: string; discountType: 'PERCENT' | 'FIXED'; discountValue: number; appliesTo: string }) =>
+      db.createDiscount(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-discounts'] });
+      setIsAddingDiscount(false);
+      setNewDiscountName('');
+      setNewDiscountValue(0);
+      setNewDiscountAppliesTo('ALL');
+    },
+  });
+
+  const toggleDiscountMutation = useMutation({
+    mutationFn: (data: { id: string; isActive: boolean }) =>
+      db.toggleDiscount(data.id, data.isActive),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-discounts'] });
     },
   });
 
@@ -247,7 +280,7 @@ export default function AdminDashboardPage() {
   if (!mounted || isLoading) return null;
 
   // Access Protection
-  const hasAccess = isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || '');
+  const hasAccess = isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || '');
   if (!hasAccess) {
     return (
       <>
@@ -363,7 +396,7 @@ export default function AdminDashboardPage() {
                 {locale === 'en' ? 'Orders' : 'الطلبات'}
               </button>
               
-              {['OWNER', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
+              {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
                 <>
                   <button
                     onClick={() => setActiveTab('MENU')}
@@ -373,7 +406,7 @@ export default function AdminDashboardPage() {
                   >
                     {locale === 'en' ? 'Menu' : 'المنيو'}
                   </button>
-                  {['OWNER', 'ADMIN'].includes(role || '') && (
+                  {['OWNER', 'HEAD_ADMIN', 'ADMIN'].includes(role || '') && (
                     <button
                       onClick={() => setActiveTab('COUPONS')}
                       className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -397,7 +430,7 @@ export default function AdminDashboardPage() {
 
             {/* Sub-pages Navigation for Admins — visible on desktop only; on mobile use Header links */}
             <div className="hidden sm:flex gap-2 flex-wrap items-center">
-              {['OWNER', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
+              {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
                 <>
                   <Link href="/admin/users" className="px-4 py-2 rounded-xl text-[10px] font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all uppercase tracking-wider">
                     {locale === 'en' ? 'Users Mgmt' : 'المستخدمين'}
@@ -411,8 +444,8 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* OWNER METRICS PANEL (Only visible if role === OWNER) */}
-        {role === 'OWNER' && (
+        {/* OWNER & HEAD_ADMIN METRICS PANEL (Only visible if role === OWNER or HEAD_ADMIN) */}
+        {['OWNER', 'HEAD_ADMIN'].includes(role || '') && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 bg-card border border-card-border rounded-3xl p-6">
             <div className="space-y-1 sm:col-span-1">
               <span className="text-[10px] text-accent-amber font-extrabold uppercase tracking-widest">Business Report</span>
@@ -868,6 +901,158 @@ export default function AdminDashboardPage() {
                     >
                       {locale === 'en' ? 'Create' : 'إنشاء'}
                     </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* DIVIDER */}
+            <hr className="border-card-border my-6" />
+
+            {/* EVENT DISCOUNTS SECTION */}
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-sm font-bold uppercase tracking-wider text-pink-400">
+                  {locale === 'en' ? 'Event & Menu Discounts' : 'تخفيضات القائمة والمناسبات'}
+                </h2>
+                <p className="text-[10px] text-text-muted mt-1">
+                  {locale === 'en' ? 'Automatically applies to the menu without a coupon code.' : 'تطبق تلقائياً على القائمة بدون الحاجة لكود خصم.'}
+                </p>
+              </div>
+              <button
+                onClick={() => setIsAddingDiscount(true)}
+                className="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+              >
+                <Plus className="h-4.5 w-4.5" />
+                <span>{locale === 'en' ? 'Create Event Discount' : 'إضافة تخفيض مباشر'}</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left rtl:text-right text-xs">
+                <thead className="bg-[#18181B] text-text-muted border-b border-card-border">
+                  <tr>
+                    <th className="p-4 font-bold">{locale === 'en' ? 'Event Name' : 'اسم الحدث'}</th>
+                    <th className="p-4 font-bold">{locale === 'en' ? 'Applies To' : 'ينطبق على'}</th>
+                    <th className="p-4 font-bold">{locale === 'en' ? 'Discount Value' : 'قيمة الخصم'}</th>
+                    <th className="p-4 font-bold">{locale === 'en' ? 'Status' : 'الحالة'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-card-border/30">
+                  {discounts.map((dsc) => (
+                    <tr key={dsc.id} className="hover:bg-card-border/20 transition-all">
+                      <td className="p-4 font-bold text-white">{dsc.name}</td>
+                      <td className="p-4 text-text-muted">
+                        {dsc.appliesTo === 'ALL' ? 'Entire Menu' : products.find(p => p.id === dsc.appliesTo)?.nameEn || dsc.appliesTo}
+                      </td>
+                      <td className="p-4 font-bold text-pink-400">
+                        {dsc.discountValue} {dsc.discountType === 'PERCENT' ? '%' : 'EGP'}
+                      </td>
+                      <td className="p-4">
+                        <button
+                          onClick={() => toggleDiscountMutation.mutate({ id: dsc.id, isActive: !dsc.isActive })}
+                          className={`px-3 py-1 rounded-full text-[9px] font-bold border transition-all cursor-pointer ${
+                            dsc.isActive ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-card border-card-border text-text-muted'
+                          }`}
+                        >
+                          {dsc.isActive ? t('available') : 'Disabled'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modal Dialog for Adding Discount */}
+            {isAddingDiscount && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onClick={() => setIsAddingDiscount(false)} />
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!newDiscountName.trim() || newDiscountValue <= 0) return;
+                    createDiscountMutation.mutate({
+                      name: newDiscountName.trim(),
+                      discountType: newDiscountType,
+                      discountValue: newDiscountValue,
+                      appliesTo: newDiscountAppliesTo,
+                    });
+                  }}
+                  className="relative w-full max-w-md bg-card border border-card-border rounded-3xl p-6 shadow-2xl space-y-4 z-10"
+                >
+                  <h3 className="text-base font-extrabold text-white">
+                    {locale === 'en' ? 'Create Event Discount' : 'إنشاء تخفيض مباشر'}
+                  </h3>
+
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Event / Discount Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Summer Festival"
+                        value={newDiscountName}
+                        onChange={(e) => setNewDiscountName(e.target.value)}
+                        required
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-pink-500/50"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Applies To</label>
+                      <select
+                        value={newDiscountAppliesTo}
+                        onChange={(e) => setNewDiscountAppliesTo(e.target.value)}
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none"
+                      >
+                        <option value="ALL">Entire Menu (All Products)</option>
+                        {products.map(p => (
+                          <option key={p.id} value={p.id}>{p.nameEn}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Discount Type</label>
+                        <select
+                          value={newDiscountType}
+                          onChange={(e) => setNewDiscountType(e.target.value as any)}
+                          className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none"
+                        >
+                          <option value="PERCENT">PERCENT (%)</option>
+                          <option value="FIXED">FIXED VALUE (EGP)</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Discount Value</label>
+                        <input
+                          type="number"
+                          value={newDiscountValue || ''}
+                          onChange={(e) => setNewDiscountValue(Number(e.target.value))}
+                          required
+                          className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="pt-2 flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setIsAddingDiscount(false)}
+                        className="flex-1 py-3 bg-[#18181B] hover:bg-card-border border border-card-border text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+                      >
+                        {locale === 'en' ? 'Cancel' : 'إلغاء'}
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={createDiscountMutation.isPending}
+                        className="flex-1 py-3 bg-pink-500 hover:bg-pink-600 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Check className="h-4.5 w-4.5" />
+                        <span>{createDiscountMutation.isPending ? 'Saving...' : (locale === 'en' ? 'Create Discount' : 'حفظ التخفيض')}</span>
+                      </button>
+                    </div>
                   </div>
                 </form>
               </div>

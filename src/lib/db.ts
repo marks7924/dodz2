@@ -92,6 +92,17 @@ export interface Coupon {
   isActive: boolean;
 }
 
+export interface Discount {
+  id: string;
+  name: string;
+  discountType: 'PERCENT' | 'FIXED';
+  discountValue: number;
+  appliesTo: string; // 'ALL' or menu_item UUID
+  isActive: boolean;
+  startsAt?: string;
+  endsAt?: string;
+}
+
 export interface ChatMessage {
   id: string;
   userId: string;
@@ -256,6 +267,8 @@ let mockCoupons: Coupon[] = [
   { id: 'coup-2', code: 'DODZ10', discountType: 'FIXED', discountValue: 30, isActive: true },
 ];
 
+let mockDiscounts: Discount[] = [];
+
 let mockChatMessages: ChatMessage[] = [];
 
 // ============================================================
@@ -365,6 +378,19 @@ function mapCoupon(c: any): Coupon {
     discountType: c.discount_type,
     discountValue: Number(c.discount_value),
     isActive: c.is_active,
+  };
+}
+
+function mapDiscount(d: any): Discount {
+  return {
+    id: d.id,
+    name: d.name,
+    discountType: d.discount_type,
+    discountValue: Number(d.discount_value),
+    appliesTo: d.applies_to,
+    isActive: d.is_active,
+    startsAt: d.starts_at,
+    endsAt: d.ends_at,
   };
 }
 
@@ -975,6 +1001,68 @@ export const db = {
     const newCoupon = { id: `coup-${Date.now()}`, isActive: true, ...data };
     mockCoupons.push(newCoupon);
     return newCoupon;
+  },
+
+  // DISCOUNTS
+  async getDiscounts(): Promise<Discount[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await getSupabase()
+          .from('discounts')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!error && data) return data.map(mapDiscount);
+      } catch (err) {
+        console.error('getDiscounts Supabase error:', err);
+      }
+    }
+    return mockDiscounts;
+  },
+
+  async createDiscount(data: Omit<Discount, 'id' | 'isActive'>): Promise<Discount> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: dsc, error } = await getSupabase()
+          .from('discounts')
+          .insert({
+            name: data.name,
+            discount_type: data.discountType,
+            discount_value: data.discountValue,
+            applies_to: data.appliesTo,
+            starts_at: data.startsAt || null,
+            ends_at: data.endsAt || null,
+            is_active: true,
+          })
+          .select()
+          .single();
+
+        if (!error && dsc) return mapDiscount(dsc);
+      } catch (err) {
+        console.error('createDiscount Supabase error:', err);
+      }
+    }
+    const newDsc = { id: `dsc-${Date.now()}`, isActive: true, ...data };
+    mockDiscounts.push(newDsc);
+    return newDsc;
+  },
+
+  async toggleDiscount(id: string, isActive: boolean): Promise<boolean> {
+    if (isSupabaseConfigured() && isValidUuid(id)) {
+      try {
+        const { error } = await getSupabase()
+          .from('discounts')
+          .update({ is_active: isActive })
+          .eq('id', id);
+
+        if (!error) return true;
+      } catch (err) {
+        console.error('toggleDiscount Supabase error:', err);
+      }
+    }
+    const idx = mockDiscounts.findIndex((d) => d.id === id);
+    if (idx !== -1) mockDiscounts[idx].isActive = isActive;
+    return true;
   },
 
   async getChatMessages(userId: string): Promise<ChatMessage[]> {

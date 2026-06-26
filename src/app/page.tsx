@@ -125,6 +125,14 @@ export default function Home() {
     queryFn: () => db.getProducts(),
   });
 
+  const { data: activeDiscounts = [] } = useQuery({
+    queryKey: ['active-discounts'],
+    queryFn: async () => {
+      const allDiscounts = await db.getDiscounts();
+      return allDiscounts.filter(d => d.isActive);
+    },
+  });
+
   const { data: reviews = [] } = useQuery<Review[]>({
     queryKey: ['reviews', selectedProduct?.id],
     queryFn: () => (selectedProduct ? db.getReviews(selectedProduct.id) : Promise.resolve([])),
@@ -146,12 +154,23 @@ export default function Home() {
   const COMBO_CATEGORIES = ['burgers', 'burger', 'chicken', 'دجاج', 'برجر'];
 
   const handleAddProductToCart = (product: Product, size: 'SINGLE' | 'DOUBLE' | 'NONE') => {
-    const price = size === 'DOUBLE' && product.priceDouble ? product.priceDouble : product.priceSingle;
+    // Apply discounts logic to the price before adding to cart
+    const basePrice = size === 'DOUBLE' && product.priceDouble ? product.priceDouble : product.priceSingle;
+    
+    let discount = activeDiscounts.find(d => d.appliesTo === product.id);
+    if (!discount) discount = activeDiscounts.find(d => d.appliesTo === 'ALL');
+
+    let finalPrice = basePrice;
+    if (discount) {
+      if (discount.discountType === 'FIXED') finalPrice = Math.max(0, basePrice - discount.discountValue);
+      if (discount.discountType === 'PERCENT') finalPrice = Math.max(0, basePrice * (1 - discount.discountValue / 100));
+    }
+
     addItem({
       productId: product.id,
       nameEn: product.nameEn,
       nameAr: product.nameAr,
-      price,
+      price: finalPrice,
       size: size as any,
       imageUrl: product.imageUrl,
     });
@@ -381,6 +400,21 @@ export default function Home() {
             {activeProducts.map((product) => {
               const hasOptions = !!product.priceDouble;
 
+              // Apply discounts
+              let discount = activeDiscounts.find(d => d.appliesTo === product.id);
+              if (!discount) discount = activeDiscounts.find(d => d.appliesTo === 'ALL');
+
+              const getDiscountedPrice = (price: number) => {
+                if (!discount) return price;
+                if (discount.discountType === 'FIXED') return Math.max(0, price - discount.discountValue);
+                if (discount.discountType === 'PERCENT') return Math.max(0, price * (1 - discount.discountValue / 100));
+                return price;
+              };
+
+              const displayPriceSingle = getDiscountedPrice(product.priceSingle);
+              const displayPriceDouble = product.priceDouble ? getDiscountedPrice(product.priceDouble) : undefined;
+              const hasDiscount = !!discount;
+
               return (
                 <div
                   key={product.id}
@@ -408,6 +442,11 @@ export default function Home() {
                         alt={locale === 'en' ? product.nameEn : product.nameAr}
                         className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
                       />
+                      {hasDiscount && (
+                        <span className="absolute top-3 left-3 bg-pink-500 text-white font-extrabold text-[9px] px-2 py-0.5 rounded uppercase shadow-lg shadow-pink-500/20">
+                          {discount?.discountType === 'PERCENT' ? `${discount.discountValue}% OFF` : `-${discount?.discountValue} EGP`}
+                        </span>
+                      )}
                       {product.id.includes('fire') && (
                         <span className="absolute top-3 right-3 bg-red-600/90 text-white font-extrabold text-[9px] px-2 py-0.5 rounded uppercase flex items-center gap-0.5 border border-red-500/25">
                           <Flame className="h-3 w-3 fill-current animate-pulse" /> SPICY
@@ -437,8 +476,16 @@ export default function Home() {
                       <div className="space-y-4 pt-4">
                         {/* Selector tabs for sizes */}
                         <div className="flex justify-between items-center text-xs text-text-muted">
-                          <span>{t('single')}: <b className="text-foreground">{product.priceSingle} {t('egp')}</b></span>
-                          <span>{t('double')}: <b className="text-foreground">{product.priceDouble} {t('egp')}</b></span>
+                          <span>
+                            {t('single')}: {' '}
+                            {hasDiscount && <span className="line-through opacity-50 mr-1">{product.priceSingle}</span>}
+                            <b className={hasDiscount ? 'text-pink-400' : 'text-foreground'}>{displayPriceSingle} {t('egp')}</b>
+                          </span>
+                          <span>
+                            {t('double')}: {' '}
+                            {hasDiscount && <span className="line-through opacity-50 mr-1">{product.priceDouble}</span>}
+                            <b className={hasDiscount ? 'text-pink-400' : 'text-foreground'}>{displayPriceDouble} {t('egp')}</b>
+                          </span>
                         </div>
                         <div className="flex gap-2">
                           <button
@@ -478,18 +525,6 @@ export default function Home() {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-between gap-4 pt-4">
-                        <span className="text-base font-bold text-accent-amber">
-                          {product.priceSingle} {t('egp')}
-                        </span>
-                        <button
-                          disabled={!product.isAvailable}
-                          onClick={() => handleAddProductToCart(product, 'NONE')}
-                          className="px-4 py-2 bg-primary-red hover:bg-primary-red-hover text-xs font-bold rounded-xl text-white transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                        >
-                          {justAddedId === `${product.id}-NONE` ? (
-                            <>
-                              <Check className="h-3.5 w-3.5 text-white" />
                               <span>{t('added')}</span>
                             </>
                           ) : (
