@@ -121,6 +121,13 @@ export default function LoginPage() {
             <div className="flex flex-wrap gap-2 justify-center">
               <button
                 type="button"
+                onClick={() => { setEmail('owner@dodz.com'); setPassword('owner123'); }}
+                className="px-3 py-1 bg-purple-500/10 border border-purple-500/30 text-purple-400 text-[10px] font-bold rounded-lg hover:bg-purple-500 hover:text-white transition-all"
+              >
+                Owner
+              </button>
+              <button
+                type="button"
                 onClick={() => { setEmail('admin@dodz.com'); setPassword('admin123'); }}
                 className="px-3 py-1 bg-primary-red/10 border border-primary-red/30 text-primary-red text-[10px] font-bold rounded-lg hover:bg-primary-red hover:text-white transition-all"
               >

@@ -373,14 +373,16 @@ export default function AdminDashboardPage() {
                   >
                     {locale === 'en' ? 'Menu' : 'المنيو'}
                   </button>
-                  <button
-                    onClick={() => setActiveTab('COUPONS')}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      activeTab === 'COUPONS' ? 'bg-primary-red text-white shadow-md shadow-primary-red/20' : 'text-text-muted hover:text-white hover:bg-card-border'
-                    }`}
-                  >
-                    {locale === 'en' ? 'Coupons' : 'كوبونات'}
-                  </button>
+                  {['OWNER', 'ADMIN'].includes(role || '') && (
+                    <button
+                      onClick={() => setActiveTab('COUPONS')}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        activeTab === 'COUPONS' ? 'bg-primary-red text-white shadow-md shadow-primary-red/20' : 'text-text-muted hover:text-white hover:bg-card-border'
+                      }`}
+                    >
+                      {locale === 'en' ? 'Coupons' : 'كوبونات'}
+                    </button>
+                  )}
                   <button
                     onClick={() => setActiveTab('CHAT')}
                     className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -1136,15 +1138,17 @@ export default function AdminDashboardPage() {
                 <EyeOff className="h-5 w-5" />
                 <span>{locale === 'en' ? 'Menu' : 'المنيو'}</span>
               </button>
-              <button
-                onClick={() => setActiveTab('COUPONS')}
-                className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
-                  activeTab === 'COUPONS' ? 'text-primary-red' : 'text-text-muted'
-                }`}
-              >
-                <DollarSign className="h-5 w-5" />
-                <span>{locale === 'en' ? 'Coupons' : 'كوبونات'}</span>
-              </button>
+              {['OWNER', 'ADMIN'].includes(role || '') && (
+                <button
+                  onClick={() => setActiveTab('COUPONS')}
+                  className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
+                    activeTab === 'COUPONS' ? 'text-primary-red' : 'text-text-muted'
+                  }`}
+                >
+                  <DollarSign className="h-5 w-5" />
+                  <span>{locale === 'en' ? 'Coupons' : 'كوبونات'}</span>
+                </button>
+              )}
             </>
           )}
 
