@@ -92,9 +92,9 @@ function BannerAnnouncement() {
         </div>
       )}
 
-      <div className="w-full bg-gradient-to-r from-primary-red to-accent-amber py-2.5 px-4 text-center text-xs font-bold text-white tracking-wide shadow-md flex items-center justify-center gap-2 relative group">
+      <div className="w-full bg-gradient-to-r from-primary-red to-accent-amber py-2.5 px-4 text-center text-xs font-bold text-white tracking-wide shadow-md flex flex-wrap items-center justify-center gap-x-2 gap-y-1 relative group">
         <Flame className="h-4 w-4 animate-bounce flex-shrink-0" />
-        <span className="truncate max-w-[80%]">{active ? displayText : <span className="opacity-50 italic">{locale === 'en' ? 'Banner hidden from public' : 'البانر مخفي عن الجمهور'}</span>}</span>
+        <span className="text-center leading-snug">{active ? displayText : <span className="opacity-50 italic">{locale === 'en' ? 'Banner hidden from public' : 'البانر مخفي عن الجمهور'}</span>}</span>
         <Sparkles className="h-4 w-4 flex-shrink-0" />
 
         {/* Admin controls — shown on hover */}
