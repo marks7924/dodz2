@@ -876,12 +876,13 @@ export default function Home() {
                     {locale === 'en' ? 'End' : 'إنهاء'}
                   </button>
                 )}
-              <button
-                onClick={() => setChatOpen(false)}
-                className="p-1 rounded hover:bg-card-border text-text-muted hover:text-white"
-              >
-                <X className="h-4 w-4" />
-              </button>
+                <button
+                  onClick={() => setChatOpen(false)}
+                  className="p-1 rounded hover:bg-card-border text-text-muted hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             {/* Messages */}
