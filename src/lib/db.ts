@@ -220,6 +220,8 @@ let mockProducts: Product[] = [
 
 let mockUsers: User[] = [
   { id: 'user-owner', email: 'owner@dodz.com', name: 'Sherif Dodz (Owner)', role: 'OWNER', phone: '01011112222' },
+  { id: 'user-headadmin', email: 'headadmin@dodz.com', name: 'Head Admin User', role: 'HEAD_ADMIN', phone: '01055556666' },
+  { id: 'user-admin', email: 'admin@dodz.com', name: 'Branch Admin', role: 'ADMIN', phone: '01099998888' },
   { id: 'user-staff', email: 'staff@dodz.com', name: 'Karim Aly (Kitchen)', role: 'STAFF', phone: '01033334444' },
   { id: 'user-driver1', email: 'driver1@dodz.com', name: 'Mustafa Salem (Driver)', role: 'DRIVER', phone: '01255556666' },
   { id: 'user-cust', email: 'customer@test.com', name: 'Mina Ramzy', role: 'CUSTOMER', phone: '01599990000' },

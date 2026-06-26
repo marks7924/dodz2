@@ -218,19 +218,18 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Mobile Drawer Overlay */}
+      {/* Mobile Drawer Overlay & Panel */}
       {mobileMenuOpen && (
-        <div 
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm md:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        >
+        <>
+          <div 
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
           {/* Drawer Panel */}
           <div
-            className={`fixed top-0 bottom-0 z-[60] w-72 max-w-[85vw] border-card-border p-6 space-y-6 shadow-2xl flex flex-col justify-between ${
+            className={`fixed top-0 bottom-0 z-[60] w-72 max-w-[85vw] p-6 space-y-6 shadow-2xl flex flex-col justify-between md:hidden bg-[#0A0A0B] border-card-border ${
               locale === 'ar' ? 'left-0 border-r border-[#27272A]' : 'right-0 border-l border-[#27272A]'
             }`}
-            style={{ backgroundColor: '#0E0E10' }}
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="space-y-6">
               {/* Drawer Title Header */}
@@ -310,7 +309,7 @@ export default function Header() {
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Global Customer Active Order Tracker */}
