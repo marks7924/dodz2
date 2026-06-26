@@ -52,15 +52,15 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-50 w-full glass-panel border-b border-card-border">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 md:h-20">
+        <div className="flex items-center justify-between h-14 md:h-20">
 
           {/* Logo */}
-          <div className="flex-shrink-0 flex items-center gap-4">
+          <div className="flex-shrink-0 flex items-center gap-2">
             <Link href="/" className="flex items-center gap-2 group">
-              <span className="text-2xl md:text-3xl font-extrabold tracking-wider bg-gradient-to-r from-primary-red to-accent-amber bg-clip-text text-transparent group-hover:opacity-90 transition-opacity">
+              <span className="text-xl md:text-3xl font-extrabold tracking-wider bg-gradient-to-r from-primary-red to-accent-amber bg-clip-text text-transparent group-hover:opacity-90 transition-opacity">
                 DODZ
               </span>
-              <span className="text-sm font-bold uppercase tracking-widest text-foreground px-2 py-0.5 rounded bg-primary-red pulse-glow-red">
+              <span className="hidden sm:inline text-sm font-bold uppercase tracking-widest text-foreground px-2 py-0.5 rounded bg-primary-red pulse-glow-red">
                 Fried Chicken
               </span>
             </Link>
@@ -110,7 +110,7 @@ export default function Header() {
               className="p-2 rounded-full hover:bg-card-border transition-colors text-foreground md:hidden flex items-center justify-center cursor-pointer"
               aria-label="Toggle Mobile Menu"
             >
-              <Menu className="h-5 w-5" />
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
 
             {/* Language Switcher - Desktop Only */}
@@ -144,10 +144,10 @@ export default function Header() {
             {mounted && !isLoading && (
               isAuthenticated ? (
                 <div className="relative">
-                  <button
-                    onClick={() => setShowUserDropdown(!showUserDropdown)}
-                    className="flex items-center gap-1 md:gap-2 px-3 py-1.5 rounded-full bg-card hover:bg-card-border border border-card-border transition-all text-xs font-medium text-foreground cursor-pointer"
-                  >
+            <button
+                onClick={() => setShowUserDropdown(!showUserDropdown)}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-full bg-card hover:bg-card-border border border-card-border transition-all text-xs font-medium text-foreground cursor-pointer"
+              >
                     <User className="h-4 w-4 text-accent-amber" />
                     <span className="max-w-[80px] truncate hidden md:inline">
                       {profile?.full_name || user?.email?.split('@')[0]}
@@ -221,13 +221,13 @@ export default function Header() {
       {/* Mobile Drawer Overlay */}
       {mobileMenuOpen && (
         <div 
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md md:hidden animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm md:hidden"
           onClick={() => setMobileMenuOpen(false)}
         >
           {/* Drawer Panel */}
           <div
-            className={`fixed top-0 bottom-0 w-72 max-w-[80vw] bg-[#0E0E10] border-card-border p-6 space-y-6 shadow-2xl flex flex-col justify-between transition-transform duration-350 ${
-              locale === 'ar' ? 'left-0 border-r border-[#27272A] animate-slide-in-left' : 'right-0 border-l border-[#27272A] animate-slide-in-right'
+            className={`fixed top-0 bottom-0 w-72 max-w-[85vw] bg-[#0E0E10] border-card-border p-6 space-y-6 shadow-2xl flex flex-col justify-between ${
+              locale === 'ar' ? 'left-0 border-r border-[#27272A]' : 'right-0 border-l border-[#27272A]'
             }`}
             onClick={(e) => e.stopPropagation()}
           >

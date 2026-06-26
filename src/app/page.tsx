@@ -19,7 +19,7 @@ export default function Home() {
   const { addItem, cartOpen, setCartOpen } = useCartStore();
   const queryClient = useQueryClient();
 
-  const [activeCategory, setActiveCategory] = useState<string>('cat-1');
+  const [activeCategory, setActiveCategory] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedSize, setSelectedSize] = useState<'SINGLE' | 'DOUBLE'>('SINGLE');
   const [reviewName, setReviewName] = useState('');
@@ -163,7 +163,7 @@ export default function Home() {
     });
   };
 
-  const activeProducts = products.filter((p) => p.categoryId === activeCategory);
+  const activeProducts = activeCategory === 'all' ? products : products.filter((p) => p.categoryId === activeCategory);
 
   return (
     <>
@@ -233,22 +233,30 @@ export default function Home() {
                   }}
                 />
                 <div className="relative bg-gradient-to-t from-black/90 via-black/40 to-transparent p-6 space-y-3 z-10 w-full">
-                  <div 
-                    onClick={() => {
-                      const bestseller = products.find(p => p.id === 'prod-dodz-burger');
-                      if (bestseller) {
-                        setSelectedProduct(bestseller);
-                      }
-                    }}
-                    className="flex justify-between items-center bg-black/55 backdrop-blur-md p-4 rounded-2xl border border-white/5 cursor-pointer hover:border-primary-red/35 transition-colors"
-                  >
-                    <div>
+                  <div className="flex justify-between items-center bg-black/55 backdrop-blur-md p-4 rounded-2xl border border-white/5 hover:border-primary-red/35 transition-colors">
+                    <div
+                      className="cursor-pointer flex-1"
+                      onClick={() => {
+                        const bestseller = products.find(p => p.id === 'prod-dodz-burger');
+                        if (bestseller) setSelectedProduct(bestseller);
+                      }}
+                    >
                       <h4 className="text-sm font-bold text-white">Dodz Burger (دودز برجر)</h4>
                       <p className="text-[11px] text-accent-amber mt-0.5">Single: 120 EGP | Double: 170 EGP</p>
                     </div>
-                    <span className="px-2.5 py-1 rounded bg-accent-amber text-black text-[10px] font-extrabold uppercase animate-pulse">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const bestseller = products.find(p => p.id === 'prod-dodz-burger');
+                        if (bestseller) {
+                          handleAddProductToCart(bestseller, 'SINGLE');
+                          setCartOpen(true);
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded bg-accent-amber hover:bg-yellow-400 text-black text-[10px] font-extrabold uppercase cursor-pointer transition-all animate-pulse hover:animate-none ml-3 flex-shrink-0"
+                    >
                       Buy Now
-                    </span>
+                    </button>
                   </div>
 
                   {isAdmin && (
@@ -317,6 +325,17 @@ export default function Home() {
 
           {/* Categories Navigation Bar */}
           <div className="sticky top-[64px] md:top-[80px] z-30 w-full glass-panel border border-card-border p-2 rounded-2xl mb-8 flex gap-2 overflow-x-auto no-scrollbar scroll-smooth">
+            {/* All category button */}
+            <button
+              onClick={() => setActiveCategory('all')}
+              className={`px-5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                activeCategory === 'all'
+                  ? 'bg-primary-red text-white shadow-md'
+                  : 'text-foreground hover:bg-card-border'
+              }`}
+            >
+              {locale === 'en' ? 'All' : 'الكل'}
+            </button>
             {categories.map((cat) => (
               <button
                 key={cat.id}
