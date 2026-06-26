@@ -11,9 +11,126 @@ import CartSidebar from '@/components/cart/CartSidebar';
 import ComboOfferModal from '@/components/cart/ComboOfferModal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, Product, Category, Review } from '@/lib/db';
-import { ShoppingBag, Star, Flame, Sparkles, Plus, Check, StarIcon, X, MessageCircle, Send, Edit2, Save } from 'lucide-react';
+import { ShoppingBag, Star, Flame, Sparkles, Plus, Check, StarIcon, X, MessageCircle, Send, Edit2, Save, Pencil, Trash2, Megaphone } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { createClient } from '@/lib/supabase/client';
 
+// ── Inline editable promo banner ────────────────────────────────────────────
+function BannerAnnouncement() {
+  const { t, locale } = useLanguage();
+  const { role } = useAuth();
+  const supabase = createClient();
+
+  const canManage = role && ['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role);
+
+  const [text, setText] = useState<string | null>(null);
+  const [active, setActive] = useState(true); // default: show hardcoded fallback
+  const [loaded, setLoaded] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    const fetch = async () => {
+      const { data } = await supabase
+        .from('restaurant_settings')
+        .select('key, value')
+        .in('key', ['promo_banner_text', 'promo_banner_active']);
+      const textRow = data?.find((r: any) => r.key === 'promo_banner_text');
+      const activeRow = data?.find((r: any) => r.key === 'promo_banner_active');
+      if (textRow) setText(textRow.value);
+      if (activeRow) setActive(activeRow.value !== 'false');
+      setLoaded(true);
+    };
+    fetch();
+  }, []);
+
+  const save = async (newText: string, newActive: boolean) => {
+    setSaving(true);
+    await supabase.from('restaurant_settings').upsert([
+      { key: 'promo_banner_text', value: newText, description: 'Promotional banner text' },
+      { key: 'promo_banner_active', value: newActive ? 'true' : 'false', description: 'Banner visibility' },
+    ], { onConflict: 'key' });
+    setText(newText);
+    setActive(newActive);
+    setIsEditing(false);
+    setSaving(false);
+  };
+
+  const displayText = text || t('promoBanner');
+
+  // Hide for regular users if deactivated
+  if (loaded && !active && !canManage) return null;
+
+  return (
+    <>
+      {isEditing && (
+        <div className="fixed inset-0 z-[9997] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsEditing(false)} />
+          <div className="relative w-full max-w-md bg-[#111113] border border-[#27272A] rounded-2xl p-6 shadow-2xl space-y-4 z-10">
+            <h3 className="text-sm font-extrabold text-white flex items-center gap-2">
+              <Megaphone className="h-4 w-4 text-accent-amber" />
+              {locale === 'en' ? 'Edit Promo Banner' : 'تعديل البانر الترويجي'}
+            </h3>
+            <textarea
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              placeholder="e.g. 🎉 Get 15% OFF on your first order! Use code: FIRST15"
+              rows={3}
+              className="w-full bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-primary-red/50 resize-none"
+            />
+            <div className="flex gap-2 justify-end">
+              <button onClick={() => setIsEditing(false)} className="px-3 py-1.5 border border-[#27272A] rounded-xl text-xs font-bold text-text-muted hover:text-white cursor-pointer">
+                {locale === 'en' ? 'Cancel' : 'إلغاء'}
+              </button>
+              <button disabled={saving} onClick={() => save(editValue, editValue.trim().length > 0)}
+                className="px-4 py-1.5 bg-primary-red text-white text-xs font-bold rounded-xl hover:bg-primary-red-hover flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
+                {saving ? '...' : (locale === 'en' ? 'Save & Publish' : 'حفظ ونشر')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="w-full bg-gradient-to-r from-primary-red to-accent-amber py-2.5 px-4 text-center text-xs font-bold text-white tracking-wide shadow-md flex items-center justify-center gap-2 relative group">
+        <Flame className="h-4 w-4 animate-bounce flex-shrink-0" />
+        <span className="truncate max-w-[80%]">{active ? displayText : <span className="opacity-50 italic">{locale === 'en' ? 'Banner hidden from public' : 'البانر مخفي عن الجمهور'}</span>}</span>
+        <Sparkles className="h-4 w-4 flex-shrink-0" />
+
+        {/* Admin controls — shown on hover */}
+        {canManage && (
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              onClick={() => { setEditValue(displayText); setIsEditing(true); }}
+              title={locale === 'en' ? 'Edit banner' : 'تعديل البانر'}
+              className="p-1 rounded-full bg-black/30 hover:bg-black/60 text-white cursor-pointer"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+            {active && (
+              <button
+                onClick={() => save(text || displayText, false)}
+                title={locale === 'en' ? 'Hide banner' : 'إخفاء البانر'}
+                className="p-1 rounded-full bg-black/30 hover:bg-black/60 text-white cursor-pointer"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
+            {!active && (
+              <button
+                onClick={() => save(text || displayText, true)}
+                title={locale === 'en' ? 'Show banner' : 'إظهار البانر'}
+                className="p-1 rounded-full bg-black/30 hover:bg-black/60 text-white cursor-pointer text-[10px] font-bold px-2"
+              >
+                Show
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
 
 export default function Home() {
   const { t, locale, dir } = useLanguage();
@@ -213,12 +330,8 @@ export default function Home() {
       <CartSidebar />
 
       <main className="flex-1 pb-16">
-        {/* Banner Announcement */}
-        <div className="w-full bg-gradient-to-r from-primary-red to-accent-amber py-2.5 px-4 text-center text-xs font-bold text-white tracking-wide shadow-md flex items-center justify-center gap-2">
-          <Flame className="h-4 w-4 animate-bounce" />
-          <span>{t('promoBanner')}</span>
-          <Sparkles className="h-4 w-4" />
-        </div>
+        {/* Banner Announcement — editable by OWNER / HEAD_ADMIN */}
+        <BannerAnnouncement />
 
         {/* Hero Section */}
         <section className="relative overflow-hidden pt-12 pb-16 md:py-24 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary-red/10 via-[#0A0A0B] to-[#0A0A0B]">
