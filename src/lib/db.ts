@@ -953,14 +953,7 @@ export const db = {
     }
     return mockCoupons;
   },
-
-  async createCoupon(data: Omit<Coupon, 'id' | 'isActive'>): Promise<Coupon> {
-    if (isSupabaseConfigured()) {
-      try {
-        const { data: coup, error } = await getSupabase()
-          .from('coupons')
-          .insert({
-            code: data.code.toUpperCase(),
+          code: data.code.toUpperCase(),
             discount_type: data.discountType,
             discount_value: data.discountValue,
             is_active: true,
@@ -978,22 +971,84 @@ export const db = {
     return newCoupon;
   },
 
-  // CHAT SUPPORT (Integrated directly via Realtime in chat.ts hooks,
-  // keeping interface for compatibility)
   async getChatMessages(userId: string): Promise<ChatMessage[]> {
+    if (isSupabaseConfigured() && isValidUuid(userId)) {
+      try {
+        const { data: chat } = await getSupabase()
+          .from('support_chats')
+          .select('id')
+          .eq('customer_id', userId)
+          .eq('status', 'OPEN')
+          .single();
+        
+        if (chat) {
+          const { data: messages, error } = await getSupabase()
+            .from('support_messages')
+            .select('*, profiles:sender_id(full_name)')
+            .eq('chat_id', chat.id)
+            .order('created_at', { ascending: true });
+            
+          if (!error && messages) {
+            return messages.map((m: any) => ({
+              id: m.id,
+              userId: userId,
+              senderId: m.sender_id,
+              senderRole: m.sender_role,
+              senderName: m.profiles?.full_name || (m.sender_role === 'CUSTOMER' ? 'Customer' : 'Staff'),
+              text: m.content,
+              createdAt: m.created_at,
+            }));
+          }
+        }
+      } catch (err) {
+        console.error('getChatMessages Supabase error:', err);
+      }
+    }
+
     return mockChatMessages
       .filter((m) => m.userId === userId)
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   },
 
   async getActiveChats(): Promise<{ userId: string; userName: string; lastMessage: string; updatedAt: string }[]> {
+    if (isSupabaseConfigured()) {
+      try {
+        const { data, error } = await getSupabase()
+          .from('support_chats')
+          .select(`
+            customer_id,
+            updated_at,
+            profiles!support_chats_customer_id_fkey(full_name),
+            support_messages(content, created_at)
+          `)
+          .eq('status', 'OPEN')
+          .order('updated_at', { ascending: false });
+
+        if (!error && data) {
+          return data.map((chat: any) => {
+            const msgs = chat.support_messages || [];
+            msgs.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+            const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1].content : '';
+            return {
+              userId: chat.customer_id,
+              userName: chat.profiles?.full_name || 'Customer',
+              lastMessage: lastMsg,
+              updatedAt: chat.updated_at,
+            };
+          });
+        }
+      } catch (err) {
+        console.error('getActiveChats Supabase error:', err);
+      }
+    }
+
     const userIds = Array.from(new Set(mockChatMessages.map((m) => m.userId)));
     return userIds
       .map((uid) => {
         const userMsgs = mockChatMessages
           .filter((m) => m.userId === uid)
           .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-        const lastMsg = userMsgs[userMsgs.length - 1];
+        const lastMsg = userMsgs[0];
         return {
           userId: uid,
           userName: lastMsg.senderRole === 'CUSTOMER' ? lastMsg.senderName : 'Customer',
@@ -1010,9 +1065,62 @@ export const db = {
     senderName: string,
     text: string
   ): Promise<ChatMessage> {
+    if (isSupabaseConfigured() && isValidUuid(userId)) {
+      try {
+        const supabase = getSupabase();
+        let { data: chat } = await supabase
+          .from('support_chats')
+          .select('id')
+          .eq('customer_id', userId)
+          .eq('status', 'OPEN')
+          .single();
+
+        if (!chat) {
+           const { data: newChat } = await supabase
+             .from('support_chats')
+             .insert({ customer_id: userId, status: 'OPEN' })
+             .select('id')
+             .single();
+           chat = newChat;
+        }
+
+        if (chat) {
+          const { data: { user: currentUser } } = await supabase.auth.getUser();
+          const senderId = currentUser?.id || userId;
+
+          const { data: newMsg, error } = await supabase
+            .from('support_messages')
+            .insert({
+              chat_id: chat.id,
+              sender_id: senderId,
+              sender_role: senderRole,
+              content: text,
+            })
+            .select()
+            .single();
+
+          if (!error && newMsg) {
+             await supabase.from('support_chats').update({ updated_at: new Date().toISOString() }).eq('id', chat.id);
+             return {
+                id: newMsg.id,
+                userId: userId,
+                senderId: senderId,
+                senderRole: newMsg.sender_role,
+                senderName,
+                text: newMsg.content,
+                createdAt: newMsg.created_at,
+             };
+          }
+        }
+      } catch (err) {
+        console.error('sendChatMessage Supabase error:', err);
+      }
+    }
+
     const newMessage: ChatMessage = {
       id: `msg-${Date.now()}`,
       userId,
+      senderId: 'mock-staff-id',
       senderRole,
       senderName,
       text,
