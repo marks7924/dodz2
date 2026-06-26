@@ -31,6 +31,16 @@ export const ROLE_PERMISSIONS: Record<UserRole, PermissionAction[]> = {
     'VIEW_LOGS',
     'STAFF_CHAT',
   ],
+  HEAD_ADMIN: [
+    'VIEW_ORDERS',
+    'MANAGE_MENU',
+    'MANAGE_USERS',
+    'ASSIGN_ROLES',
+    'VIEW_ANALYTICS',
+    'VIEW_LOGS',
+    'STAFF_CHAT',
+  ],
+
   DEVELOPER: [
     'VIEW_ORDERS',
     'MANAGE_USERS',
