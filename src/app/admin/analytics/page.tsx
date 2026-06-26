@@ -68,7 +68,7 @@ export default function AnalyticsPage() {
         orders: orders.slice(0, 10), // latest 10
       };
     },
-    enabled: isAuthenticated && ['ADMIN', 'OWNER', 'DEVELOPER'].includes(role || ''),
+    enabled: isAuthenticated && ['ADMIN', 'HEAD_ADMIN', 'OWNER', 'DEVELOPER'].includes(role || ''),
   });
 
   if (authLoading) {
@@ -79,7 +79,7 @@ export default function AnalyticsPage() {
     );
   }
 
-  const isAuthorized = isAuthenticated && ['ADMIN', 'OWNER', 'DEVELOPER'].includes(role || '');
+  const isAuthorized = isAuthenticated && ['ADMIN', 'HEAD_ADMIN', 'OWNER', 'DEVELOPER'].includes(role || '');
 
   if (!isAuthorized) {
     return (

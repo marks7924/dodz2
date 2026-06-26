@@ -10,10 +10,41 @@ import Footer from '@/components/layout/Footer';
 import { ShieldAlert, Plus, Edit2, Trash2, Shield, UserX, UserCheck, Loader2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
+// Role hierarchy — higher index = higher rank
+const ROLE_HIERARCHY: Record<string, number> = {
+  CUSTOMER: 0,
+  DRIVER: 1,
+  STAFF: 2,
+  ADMIN: 3,
+  HEAD_ADMIN: 4,
+  OWNER: 5,
+  DEVELOPER: 6,
+};
+
+// Roles each level CAN assign (they can only assign roles strictly below themselves)
+function getAssignableRoles(myRole: string): string[] {
+  const myLevel = ROLE_HIERARCHY[myRole] ?? -1;
+  return Object.entries(ROLE_HIERARCHY)
+    .filter(([, level]) => level < myLevel)
+    .map(([r]) => r)
+    .sort((a, b) => (ROLE_HIERARCHY[b] ?? 0) - (ROLE_HIERARCHY[a] ?? 0));
+}
+
+// Display labels for roles
+const ROLE_LABELS: Record<string, string> = {
+  DEVELOPER: 'Developer',
+  OWNER: 'Owner',
+  HEAD_ADMIN: 'Head Admin',
+  ADMIN: 'Admin',
+  STAFF: 'Staff',
+  DRIVER: 'Driver',
+  CUSTOMER: 'Customer',
+};
+
 export default function UserManagementPage() {
   const { locale, t } = useLanguage();
   const router = useRouter();
-  const { role, isLoading: authLoading, isAuthenticated } = useAuth();
+  const { role, user: authUser, isLoading: authLoading, isAuthenticated } = useAuth();
   const supabase = createClient();
   const queryClient = useQueryClient();
 
@@ -41,18 +72,30 @@ export default function UserManagementPage() {
     },
   });
 
-  // Fetch all profiles
+  // Access levels that can view users
+  const ACCESS_ROLES = ['ADMIN', 'HEAD_ADMIN', 'OWNER', 'DEVELOPER'];
+
+  // Fetch all profiles, filtering based on viewer's rank
   const { data: users = [], isLoading: usersLoading } = useQuery({
-    queryKey: ['admin-users-list'],
+    queryKey: ['admin-users-list', role],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      return data;
+
+      const myLevel = ROLE_HIERARCHY[role || ''] ?? -1;
+
+      // Filter out users with same or higher rank than viewer (DEV/OWNER not shown to non-DEV)
+      return (data || []).filter((u: any) => {
+        const userLevel = ROLE_HIERARCHY[u.role] ?? 0;
+        // DEVELOPER can see everyone; others can only see users strictly below them
+        if (role === 'DEVELOPER') return true;
+        return userLevel < myLevel;
+      });
     },
-    enabled: isAuthenticated && ['ADMIN', 'OWNER', 'DEVELOPER'].includes(role || ''),
+    enabled: isAuthenticated && ACCESS_ROLES.includes(role || ''),
   });
 
   const createUserMutation = useMutation({
@@ -181,7 +224,7 @@ export default function UserManagementPage() {
   }
 
   // Access check
-  const isAuthorized = isAuthenticated && ['ADMIN', 'OWNER', 'DEVELOPER'].includes(role || '');
+  const isAuthorized = isAuthenticated && ACCESS_ROLES.includes(role || '');
 
   if (!isAuthorized) {
     return (
@@ -195,8 +238,8 @@ export default function UserManagementPage() {
             <h1 className="text-xl font-bold text-white">{locale === 'en' ? 'Access Denied' : 'غير مسموح بالدخول'}</h1>
             <p className="text-xs text-text-muted">
               {locale === 'en'
-                ? 'Only Administrators, Developers, and Restaurant Owners can manage users.'
-                : 'يسمح فقط للمسؤولين والمطورين ومالكي المطعم بإدارة المستخدمين.'}
+                ? 'Only Administrators, Head Admins, Developers, and Restaurant Owners can manage users.'
+                : 'يسمح فقط للمسؤولين والمسؤولين الرئيسيين والمطورين ومالكي المطعم بإدارة المستخدمين.'}
             </p>
           </div>
         </main>
@@ -204,6 +247,19 @@ export default function UserManagementPage() {
       </>
     );
   }
+
+  const assignableRoles = getAssignableRoles(role || '');
+
+  // Role badge colour map
+  const ROLE_COLORS: Record<string, string> = {
+    DEVELOPER: 'bg-violet-500/10 text-violet-400 border-violet-500/20',
+    OWNER:     'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    HEAD_ADMIN:'bg-pink-500/10 text-pink-400 border-pink-500/20',
+    ADMIN:     'bg-primary-red/10 text-primary-red border-primary-red/20',
+    STAFF:     'bg-accent-amber/10 text-accent-amber border-accent-amber/20',
+    DRIVER:    'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    CUSTOMER:  'bg-green-500/10 text-green-400 border-green-500/20',
+  };
 
   return (
     <>
@@ -219,8 +275,8 @@ export default function UserManagementPage() {
             </h1>
             <p className="text-xs text-text-muted">
               {locale === 'en'
-                ? 'Create, edit, suspend, and delete user profiles and roles.'
-                : 'إنشاء وتعديل وتعليق وحذف ملفات تعريف المستخدمين وأدوارهم.'}
+                ? `Role hierarchy: Dev › Owner › Head Admin › Admin › Staff › Driver › Customer. You can manage roles below ${ROLE_LABELS[role || ''] || role}.`
+                : 'التسلسل الهرمي: مطور › مالك › مسؤول رئيسي › مسؤول › موظف › سائق › عميل.'}
             </p>
           </div>
 
@@ -232,7 +288,7 @@ export default function UserManagementPage() {
             className="px-4 py-2.5 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-primary-red/25 self-start sm:self-auto"
           >
             <Plus className="h-4.5 w-4.5" />
-            <span>{locale === 'en' ? 'Create Staff User' : 'إنشاء حساب موظف'}</span>
+            <span>{locale === 'en' ? 'Create User' : 'إنشاء حساب'}</span>
           </button>
         </div>
 
@@ -260,8 +316,8 @@ export default function UserManagementPage() {
                       <td className="p-4 font-bold">{u.full_name || 'N/A'}</td>
                       <td className="p-4 text-text-muted font-mono">{u.phone || 'N/A'}</td>
                       <td className="p-4">
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-primary-red/10 text-primary-red border border-primary-red/20 uppercase">
-                          {u.role}
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold border uppercase ${ROLE_COLORS[u.role] || 'bg-gray-500/10 text-gray-400 border-gray-500/20'}`}>
+                          {ROLE_LABELS[u.role] || u.role}
                         </span>
                       </td>
                       <td className="p-4 text-text-muted">
@@ -327,7 +383,7 @@ export default function UserManagementPage() {
               className="relative w-full max-w-md bg-card border border-card-border rounded-3xl p-6 shadow-2xl space-y-4 z-10 text-white"
             >
               <h3 className="text-base font-extrabold text-white">
-                {locale === 'en' ? 'Create New Staff User' : 'إنشاء حساب موظف جديد'}
+                {locale === 'en' ? 'Create New User' : 'إنشاء حساب جديد'}
               </h3>
 
               {formError && (
@@ -384,11 +440,9 @@ export default function UserManagementPage() {
                     onChange={(e) => setUserRole(e.target.value)}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
                   >
-                    <option value="STAFF">STAFF</option>
-                    <option value="DRIVER">DRIVER</option>
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="DEVELOPER">DEVELOPER</option>
-                    <option value="OWNER">OWNER</option>
+                    {assignableRoles.map((r) => (
+                      <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -474,12 +528,9 @@ export default function UserManagementPage() {
                     onChange={(e) => setUserRole(e.target.value)}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
                   >
-                    <option value="CUSTOMER">CUSTOMER</option>
-                    <option value="STAFF">STAFF</option>
-                    <option value="DRIVER">DRIVER</option>
-                    <option value="ADMIN">ADMIN</option>
-                    <option value="DEVELOPER">DEVELOPER</option>
-                    <option value="OWNER">OWNER</option>
+                    {assignableRoles.map((r) => (
+                      <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
+                    ))}
                   </select>
                 </div>
                 <div>

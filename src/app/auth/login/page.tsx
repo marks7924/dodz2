@@ -143,10 +143,10 @@ export default function LoginPage() {
               </button>
               <button
                 type="button"
-                onClick={() => { setEmail('manager@dodz.com'); setPassword('manager123'); }}
+                onClick={() => { setEmail('staff@dodz.com'); setPassword('staff123'); }}
                 className="px-3 py-1 bg-accent-amber/10 border border-accent-amber/30 text-accent-amber text-[10px] font-bold rounded-lg hover:bg-accent-amber hover:text-black transition-all"
               >
-                Manager
+                Staff
               </button>
               <button
                 type="button"

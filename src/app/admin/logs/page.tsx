@@ -26,7 +26,7 @@ export default function LogsPage() {
       if (error) throw error;
       return data;
     },
-    enabled: isAuthenticated && ['ADMIN', 'OWNER', 'DEVELOPER'].includes(role || ''),
+    enabled: isAuthenticated && ['ADMIN', 'HEAD_ADMIN', 'OWNER', 'DEVELOPER'].includes(role || ''),
   });
 
   if (authLoading) {
@@ -37,7 +37,7 @@ export default function LogsPage() {
     );
   }
 
-  const isAuthorized = isAuthenticated && ['ADMIN', 'OWNER', 'DEVELOPER'].includes(role || '');
+  const isAuthorized = isAuthenticated && ['ADMIN', 'HEAD_ADMIN', 'OWNER', 'DEVELOPER'].includes(role || '');
 
   if (!isAuthorized) {
     return (

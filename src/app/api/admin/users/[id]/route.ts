@@ -21,7 +21,7 @@ export async function PATCH(
       .eq('id', currentUser.id)
       .single();
 
-    if (!profile || !['ADMIN', 'OWNER'].includes(profile.role)) {
+    if (!profile || !['ADMIN', 'HEAD_ADMIN', 'OWNER', 'DEVELOPER'].includes(profile.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -90,7 +90,7 @@ export async function DELETE(
       .eq('id', currentUser.id)
       .single();
 
-    if (!profile || !['ADMIN', 'OWNER'].includes(profile.role)) {
+    if (!profile || !['ADMIN', 'HEAD_ADMIN', 'OWNER', 'DEVELOPER'].includes(profile.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
