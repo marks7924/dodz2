@@ -123,8 +123,8 @@ export default function NotificationBell() {
       {open && (
         <div
           id="notification-panel"
-          className="absolute right-0 rtl:right-auto rtl:left-0 top-full mt-2 w-80 bg-card border border-card-border rounded-2xl shadow-2xl z-50 overflow-hidden"
-          style={{ animation: 'slideDown 0.15s ease-out' }}
+          className="fixed sm:absolute right-2 sm:right-0 rtl:left-2 rtl:right-auto sm:rtl:left-0 top-16 sm:top-full sm:mt-2 w-[calc(100vw-1rem)] sm:w-80 max-w-sm bg-card border border-card-border rounded-2xl shadow-2xl z-[100] overflow-hidden"
+          style={{ animation: 'slideDown 0.15s ease-out', backgroundColor: 'rgb(18,18,20)' }}
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-card-border">

@@ -31,7 +31,7 @@ export default function Home() {
   const [chatText, setChatText] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  const { user, profile, isAuthenticated } = useAuth();
+  const { user, profile, isAuthenticated, role } = useAuth();
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -39,6 +39,9 @@ export default function Home() {
       setIsAdmin(['STAFF', 'OWNER', 'ADMIN', 'DEVELOPER'].includes(profile.role));
     }
   }, [profile]);
+
+  // Determine if user can edit menu items (Owner or Admin only)
+  const canEditMenu = role === 'OWNER' || role === 'ADMIN';
 
   // Get or create chat session once user is loaded
   useEffect(() => {
@@ -261,22 +264,15 @@ export default function Home() {
                     </button>
                   </div>
 
-                  {isAdmin && (
+                  {isAdmin && canEditMenu && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        // STAFF shouldn't edit. Double-check local role first.
-                        const savedUser = localStorage.getItem('user');
-                        const isOwner = savedUser ? JSON.parse(savedUser).role === 'OWNER' : false;
-                        if (isOwner) {
-                          window.location.href = '/admin?edit=prod-dodz-burger';
-                        } else {
-                          alert(locale === 'en' ? 'Permission Denied: Only Owners can edit menu items.' : 'تم رفض الإذن: يمتلك المدير فقط صلاحية تعديل المنتجات.');
-                        }
+                        window.location.href = '/admin';
                       }}
                       className="w-full py-2 bg-accent-amber hover:bg-accent-amber-hover text-black text-[10px] font-extrabold uppercase rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      🛠️ {locale === 'en' ? 'Edit as Admin' : 'تعديل كمسؤول'}
+                      🛠️ {locale === 'en' ? 'Go to Admin Panel' : 'لوحة المسؤولين'}
                     </button>
                   )}
                 </div>
