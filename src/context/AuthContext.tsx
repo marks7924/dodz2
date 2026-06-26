@@ -4,7 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { createClient } from '@/lib/supabase/client';
 import type { User, Session, AuthChangeEvent } from '@supabase/supabase-js';
 
-export type UserRole = 'CUSTOMER' | 'DRIVER' | 'STAFF' | 'ADMIN' | 'DEVELOPER' | 'OWNER';
+export type UserRole = 'CUSTOMER' | 'DRIVER' | 'STAFF' | 'ADMIN' | 'HEAD_ADMIN' | 'DEVELOPER' | 'OWNER';
 
 export interface UserProfile {
   id: string;
@@ -33,8 +33,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const INTERNAL_ROLES: UserRole[] = ['STAFF', 'ADMIN', 'DEVELOPER', 'OWNER'];
-const MANAGER_ROLES: UserRole[] = ['ADMIN', 'DEVELOPER', 'OWNER'];
+const INTERNAL_ROLES: UserRole[] = ['STAFF', 'ADMIN', 'HEAD_ADMIN', 'DEVELOPER', 'OWNER'];
+const MANAGER_ROLES: UserRole[] = ['ADMIN', 'HEAD_ADMIN', 'DEVELOPER', 'OWNER'];
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
