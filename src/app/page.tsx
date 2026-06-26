@@ -8,9 +8,10 @@ import Footer from '@/components/layout/Footer';
 import Link from 'next/link';
 
 import CartSidebar from '@/components/cart/CartSidebar';
+import ComboOfferModal from '@/components/cart/ComboOfferModal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, Product, Category, Review } from '@/lib/db';
-import { ShoppingBag, Star, Flame, Sparkles, Plus, Check, StarIcon, X, MessageCircle, Send } from 'lucide-react';
+import { ShoppingBag, Star, Flame, Sparkles, Plus, Check, StarIcon, X, MessageCircle, Send, Edit2, Save } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 
@@ -42,6 +43,16 @@ export default function Home() {
 
   // Determine if user can edit menu items (Owner or Admin only)
   const canEditMenu = role === 'OWNER' || role === 'ADMIN';
+
+  // Combo offer state
+  const [comboModal, setComboModal] = useState<{ product: Product } | null>(null);
+
+  // Hero item inline edit state
+  const [heroEditOpen, setHeroEditOpen] = useState(false);
+  const [heroEditProductId, setHeroEditProductId] = useState<string>('');
+  const [heroEditPriceSingle, setHeroEditPriceSingle] = useState<string>('');
+  const [heroEditPriceDouble, setHeroEditPriceDouble] = useState<string>('');
+  const [heroSaving, setHeroSaving] = useState(false);
 
   // Get or create chat session once user is loaded
   useEffect(() => {
@@ -132,6 +143,8 @@ export default function Home() {
     },
   });
 
+  const COMBO_CATEGORIES = ['burgers', 'burger', 'chicken', 'دجاج', 'برجر'];
+
   const handleAddProductToCart = (product: Product, size: 'SINGLE' | 'DOUBLE' | 'NONE') => {
     const price = size === 'DOUBLE' && product.priceDouble ? product.priceDouble : product.priceSingle;
     addItem({
@@ -147,6 +160,13 @@ export default function Home() {
     setTimeout(() => {
       setJustAddedId(null);
     }, 1500);
+
+    // Show combo offer for burger/chicken items
+    const cat = categories.find(c => c.id === product.categoryId);
+    const catName = (cat?.nameEn || '').toLowerCase();
+    if (COMBO_CATEGORIES.some(kw => catName.includes(kw) || product.nameEn.toLowerCase().includes(kw))) {
+      setComboModal({ product });
+    }
   };
 
   const handleReviewSubmit = (e: React.FormEvent) => {
@@ -268,11 +288,18 @@ export default function Home() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        window.location.href = '/admin';
+                        const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger')) || products[0];
+                        if (bestseller) {
+                          setHeroEditProductId(bestseller.id);
+                          setHeroEditPriceSingle(String(bestseller.priceSingle));
+                          setHeroEditPriceDouble(String(bestseller.priceDouble ?? ''));
+                          setHeroEditOpen(true);
+                        }
                       }}
-                      className="w-full py-2 bg-accent-amber hover:bg-accent-amber-hover text-black text-[10px] font-extrabold uppercase rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="w-full py-2 bg-accent-amber hover:bg-yellow-400 text-black text-[10px] font-extrabold uppercase rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer"
                     >
-                      🛠️ {locale === 'en' ? 'Go to Admin Panel' : 'لوحة المسؤولين'}
+                      <Edit2 className="h-3.5 w-3.5" />
+                      {locale === 'en' ? 'Edit Featured Item' : 'تعديل العنصر المميز'}
                     </button>
                   )}
                 </div>
@@ -744,6 +771,99 @@ export default function Home() {
           </div>
         )}
       </div>
+      {/* Combo Offer Modal */}
+      {comboModal && (() => {
+        const fries = products.find(p => p.nameEn.toLowerCase().includes('fries') || p.nameAr.includes('بطاطس'));
+        const drink = products.find(p => {
+          const cat = categories.find(c => c.id === p.categoryId);
+          return (cat?.nameEn || '').toLowerCase().includes('drink') || p.nameEn.toLowerCase().includes('drink') || p.nameAr.includes('مشروب');
+        });
+        const comboItems = [fries, drink].filter(Boolean) as typeof products;
+        if (comboItems.length === 0) { setComboModal(null); return null; }
+        const originalPrice = comboItems.reduce((s, i) => s + i.priceSingle, 0);
+        const comboPrice = Math.round(originalPrice * 0.75);
+        return (
+          <ComboOfferModal
+            triggerItemName={locale === 'en' ? comboModal.product.nameEn : comboModal.product.nameAr}
+            comboItems={comboItems.map(p => ({ id: p.id, nameEn: p.nameEn, nameAr: p.nameAr, price: p.priceSingle, imageUrl: p.imageUrl }))}
+            comboPrice={comboPrice}
+            originalPrice={originalPrice}
+            onAccept={() => {
+              comboItems.forEach(p => {
+                addItem({ productId: p.id, nameEn: p.nameEn, nameAr: p.nameAr, price: p.priceSingle, size: 'NONE', imageUrl: p.imageUrl });
+              });
+              setComboModal(null);
+              setCartOpen(true);
+            }}
+            onDecline={() => setComboModal(null)}
+          />
+        );
+      })()}
+
+      {/* Hero Inline Edit Modal */}
+      {heroEditOpen && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setHeroEditOpen(false)} />
+          <div className="relative w-full max-w-sm bg-[#131316] border border-card-border rounded-3xl p-6 shadow-2xl z-10 space-y-5 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-white">{locale === 'en' ? 'Edit Featured Item' : 'تعديل العنصر المميز'}</h3>
+              <button onClick={() => setHeroEditOpen(false)} className="p-1.5 rounded-lg hover:bg-card-border text-text-muted hover:text-white cursor-pointer"><X className="h-4 w-4" /></button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider block">{locale === 'en' ? 'Select Product' : 'اختر المنتج'}</label>
+              <select
+                value={heroEditProductId}
+                onChange={(e) => {
+                  setHeroEditProductId(e.target.value);
+                  const p = products.find(p => p.id === e.target.value);
+                  if (p) { setHeroEditPriceSingle(String(p.priceSingle)); setHeroEditPriceDouble(String(p.priceDouble ?? '')); }
+                }}
+                className="w-full bg-card border border-card-border rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-primary-red/50"
+              >
+                {products.map(p => <option key={p.id} value={p.id} className="bg-[#131316]">{locale === 'en' ? p.nameEn : p.nameAr}</option>)}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider block">{locale === 'en' ? 'Single Price (EGP)' : 'سعر المفرد'}</label>
+                <input type="number" value={heroEditPriceSingle} onChange={(e) => setHeroEditPriceSingle(e.target.value)}
+                  className="w-full bg-card border border-card-border rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-primary-red/50" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider block">{locale === 'en' ? 'Double Price (EGP)' : 'سعر الدبل'}</label>
+                <input type="number" value={heroEditPriceDouble} onChange={(e) => setHeroEditPriceDouble(e.target.value)}
+                  className="w-full bg-card border border-card-border rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-primary-red/50" />
+              </div>
+            </div>
+
+            <button
+              disabled={heroSaving}
+              onClick={async () => {
+                if (!heroEditProductId) return;
+                setHeroSaving(true);
+                try {
+                  await db.updateProduct(heroEditProductId, {
+                    priceSingle: Number(heroEditPriceSingle),
+                    ...(heroEditPriceDouble ? { priceDouble: Number(heroEditPriceDouble) } : {}),
+                  });
+                  queryClient.invalidateQueries({ queryKey: ['products'] });
+                  setHeroEditOpen(false);
+                } catch (err) {
+                  alert('Save failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+                } finally {
+                  setHeroSaving(false);
+                }
+              }}
+              className="w-full py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <Save className="h-4 w-4" />
+              {heroSaving ? (locale === 'en' ? 'Saving...' : 'جاري الحفظ...') : (locale === 'en' ? 'Save Changes' : 'حفظ التغييرات')}
+            </button>
+          </div>
+        </div>
+      )}
 
     </>
   );

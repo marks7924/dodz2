@@ -1,5 +1,5 @@
 # AI_CONTEXT.md — Dodz Fried Chicken Platform
-> **Last Updated:** 2026-06-26 | **Session:** Phase 11 Complete — Mobile Responsiveness done, TypeScript build clean
+> **Last Updated:** 2026-06-26 | **Session:** Phase 12 — Mobile drawer fix, combo modal, inline hero edit, branch separation + HEAD_ADMIN (SQL), discounts system pending
 > **Next AI:** Read this entire file before touching ANY code.
 
 ---
@@ -129,7 +129,7 @@ AI_CONTEXT.md                   # ✅ This file
 | `restaurant_settings` | Key-value config store |
 
 ### Key Enums
-- `user_role`: CUSTOMER, DRIVER, STAFF, ADMIN, DEVELOPER, OWNER
+- `user_role`: CUSTOMER, DRIVER, STAFF, ADMIN, HEAD_ADMIN (pending SQL), DEVELOPER, OWNER
 - `order_status`: PENDING, PREPARING, ON_THE_WAY, DELIVERED, CANCELLED
 - `payment_status`: PENDING, PAID, FAILED, REFUNDED
 - `chat_status`: OPEN, RESOLVED, CLOSED
@@ -165,14 +165,28 @@ AI_CONTEXT.md                   # ✅ This file
 | Paymob integration | ✅ Complete | /api/payment/initiate + /api/payment/webhook |
 | Mobile Responsiveness | ✅ Complete | Phase 11 — sticky bottom tab bar, responsive grids, CSS utilities |
 | TypeScript build | ✅ Clean | 0 errors — Link import + isOrdering state fixes |
+| Mobile Drawer Background | ✅ Fixed | z-[60] on drawer panel (was hidden behind z-50 overlay) |
+| Notification Overflow | ✅ Fixed | Fixed positioning on mobile, full-width clamped |
+| Buy Now Button | ✅ Fixed | Name-based product lookup (UUID-safe for Supabase) |
+| Combo Offer Modal | ✅ New | ComboOfferModal.tsx — triggers on burger/chicken add |
+| Hero Inline Edit | ✅ New | OWNER/ADMIN can edit featured item price/product from homepage |
+| Owner Quick Access | ✅ New | Login page has Owner demo button |
+| Coupons restricted | ✅ New | Coupons tab only for OWNER + ADMIN |
+| Admin Chat (Supabase) | ✅ Fixed | Admin chat panel now queries real Supabase support_chats |
+| Driver actions (Supabase) | ✅ Fixed | Confirm/Decline/Deliver use createAdminClient for RLS bypass |
 
 ---
 
-## 🔄 Pending Features
+## 🔄 Pending / In Progress Features
 
-| Feature | Phase | Priority |
-|---|---|---|
-| Final handoff documentation | Phase 12 | LOW |
+| Feature | Phase | Priority | Status |
+|---|---|---|---|
+| Discounts System (event-based, whole menu or per-item) | 12 | HIGH | SQL needed in Supabase |
+| Branch Separation — orders filtered per admin's branch | 12 | HIGH | SQL + db.ts update needed |
+| HEAD_ADMIN role — all-branch admin | 12 | HIGH | SQL ALTER TYPE needed |
+| admin_branch_assignments table | 12 | HIGH | SQL needed in Supabase |
+| Discounts UI in admin panel | 12 | MEDIUM | After SQL applied |
+| Branch assignment UI when creating ADMIN user | 12 | MEDIUM | After SQL applied |
 
 ---
 
@@ -382,7 +396,16 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 | 2026-06-26 | 2 | Fix: Supabase seed data syntax error due to non-hex digit 'm' in menu item UUIDs (replaced 'm1000000-' with 'f1000000-') | ✅ |
 | 2026-06-26 | 3 | Fix: Strip trailing slashes from redirect URLs in signup and password recovery pages to prevent double-slash navigation issues | ✅ |
 | 2026-06-26 | 3 | Fix: Supabase user creation trigger function type mismatch error on user_role (COALESCE text mixed with enum) | ✅ |
-
-
-
-
+| 2026-06-26 | 12 | Fix: Mobile drawer z-index bug (z-[60] on panel above z-50 overlay) | ✅ |
+| 2026-06-26 | 12 | Fix: Notification bell overflow on mobile (fixed pos + clamped width) | ✅ |
+| 2026-06-26 | 12 | Fix: Buy Now button uses name-based lookup, UUID-safe for Supabase | ✅ |
+| 2026-06-26 | 12 | Fix: Edit as Admin used localStorage (always empty with Supabase), fixed to auth context role | ✅ |
+| 2026-06-26 | 12 | Fix: Coupons tab restricted to OWNER+ADMIN only | ✅ |
+| 2026-06-26 | 12 | Fix: Admin/Manager now see Menu/Chat/Coupons tabs (role expansion) | ✅ |
+| 2026-06-26 | 12 | New: Owner Quick Access button on login page (purple) | ✅ |
+| 2026-06-26 | 12 | New: 'All' category default selected on menu page | ✅ |
+| 2026-06-26 | 12 | New: ComboOfferModal.tsx — upsell combo when burger/chicken added | ✅ |
+| 2026-06-26 | 12 | New: Hero inline edit modal (OWNER/ADMIN) — pick product, edit prices, save | ✅ |
+| 2026-06-26 | 12 | Pending: HEAD_ADMIN SQL role + admin_branch_assignments table | ⏳ |
+| 2026-06-26 | 12 | Pending: Branch-separated order filtering in db.ts getOrders() | ⏳ |
+| 2026-06-26 | 12 | Pending: Discounts system (discounts table + UI in admin panel) | ⏳ |

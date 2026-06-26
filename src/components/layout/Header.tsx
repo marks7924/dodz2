@@ -226,7 +226,7 @@ export default function Header() {
         >
           {/* Drawer Panel */}
           <div
-            className={`fixed top-0 bottom-0 w-72 max-w-[85vw] border-card-border p-6 space-y-6 shadow-2xl flex flex-col justify-between ${
+            className={`fixed top-0 bottom-0 z-[60] w-72 max-w-[85vw] border-card-border p-6 space-y-6 shadow-2xl flex flex-col justify-between ${
               locale === 'ar' ? 'left-0 border-r border-[#27272A]' : 'right-0 border-l border-[#27272A]'
             }`}
             style={{ backgroundColor: '#0E0E10' }}
