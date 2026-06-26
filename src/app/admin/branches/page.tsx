@@ -248,7 +248,17 @@ export default function BranchManagementPage() {
                   <div className="flex gap-2 pt-1">
                     <button
                       onClick={() => {
-                        setEditingBranch({ ...branch, nameEn: branch.nameEn, nameAr: branch.nameAr });
+                        setEditingBranch({
+                          id: branch.id,
+                          nameEn: branch.nameEn,
+                          nameAr: branch.nameAr,
+                          addressEn: branch.addressEn ?? '',
+                          addressAr: branch.addressAr ?? '',
+                          phone: branch.phone ?? '',
+                          mapUrl: branch.mapUrl ?? '',
+                          status: branch.status,
+                          isActive: branch.isActive,
+                        });
                         setIsEditingBranch(true);
                       }}
                       className="flex items-center gap-1 px-3 py-1.5 bg-card border border-card-border rounded-lg text-[11px] text-text-muted hover:text-white cursor-pointer transition-colors"
