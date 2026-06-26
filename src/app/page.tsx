@@ -226,10 +226,8 @@ export default function Home() {
                   alt="Dodz Charcoal Grilled Burger"
                   className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer"
                   onClick={() => {
-                    const bestseller = products.find(p => p.id === 'prod-dodz-burger');
-                    if (bestseller) {
-                      setSelectedProduct(bestseller);
-                    }
+                    const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger'));
+                    if (bestseller) setSelectedProduct(bestseller);
                   }}
                 />
                 <div className="relative bg-gradient-to-t from-black/90 via-black/40 to-transparent p-6 space-y-3 z-10 w-full">
@@ -237,7 +235,7 @@ export default function Home() {
                     <div
                       className="cursor-pointer flex-1"
                       onClick={() => {
-                        const bestseller = products.find(p => p.id === 'prod-dodz-burger');
+                        const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger'));
                         if (bestseller) setSelectedProduct(bestseller);
                       }}
                     >
@@ -247,9 +245,13 @@ export default function Home() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        const bestseller = products.find(p => p.id === 'prod-dodz-burger');
+                        const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger'));
                         if (bestseller) {
                           handleAddProductToCart(bestseller, 'SINGLE');
+                          setCartOpen(true);
+                        } else if (products.length > 0) {
+                          // Fallback: add first product
+                          handleAddProductToCart(products[0], products[0].priceDouble ? 'SINGLE' : 'NONE');
                           setCartOpen(true);
                         }
                       }}
