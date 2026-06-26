@@ -118,7 +118,7 @@ export default function AdminDashboardPage() {
   const { data: adminCategories = [], refetch: refetchCategories } = useQuery({
     queryKey: ['admin-categories-list'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('categories').select('*').order('sort_order');
+      const { data, error } = await supabase.from('categories').select('*').eq('is_active', true).order('sort_order');
       if (error) throw error;
       return data || [];
     },
@@ -147,7 +147,7 @@ export default function AdminDashboardPage() {
 
   const deleteCategoryMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('categories').delete().eq('id', id);
+      const { error } = await supabase.from('categories').update({ is_active: false }).eq('id', id);
       if (error) throw error;
     },
     onSuccess: () => {
