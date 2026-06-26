@@ -13,6 +13,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, Product, Category, Review } from '@/lib/db';
 import { ShoppingBag, Star, Flame, Sparkles, Plus, Check, StarIcon, X, MessageCircle, Send, Edit2, Save, Pencil, Trash2, Megaphone } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useBranch } from '@/context/BranchContext';
 import { createClient } from '@/lib/supabase/client';
 
 // ── Inline editable promo banner ────────────────────────────────────────────
@@ -150,7 +151,24 @@ export default function Home() {
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   const { user, profile, isAuthenticated, role } = useAuth();
+  const { selectedBranch, selectedBranchId, selectBranch, allBranches, isGlobalView } = useBranch();
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
+  const [showChangeBranchDialog, setShowChangeBranchDialog] = useState(false);
+  const [pendingBranchId, setPendingBranchId] = useState<string | null>(null);
+  const { items: cartItems } = useCartStore();
+
+  // Redirect to branch selection if no branch is chosen (only for non-staff customers)
+  useEffect(() => {
+    if (!selectedBranchId && !isGlobalView && typeof window !== 'undefined') {
+      // Give a small delay to let context load
+      const timer = setTimeout(() => {
+        if (!selectedBranchId) {
+          window.location.href = '/select-branch';
+        }
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedBranchId, isGlobalView]);
 
   useEffect(() => {
     if (profile) {

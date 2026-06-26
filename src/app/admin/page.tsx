@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, Order, Product, Category } from '@/lib/db';
 import { Plus, Edit2, Trash2, ShieldAlert, Bell, DollarSign, ListOrdered, Check, AlertTriangle, EyeOff, RotateCcw, Tag, X, Activity } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useBranch } from '@/context/BranchContext';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 
@@ -17,10 +18,13 @@ export default function AdminDashboardPage() {
   const queryClient = useQueryClient();
   const [mounted, setMounted] = useState(false);
   const { user, profile, role, isAuthenticated, isLoading } = useAuth();
+  const { selectedBranchId, selectBranch, allBranches, userBranches, hasGlobalAccess, isGlobalView } = useBranch();
 
   // Tab state: 'ORDERS', 'MENU', 'COUPONS', 'CHAT', or 'LOGS'
   const [activeTab, setActiveTab] = useState<'ORDERS' | 'MENU' | 'COUPONS' | 'CHAT' | 'LOGS'>('ORDERS');
-  const [filterBranchId, setFilterBranchId] = useState<string>('ALL');
+  // Legacy filter kept for UI compat; now synced from BranchContext
+  const filterBranchId = selectedBranchId || 'ALL';
+  const setFilterBranchId = (id: string) => selectBranch(id === 'ALL' ? null : id);
   
   // Audio state
   const [alertAudioEnabled, setAlertAudioEnabled] = useState(true);
@@ -83,7 +87,7 @@ export default function AdminDashboardPage() {
 
   // Poll orders database every 2 seconds for live kitchen updates!
   const { data: orders = [] } = useQuery<Order[]>({
-    queryKey: ['admin-orders'],
+    queryKey: ['admin-orders', filterBranchId],
     queryFn: () => db.getOrders(),
     refetchInterval: 2000,
     enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
@@ -483,8 +487,10 @@ export default function AdminDashboardPage() {
                 onChange={(e) => setFilterBranchId(e.target.value)}
                 className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer flex-1 sm:flex-none"
               >
-                <option value="ALL" className="bg-[#18181B] text-white font-bold">{locale === 'en' ? 'All Branches' : 'جميع الفروع'}</option>
-                {branches.map((b: any) => (
+                {hasGlobalAccess && (
+                  <option value="ALL" className="bg-[#18181B] text-white font-bold">{locale === 'en' ? '🌐 All Branches' : '🌐 جميع الفروع'}</option>
+                )}
+                {(hasGlobalAccess ? allBranches : userBranches).map((b) => (
                   <option key={b.id} value={b.id} className="bg-[#18181B] text-white font-bold">
                     {locale === 'en' ? b.nameEn : b.nameAr}
                   </option>
@@ -548,10 +554,13 @@ export default function AdminDashboardPage() {
 
             {/* Sub-pages Navigation for Admins — visible on desktop only; on mobile use Header links */}
             <div className="hidden sm:flex gap-2 flex-wrap items-center">
-              {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
+              {['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role || '') && (
                 <>
                   <Link href="/admin/users" className="px-4 py-2 rounded-xl text-[10px] font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all uppercase tracking-wider">
                     {locale === 'en' ? 'Users Mgmt' : 'المستخدمين'}
+                  </Link>
+                  <Link href="/admin/branches" className="px-4 py-2 rounded-xl text-[10px] font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all uppercase tracking-wider flex items-center gap-1">
+                    🏪 {locale === 'en' ? 'Branches' : 'الفروع'}
                   </Link>
                   <Link href="/admin/analytics" className="px-4 py-2 rounded-xl text-[10px] font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all uppercase tracking-wider">
                     {locale === 'en' ? 'Analytics' : 'التحليلات'}
