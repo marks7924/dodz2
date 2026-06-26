@@ -998,7 +998,6 @@ export const db = {
             return messages.map((m: any) => ({
               id: m.id,
               userId: userId,
-              senderId: m.sender_id,
               senderRole: m.sender_role,
               senderName: m.profiles?.full_name || (m.sender_role === 'CUSTOMER' ? 'Customer' : 'Staff'),
               text: m.content,
@@ -1110,7 +1109,6 @@ export const db = {
              return {
                 id: newMsg.id,
                 userId: userId,
-                senderId: senderId,
                 senderRole: newMsg.sender_role,
                 senderName,
                 text: newMsg.content,
@@ -1126,7 +1124,6 @@ export const db = {
     const newMessage: ChatMessage = {
       id: `msg-${Date.now()}`,
       userId,
-      senderId: 'mock-staff-id',
       senderRole,
       senderName,
       text,
