@@ -525,6 +525,21 @@ export default function Home() {
                         </div>
                       </div>
                     ) : (
+                      <div className="flex items-center justify-between gap-4 pt-4">
+                        <div className="text-right">
+                          {hasDiscount && <div className="text-[10px] line-through opacity-50">{product.priceSingle} {t('egp')}</div>}
+                          <span className={`font-black text-sm ${hasDiscount ? 'text-pink-400' : 'text-accent-amber'}`}>
+                            {displayPriceSingle} {t('egp')}
+                          </span>
+                        </div>
+                        <button
+                          disabled={!product.isAvailable}
+                          onClick={() => handleAddProductToCart(product, 'NONE')}
+                          className="px-4 py-2 bg-primary-red hover:bg-primary-red-hover text-xs font-bold rounded-xl text-white transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          {justAddedId === `${product.id}-NONE` ? (
+                            <>
+                              <Check className="h-3.5 w-3.5 text-white" />
                               <span>{t('added')}</span>
                             </>
                           ) : (
