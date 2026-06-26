@@ -110,6 +110,7 @@ export default function AdminDashboardPage() {
     onSuccess: () => {
       refetchCategories();
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
       setIsAddingCategory(false);
       setNewCatNameEn('');
       setNewCatNameAr('');
@@ -121,7 +122,11 @@ export default function AdminDashboardPage() {
       const { error } = await supabase.from('categories').delete().eq('id', id);
       if (error) throw error;
     },
-    onSuccess: () => refetchCategories(),
+    onSuccess: () => {
+      refetchCategories();
+      queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+    },
   });
 
   // Coupons states & React Query
@@ -1035,7 +1040,7 @@ export default function AdminDashboardPage() {
             {/* EVENT DISCOUNTS SECTION */}
             <div className="flex justify-between items-center">
               <div>
-                <h2 className="text-sm font-bold uppercase tracking-wider text-pink-400">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-primary-red">
                   {locale === 'en' ? 'Event & Menu Discounts' : 'تخفيضات القائمة والمناسبات'}
                 </h2>
                 <p className="text-[10px] text-text-muted mt-1">
@@ -1044,7 +1049,7 @@ export default function AdminDashboardPage() {
               </div>
               <button
                 onClick={() => setIsAddingDiscount(true)}
-                className="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+                className="px-4 py-2 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="h-4.5 w-4.5" />
                 <span>{locale === 'en' ? 'Create Event Discount' : 'إضافة تخفيض مباشر'}</span>
@@ -1068,7 +1073,7 @@ export default function AdminDashboardPage() {
                       <td className="p-4 text-text-muted">
                         {dsc.appliesTo === 'ALL' ? 'Entire Menu' : products.find(p => p.id === dsc.appliesTo)?.nameEn || dsc.appliesTo}
                       </td>
-                      <td className="p-4 font-bold text-pink-400">
+                      <td className="p-4 font-bold text-primary-red">
                         {dsc.discountValue} {dsc.discountType === 'PERCENT' ? '%' : 'EGP'}
                       </td>
                       <td className="p-4">
@@ -1117,7 +1122,7 @@ export default function AdminDashboardPage() {
                         value={newDiscountName}
                         onChange={(e) => setNewDiscountName(e.target.value)}
                         required
-                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-pink-500/50"
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
                       />
                     </div>
 
@@ -1170,7 +1175,7 @@ export default function AdminDashboardPage() {
                       <button
                         type="submit"
                         disabled={createDiscountMutation.isPending}
-                        className="flex-1 py-3 bg-pink-500 hover:bg-pink-600 text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        className="flex-1 py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
                         <Check className="h-4.5 w-4.5" />
                         <span>{createDiscountMutation.isPending ? 'Saving...' : (locale === 'en' ? 'Create Discount' : 'حفظ التخفيض')}</span>
