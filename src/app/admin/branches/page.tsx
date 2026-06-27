@@ -14,6 +14,7 @@ import {
   Check, Search, Activity
 } from 'lucide-react';
 import Link from 'next/link';
+import { useModal } from '@/context/ModalContext';
 
 // ─────────────────────────────────────────────
 // Types
@@ -48,6 +49,7 @@ const defaultForm: BranchFormData = {
 export default function BranchManagementPage() {
   // ─── ALL HOOKS FIRST (Rules of Hooks) ────────
   const { role, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { confirm } = useModal();
   const { allBranches, refetchBranches } = useBranch();
   const { locale } = useLanguage();
   const queryClient = useQueryClient();
@@ -255,8 +257,8 @@ export default function BranchManagementPage() {
                       <Edit2 className="h-3 w-3" /> {locale === 'en' ? 'Edit' : 'تعديل'}
                     </button>
                     <button
-                      onClick={() => {
-                        if (confirm(`Delete "${branch.nameEn}"?`)) deleteBranchMutation.mutate(branch.id);
+                      onClick={async () => {
+                        if (await confirm(`Delete "${branch.nameEn}"?`)) deleteBranchMutation.mutate(branch.id);
                       }}
                       className="flex items-center gap-1 px-3 py-1.5 bg-card border border-red-900/30 rounded-lg text-[11px] text-red-400 hover:text-white cursor-pointer transition-colors"
                     >

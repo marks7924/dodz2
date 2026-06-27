@@ -12,9 +12,11 @@ import { useAuth } from '@/context/AuthContext';
 import { useBranch } from '@/context/BranchContext';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { useModal } from '@/context/ModalContext';
 
 export default function AdminDashboardPage() {
   const { t, locale } = useLanguage();
+  const { confirm, prompt } = useModal();
   const queryClient = useQueryClient();
   const [mounted, setMounted] = useState(false);
   const { user, profile, role, isAuthenticated, isLoading } = useAuth();
@@ -892,9 +894,9 @@ export default function AdminDashboardPage() {
 
                       {role && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role) && (
                         <button
-                          onClick={() => {
-                            const reason = prompt(locale === 'en' ? 'Enter reason for cancellation:' : 'أدخل سبب الإلغاء:');
-                            if (reason !== null) {
+                          onClick={async () => {
+                            const reason = await prompt(locale === 'en' ? 'Enter reason for cancellation:' : 'أدخل سبب الإلغاء:');
+                            if (reason !== null && reason !== undefined) {
                               cancelOrderMutation.mutate({ orderId: order.id, reason: reason || 'No reason specified' });
                             }
                           }}
@@ -1011,9 +1013,9 @@ export default function AdminDashboardPage() {
                         </div>
                         {role && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role) && (
                           <button
-                            onClick={() => {
-                              const reason = prompt(locale === 'en' ? 'Enter reason for cancellation:' : 'أدخل سبب الإلغاء:');
-                              if (reason !== null) {
+                            onClick={async () => {
+                              const reason = await prompt(locale === 'en' ? 'Enter reason for cancellation:' : 'أدخل سبب الإلغاء:');
+                              if (reason !== null && reason !== undefined) {
                                 cancelOrderMutation.mutate({ orderId: order.id, reason: reason || 'No reason specified' });
                               }
                             }}
@@ -1103,8 +1105,8 @@ export default function AdminDashboardPage() {
                             <Edit2 className="h-3.5 w-3.5" />
                           </button>
                           <button
-                            onClick={() => {
-                              if (confirm('Delete this product?')) {
+                            onClick={async () => {
+                              if (await confirm('Delete this product?')) {
                                 deleteProductMutation.mutate(product.id);
                               }
                             }}
@@ -1146,9 +1148,9 @@ export default function AdminDashboardPage() {
                         <p className="text-xs font-bold text-white">{cat.name_en}</p>
                         <p className="text-[10px] text-text-muted">{cat.name_ar}</p>
                       </div>
-                      <button
-                        onClick={() => {
-                          if (confirm(locale === 'en' ? 'Delete this category? Products inside will lose their category.' : 'حذف هذا القسم؟')) {
+                       <button
+                        onClick={async () => {
+                          if (await confirm(locale === 'en' ? 'Delete this category? Products inside will lose their category.' : 'حذف هذا القسم؟')) {
                             deleteCategoryMutation.mutate(cat.id);
                           }
                         }}
@@ -1613,8 +1615,8 @@ export default function AdminDashboardPage() {
                       </span>
                       {activeChatId && activeChats.find(c => c.chatId === activeChatId)?.status !== 'CLOSED' && (
                         <button
-                          onClick={() => {
-                            if (confirm(locale === 'en' ? 'Are you sure you want to close this chat session?' : 'هل أنت متأكد من إنهاء هذه المحادثة؟')) {
+                          onClick={async () => {
+                            if (await confirm(locale === 'en' ? 'Are you sure you want to close this chat session?' : 'هل أنت متأكد من إنهاء هذه المحادثة؟')) {
                               closeChatMutation.mutate(activeChatId);
                             }
                           }}

@@ -16,6 +16,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useBranch } from '@/context/BranchContext';
 import { createClient } from '@/lib/supabase/client';
 import BranchWelcomePopup from '@/components/layout/BranchWelcomePopup';
+import { useModal } from '@/context/ModalContext';
 
 // ── Inline editable promo banner ────────────────────────────────────────────
 function BannerAnnouncement() {
@@ -136,6 +137,7 @@ function BannerAnnouncement() {
 
 export default function Home() {
   const { t, locale, dir } = useLanguage();
+  const { confirm } = useModal();
   const { addItem, cartOpen, setCartOpen } = useCartStore();
   const queryClient = useQueryClient();
 
@@ -890,8 +892,8 @@ export default function Home() {
               <div className="flex items-center gap-1">
                 {isAuthenticated && chatSessionId && (
                   <button
-                    onClick={() => {
-                      if (confirm(locale === 'en' ? 'Are you sure you want to end this chat?' : 'هل أنت متأكد من إنهاء المحادثة؟')) {
+                    onClick={async () => {
+                      if (await confirm(locale === 'en' ? 'Are you sure you want to end this chat?' : 'هل أنت متأكد من إنهاء المحادثة؟')) {
                         closeChatMutation.mutate();
                       }
                     }}

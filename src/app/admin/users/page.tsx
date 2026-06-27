@@ -9,6 +9,7 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { ShieldAlert, Plus, Edit2, Trash2, Shield, UserX, UserCheck, Loader2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useModal } from '@/context/ModalContext';
 
 // Role hierarchy — higher index = higher rank
 const ROLE_HIERARCHY: Record<string, number> = {
@@ -43,6 +44,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 export default function UserManagementPage() {
   const { locale, t } = useLanguage();
+  const { confirm } = useModal();
   const router = useRouter();
   const { role, user: authUser, isLoading: authLoading, isAuthenticated } = useAuth();
   const supabase = createClient();
@@ -364,11 +366,11 @@ export default function UserManagementPage() {
                             <Edit2 className="h-3.5 w-3.5" />
                           </button>
                           <button
-                            onClick={() => {
-                              if (confirm(locale === 'en' ? 'Delete this user permanently?' : 'حذف هذا المستخدم نهائياً؟')) {
-                                deleteUserMutation.mutate(u.id);
-                              }
-                            }}
+                             onClick={async () => {
+                               if (await confirm(locale === 'en' ? 'Delete this user permanently?' : 'حذف هذا المستخدم نهائياً؟')) {
+                                 deleteUserMutation.mutate(u.id);
+                               }
+                             }}
                             className="p-1.5 rounded bg-[#18181B] border border-card-border text-text-muted hover:text-primary-red transition-colors"
                           >
                             <Trash2 className="h-3.5 w-3.5" />

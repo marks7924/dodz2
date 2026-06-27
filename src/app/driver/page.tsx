@@ -11,9 +11,11 @@ import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import { Truck, CheckCircle, Clock, MapPin, Phone, ShieldAlert, Shield, DollarSign, ListOrdered, Navigation, Wifi, WifiOff } from 'lucide-react';
 import Link from 'next/link';
+import { useModal } from '@/context/ModalContext';
 
 export default function DriverPortalPage() {
   const { t, locale } = useLanguage();
+  const { confirm } = useModal();
   const queryClient = useQueryClient();
   const { user, profile } = useAuth();
   const [mounted, setMounted] = useState(false);
@@ -492,8 +494,8 @@ export default function DriverPortalPage() {
                       
                       {(order.status === 'PENDING' || order.status === 'PREPARING') && (
                         <button
-                          onClick={() => {
-                            if (confirm(locale === 'en' ? 'Are you sure you want to decline this order?' : 'هل أنت متأكد أنك تريد رفض هذا الطلب؟')) {
+                          onClick={async () => {
+                            if (await confirm(locale === 'en' ? 'Are you sure you want to decline this order?' : 'هل أنت متأكد أنك تريد رفض هذا الطلب؟')) {
                               declineOrderMutation.mutate(order.id);
                             }
                           }}

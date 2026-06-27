@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { LanguageProvider } from '@/context/LanguageContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { BranchProvider } from '@/context/BranchContext';
+import { ModalProvider } from '@/context/ModalContext';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,7 +22,9 @@ export default function Providers({ children }: { children: React.ReactNode }) {
       <LanguageProvider>
         <AuthProvider>
           <BranchProvider>
-            {children}
+            <ModalProvider>
+              {children}
+            </ModalProvider>
           </BranchProvider>
         </AuthProvider>
       </LanguageProvider>
