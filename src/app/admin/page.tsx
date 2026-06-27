@@ -375,10 +375,75 @@ export default function AdminDashboardPage() {
     }
   }, [orders, role, alertAudioEnabled]);
 
+  const [acknowledgedCancellations, setAcknowledgedCancellations] = useState<string[]>([]);
+
+  const customerCancelledOrders = (orders || []).filter((o) => {
+    const isCancelledByCust = o.status === 'CANCELLED' && 
+      (o.cancellationReason === 'Cancelled by Customer' || o.cancellationReason === 'تم الإلغاء بواسطة العميل');
+    const isRecent = Date.now() - new Date(o.updatedAt).getTime() < 10 * 60 * 1000;
+    return isCancelledByCust && isRecent && !acknowledgedCancellations.includes(o.id);
+  });
+
+  const previousCancelledCountRef = useRef(0);
+  useEffect(() => {
+    const count = customerCancelledOrders.length;
+    if (count > previousCancelledCountRef.current && alertAudioEnabled) {
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const playBeep = (time: number, freq: number) => {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.frequency.setValueAtTime(freq, time);
+          gain.gain.setValueAtTime(0.3, time);
+          gain.gain.exponentialRampToValueAtTime(0.01, time + 0.15);
+          osc.start(time);
+          osc.stop(time + 0.15);
+        };
+        playBeep(audioCtx.currentTime, 880);
+        playBeep(audioCtx.currentTime + 0.2, 880);
+      } catch (e) {
+        console.warn('Audio alert blocked or unsupported.');
+      }
+    }
+    previousCancelledCountRef.current = count;
+  }, [customerCancelledOrders, alertAudioEnabled]);
+
   // MUTATIONS
   const acceptOrderMutation = useMutation({
     mutationFn: (orderId: string) => db.updateOrderStatus(orderId, 'PREPARING'),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-orders'] }),
+  });
+
+  const cancelOrderMutation = useMutation({
+    mutationFn: async (data: { orderId: string; reason: string }) => {
+      const res = await fetch(`/api/orders/${data.orderId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'CANCELLED', cancellationReason: data.reason }),
+      });
+      if (!res.ok) throw new Error('Failed to cancel order');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async (data: { orderId: string; status: Order['status'] }) => {
+      const res = await fetch(`/api/orders/${data.orderId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: data.status }),
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+    },
   });
 
   const assignDriverMutation = useMutation({
@@ -605,7 +670,7 @@ export default function AdminDashboardPage() {
                       {locale === 'en' ? 'Menu' : 'المنيو'}
                     </button>
                   )}
-                  {['OWNER', 'HEAD_ADMIN', 'ADMIN'].includes(role || '') && (
+                  {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
                     <button
                       onClick={() => setActiveTab('COUPONS')}
                       className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
@@ -660,8 +725,8 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* OWNER & HEAD_ADMIN METRICS PANEL (Only visible if role === OWNER or HEAD_ADMIN) */}
-        {['OWNER', 'HEAD_ADMIN'].includes(role || '') && (
+        {/* OWNER, HEAD_ADMIN & DEVELOPER METRICS PANEL (Only visible if role === OWNER, HEAD_ADMIN or DEVELOPER) */}
+        {['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role || '') && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 bg-card border border-card-border rounded-3xl p-6">
             <div className="space-y-1 sm:col-span-1">
               <span className="text-[10px] text-accent-amber font-extrabold uppercase tracking-widest">Business Report</span>
@@ -695,9 +760,41 @@ export default function AdminDashboardPage() {
         {/* ACTIVE ORDERS CONTROLLER TAB */}
         {/* ========================================================================= */}
         {activeTab === 'ORDERS' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* INCOMING PENDING ORDERS (Needs driver assignment or acceptance) */}
+          <div className="space-y-6">
+            {/* Customer Cancellation Alert Banner */}
+            {customerCancelledOrders.length > 0 && (
+              <div className="bg-red-500/10 border-2 border-red-500/50 rounded-3xl p-6 space-y-4 shadow-2xl shadow-red-500/10">
+                <div className="flex items-center gap-2.5 text-red-500">
+                  <span className="relative flex h-3.5 w-3.5 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-red-500"></span>
+                  </span>
+                  <h2 className="text-sm font-black uppercase tracking-wider animate-pulse">
+                    {locale === 'en' ? '⚠️ ATTENTION: Customer Cancelled Orders!' : '⚠️ تنبيه: طلبات تم إلغاؤها من العملاء!'}
+                  </h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                  {customerCancelledOrders.map((o) => (
+                    <div key={o.id} className="flex justify-between items-center text-xs text-text-muted bg-[#18181B] p-4 rounded-2xl border border-red-500/25">
+                      <div className="space-y-1">
+                        <span className="font-extrabold text-white block">ORDER #{o.id}</span>
+                        <span className="block font-medium">{o.userName} ({o.userPhone})</span>
+                      </div>
+                      <button
+                        onClick={() => setAcknowledgedCancellations(prev => [...prev, o.id])}
+                        className="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white text-[10px] font-extrabold rounded-xl transition-all cursor-pointer shadow-md shadow-red-600/15"
+                      >
+                        {locale === 'en' ? 'Acknowledge' : 'تأكيد'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              
+              {/* INCOMING PENDING ORDERS (Needs driver assignment or acceptance) */}
             <div className="space-y-4">
               <div className="flex justify-between items-center bg-[#18181B] p-4 rounded-2xl border border-card-border">
                 <h2 className="text-xs font-bold text-white flex items-center gap-2">
@@ -793,6 +890,20 @@ export default function AdminDashboardPage() {
                         </button>
                       )}
 
+                      {role && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role) && (
+                        <button
+                          onClick={() => {
+                            const reason = prompt(locale === 'en' ? 'Enter reason for cancellation:' : 'أدخل سبب الإلغاء:');
+                            if (reason !== null) {
+                              cancelOrderMutation.mutate({ orderId: order.id, reason: reason || 'No reason specified' });
+                            }
+                          }}
+                          className="w-full py-2 border border-red-500/30 hover:bg-red-500/10 text-red-400 text-[11px] font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 mt-2"
+                        >
+                          <span>{locale === 'en' ? 'Cancel Order' : 'إلغاء الطلب'}</span>
+                        </button>
+                      )}
+
                     </div>
                   ))}
                 </div>
@@ -879,21 +990,36 @@ export default function AdminDashboardPage() {
                       )}
 
                       {/* Manual Transition statuses */}
-                      <div className="flex gap-2">
-                        {order.status === 'PREPARING' && (
+                      <div className="flex flex-col gap-2">
+                        <div className="flex gap-2">
+                          {order.status === 'PREPARING' && (
+                            <button
+                              onClick={() => updateStatusMutation.mutate({ orderId: order.id, status: 'ON_THE_WAY' })}
+                              className="w-full py-2 bg-accent-amber hover:bg-accent-amber-hover text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer text-center"
+                            >
+                              Set Out for Delivery
+                            </button>
+                          )}
+                          {order.status === 'ON_THE_WAY' && (
+                            <button
+                              onClick={() => updateStatusMutation.mutate({ orderId: order.id, status: 'DELIVERED' })}
+                              className="w-full py-2 bg-green-600 hover:bg-green-700 text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer text-center"
+                            >
+                              Mark Delivered
+                            </button>
+                          )}
+                        </div>
+                        {role && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role) && (
                           <button
-                            onClick={() => db.updateOrderStatus(order.id, 'ON_THE_WAY')}
-                            className="w-full py-2 bg-accent-amber hover:bg-accent-amber-hover text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer"
+                            onClick={() => {
+                              const reason = prompt(locale === 'en' ? 'Enter reason for cancellation:' : 'أدخل سبب الإلغاء:');
+                              if (reason !== null) {
+                                cancelOrderMutation.mutate({ orderId: order.id, reason: reason || 'No reason specified' });
+                              }
+                            }}
+                            className="w-full py-2 border border-red-500/30 hover:bg-red-500/10 text-red-400 text-[10px] font-bold rounded-xl transition-all cursor-pointer text-center"
                           >
-                            Set Out for Delivery
-                          </button>
-                        )}
-                        {order.status === 'ON_THE_WAY' && (
-                          <button
-                            onClick={() => db.updateOrderStatus(order.id, 'DELIVERED')}
-                            className="w-full py-2 bg-green-600 hover:bg-green-700 text-white text-[10px] font-bold rounded-xl transition-all cursor-pointer"
-                          >
-                            Mark Delivered
+                            {locale === 'en' ? 'Cancel Order' : 'إلغاء الطلب'}
                           </button>
                         )}
                       </div>
@@ -903,7 +1029,6 @@ export default function AdminDashboardPage() {
                 </div>
               )}
             </div>
-
           </div>
         )}
 

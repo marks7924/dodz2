@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, Order, User } from '@/lib/db';
 import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
-import { Truck, CheckCircle, Clock, MapPin, Phone, ShieldAlert, DollarSign, ListOrdered, Navigation, Wifi, WifiOff } from 'lucide-react';
+import { Truck, CheckCircle, Clock, MapPin, Phone, ShieldAlert, Shield, DollarSign, ListOrdered, Navigation, Wifi, WifiOff } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DriverPortalPage() {
@@ -26,8 +26,10 @@ export default function DriverPortalPage() {
     setMounted(true);
   }, []);
 
+  const [showAsDriver, setShowAsDriver] = useState(false);
+
   useEffect(() => {
-    if (profile && profile.role === 'DRIVER') {
+    if (profile && (profile.role === 'DRIVER' || profile.role === 'DEVELOPER')) {
       setDriverUser({
         id: profile.id,
         name: profile.full_name,
@@ -35,12 +37,14 @@ export default function DriverPortalPage() {
         role: profile.role,
         phone: profile.phone || '',
       });
+      setShowAsDriver(profile.show_as_driver || false);
     } else if (isMock) {
       const savedUser = localStorage.getItem('user');
       if (savedUser) {
         const parsed = JSON.parse(savedUser);
-        if (parsed.role === 'DRIVER') {
+        if (parsed.role === 'DRIVER' || parsed.role === 'DEVELOPER') {
           setDriverUser(parsed);
+          setShowAsDriver(parsed.showAsDriver || false);
         }
       }
     } else {
@@ -81,6 +85,26 @@ export default function DriverPortalPage() {
       supabase.removeChannel(channel);
     };
   }, [driverUser, isMock, queryClient]);
+
+  const toggleShowAsDriver = async () => {
+    const nextVal = !showAsDriver;
+    setShowAsDriver(nextVal);
+
+    if (!isMock && profile?.id) {
+      const supabase = createClient();
+      await supabase
+        .from('profiles')
+        .update({ show_as_driver: nextVal })
+        .eq('id', profile.id);
+    } else {
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) {
+        const parsed = JSON.parse(savedUser);
+        parsed.showAsDriver = nextVal;
+        localStorage.setItem('user', JSON.stringify(parsed));
+      }
+    }
+  };
 
   // ---------------------------------------------------------------
   // GPS Live Location Tracking — pushes to Supabase driver_locations
@@ -287,6 +311,31 @@ export default function DriverPortalPage() {
 
       <main className="flex-grow max-w-5xl mx-auto w-full px-4 sm:px-6 py-8 space-y-8">
         
+        {/* Developer Testing Suite Visibility Card */}
+        {profile?.role === 'DEVELOPER' && (
+          <div className="bg-[#1D1B26] border border-indigo-500/30 rounded-3xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl shadow-indigo-500/5">
+            <div className="space-y-1">
+              <h3 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <Shield className="h-4.5 w-4.5 text-indigo-400" />
+                <span>Developer Testing Suite</span>
+              </h3>
+              <p className="text-[11px] text-text-muted">
+                Toggle your visibility as a driver. When enabled, your developer account will appear in the order assignment dropdown in the Admin dashboard.
+              </p>
+            </div>
+            <button
+              onClick={toggleShowAsDriver}
+              className={`px-5 py-2.5 rounded-xl text-xs font-extrabold transition-all duration-200 flex items-center gap-1.5 cursor-pointer select-none shrink-0 ${
+                showAsDriver 
+                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-600/20' 
+                  : 'bg-[#27272A] hover:bg-[#3F3F46] text-text-muted hover:text-white border border-card-border'
+              }`}
+            >
+              <span>{showAsDriver ? '🟢 Active & Visible as Driver' : '⚪ Hidden from Drivers List'}</span>
+            </button>
+          </div>
+        )}
+
         {/* GPS Live Status Banner */}
         {!isMock && (
           <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border text-xs font-bold ${

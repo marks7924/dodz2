@@ -56,6 +56,44 @@ export default function OrderTrackingPage() {
 
   const selectedBranch = order ? branches.find((b) => b.id === order.branchId) : null;
 
+  const [isCancelling, setIsCancelling] = useState(false);
+  const cancelOrder = async () => {
+    if (!confirm(locale === 'en' ? 'Are you sure you want to cancel your order?' : 'هل أنت متأكد من إلغاء الطلب؟')) return;
+    setIsCancelling(true);
+    try {
+      const res = await fetch(`/api/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'CANCELLED',
+          cancellationReason: locale === 'en' ? 'Cancelled by Customer' : 'تم الإلغاء بواسطة العميل',
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to cancel order');
+      alert(locale === 'en' ? 'Your order has been cancelled successfully.' : 'تم إلغاء طلبك بنجاح.');
+    } catch (e: any) {
+      alert(e.message || 'Error cancelling order');
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const orderTime = order ? new Date(order.createdAt).getTime() : 0;
+  // Keep live elapsed minutes count
+  const [elapsedMinutes, setElapsedMinutes] = useState(0);
+
+  useEffect(() => {
+    if (!orderTime) return;
+    const calcElapsed = () => {
+      setElapsedMinutes((Date.now() - orderTime) / 60000);
+    };
+    calcElapsed();
+    const interval = setInterval(calcElapsed, 10000);
+    return () => clearInterval(interval);
+  }, [orderTime]);
+
+  const canCustomerCancel = order && order.status === 'PENDING' && elapsedMinutes < 5;
+
   // ---------------------------------------------------------------
   // Subscribe to driver_locations in real-time via Supabase Realtime
   // ---------------------------------------------------------------
@@ -292,6 +330,30 @@ export default function OrderTrackingPage() {
             })}
           </div>
         </div>
+
+        {/* Customer Cancel Section (Only within first 5 minutes) */}
+        {canCustomerCancel && (
+          <div className="bg-red-500/5 border border-red-500/20 rounded-3xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="space-y-1 text-center sm:text-left">
+              <h3 className="text-xs font-bold text-red-400 uppercase tracking-wider flex items-center gap-1.5 justify-center sm:justify-start">
+                <span className="h-2 w-2 rounded-full bg-red-500 animate-ping" />
+                <span>{locale === 'en' ? 'Change your mind?' : 'هل غيرت رأيك؟'}</span>
+              </h3>
+              <p className="text-[11px] text-text-muted">
+                {locale === 'en' 
+                  ? 'You can cancel this order within the first 5 minutes of placing it.'
+                  : 'يمكنك إلغاء هذا الطلب خلال أول 5 دقائق فقط من إنشائه.'}
+              </p>
+            </div>
+            <button
+              onClick={cancelOrder}
+              disabled={isCancelling}
+              className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold rounded-xl transition-all shadow-lg shadow-red-600/10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0 w-full sm:w-auto"
+            >
+              {isCancelling ? '...' : (locale === 'en' ? 'Cancel Order' : 'إلغاء الطلب')}
+            </button>
+          </div>
+        )}
 
         {/* ═══════════════════════════════════════════════════════
             LIVE DRIVER TRACKING MAP  

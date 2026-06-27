@@ -67,6 +67,7 @@ export interface Order {
   driverName?: string;
   driverPhone?: string;
   notes?: string;
+  cancellationReason?: string;
   createdAt: string;
   updatedAt: string;
   items: OrderItem[];
@@ -78,6 +79,7 @@ export interface User {
   name: string;
   role: 'CUSTOMER' | 'DRIVER' | 'STAFF' | 'OWNER' | 'HEAD_ADMIN' | 'ADMIN' | 'DEVELOPER';
   phone?: string;
+  showAsDriver?: boolean;
 }
 
 export interface Review {
@@ -383,6 +385,7 @@ function mapOrder(o: any): Order {
     driverName: o.driver?.full_name || undefined,
     driverPhone: o.driver?.phone || undefined,
     notes: o.notes || undefined,
+    cancellationReason: o.cancellation_reason || undefined,
     createdAt: o.created_at,
     updatedAt: o.updated_at,
     items: Array.isArray(o.order_items) ? o.order_items.map(mapOrderItem) : [],
@@ -752,7 +755,7 @@ export const db = {
         const { data, error } = await getSupabase()
           .from('profiles')
           .select('*')
-          .eq('role', 'DRIVER')
+          .or('role.eq.DRIVER,and(role.eq.DEVELOPER,show_as_driver.eq.true)')
           .eq('is_active', true);
 
         if (!error && data) {
@@ -760,15 +763,16 @@ export const db = {
             id: p.id,
             email: '',
             name: p.full_name,
-            role: 'DRIVER',
+            role: p.role,
             phone: p.phone || undefined,
+            showAsDriver: p.show_as_driver || false,
           }));
         }
       } catch (err) {
         console.error('getDrivers Supabase error:', err);
       }
     }
-    return mockUsers.filter((u) => u.role === 'DRIVER');
+    return mockUsers.filter((u) => u.role === 'DRIVER' || (u.role === 'DEVELOPER' && u.showAsDriver));
   },
 
   async createUser(data: {
@@ -925,7 +929,8 @@ export const db = {
   async updateOrderStatus(
     orderId: string,
     status: Order['status'],
-    driverId?: string
+    driverId?: string,
+    cancellationReason?: string
   ): Promise<Order> {
     if (isSupabaseConfigured() && isValidUuid(orderId)) {
       try {
@@ -936,6 +941,9 @@ export const db = {
 
         if (driverId && isValidUuid(driverId)) {
           updatePayload.driver_id = driverId;
+        }
+        if (cancellationReason) {
+          updatePayload.cancellation_reason = cancellationReason;
         }
 
         const { error } = await getSupabase()
@@ -956,6 +964,9 @@ export const db = {
     if (idx === -1) throw new Error('Order not found');
 
     const update: Partial<Order> = { status, updatedAt: new Date().toISOString() };
+    if (cancellationReason) {
+      update.cancellationReason = cancellationReason;
+    }
     if (driverId) {
       const driver = mockUsers.find((u) => u.id === driverId);
       if (driver) {

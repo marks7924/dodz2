@@ -13,7 +13,7 @@ export async function PATCH(
   try {
     const { id: orderId } = await params;
     const body = await req.json();
-    const { status, driverId } = body;
+    const { status, driverId, cancellationReason } = body;
 
     if (!status) {
       return NextResponse.json({ error: 'Status is required' }, { status: 400 });
@@ -34,7 +34,7 @@ export async function PATCH(
         .eq('id', user.id)
         .single();
 
-      if (!profile || !['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF', 'DRIVER'].includes(profile.role)) {
+      if (!profile || !['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'DRIVER'].includes(profile.role)) {
         return NextResponse.json({ error: 'Forbidden: Unauthorized role' }, { status: 403 });
       }
     }
@@ -54,6 +54,9 @@ export async function PATCH(
       };
       if (driverId && isValidUuid(driverId)) {
         updatePayload.driver_id = driverId;
+      }
+      if (cancellationReason) {
+        updatePayload.cancellation_reason = cancellationReason;
       }
 
       const { data, error } = await adminClient
@@ -83,6 +86,8 @@ export async function PATCH(
         driverId: data.driver_id || undefined,
         driverName: data.driver?.full_name || undefined,
         driverPhone: data.driver?.phone || undefined,
+        notes: data.notes || undefined,
+        cancellationReason: data.cancellation_reason || undefined,
         createdAt: data.created_at,
         updatedAt: data.updated_at,
         items: data.order_items ? data.order_items.map((i: any) => ({
@@ -96,7 +101,7 @@ export async function PATCH(
         })) : [],
       };
     } else {
-      updatedOrder = await db.updateOrderStatus(orderId, status, driverId);
+      updatedOrder = await db.updateOrderStatus(orderId, status, driverId, cancellationReason);
     }
 
     // 2. Trigger notification to customer if database is Supabase
@@ -118,8 +123,10 @@ export async function PATCH(
           title = 'Order Delivered! 🎉';
           bodyMsg = 'Enjoy your fresh Dodz Fried Chicken! Thank you for ordering.';
         } else if (status === 'CANCELLED') {
-          title = 'Order Cancelled';
-          bodyMsg = 'Your order has been cancelled.';
+          title = 'Order Cancelled ❌';
+          bodyMsg = cancellationReason
+            ? `Your order has been cancelled. Reason: ${cancellationReason}`
+            : 'Your order has been cancelled.';
         }
 
         await supabase.from('notifications').insert({
@@ -127,7 +134,7 @@ export async function PATCH(
           type: 'order_status',
           title,
           body: bodyMsg,
-          metadata: { orderId, status },
+          metadata: { orderId, status, cancellationReason },
         });
       } catch (notifyErr) {
         console.error('Failed to dispatch status notification:', notifyErr);
