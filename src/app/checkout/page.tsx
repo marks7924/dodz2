@@ -40,7 +40,8 @@ export default function CheckoutPage() {
   const [notes, setNotes] = useState('');
   const [saveDetails, setSaveDetails] = useState(false);
   const [payment, setPayment] = useState<'COD' | 'FAWRY' | 'CARD'>('COD');
-  
+  const [errors, setErrors] = useState<Record<string, boolean>>({});
+
   // Fawry reference states
   const [fawryCode, setFawryCode] = useState<string | null>(null);
   const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
@@ -123,8 +124,28 @@ export default function CheckoutPage() {
   const handlePlaceOrder = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0) return;
-    if (!name.trim() || !phone.trim()) return;
-    if (deliveryType === 'DELIVERY' && !address.trim()) return;
+
+    const newErrors: Record<string, boolean> = {};
+    if (!name.trim()) newErrors.name = true;
+    if (!phone.trim()) newErrors.phone = true;
+    
+    if (deliveryType === 'DELIVERY') {
+      if (!apptDetails.trim()) newErrors.apptDetails = true;
+      if (!address.trim()) newErrors.address = true;
+    }
+
+    setErrors(newErrors);
+
+    if (Object.keys(newErrors).length > 0) {
+      alert(locale === 'en' ? 'Please complete the data' : 'برجاء استكمال البيانات');
+      const firstErrorKey = Object.keys(newErrors)[0];
+      const errorElement = document.getElementById(`input-${firstErrorKey}`);
+      if (errorElement) {
+        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        errorElement.focus();
+      }
+      return;
+    }
 
     if (!selectedBranchId) {
       alert(locale === 'en' ? 'Please select a branch before completing your checkout.' : 'يرجى اختيار فرع قبل إتمام الطلب.');
@@ -372,23 +393,31 @@ export default function CheckoutPage() {
                     <User className="absolute left-3 rtl:right-3 rtl:left-auto top-3.5 h-4.5 w-4.5 text-text-muted" />
                     <input
                       type="text"
+                      id="input-name"
                       value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      onChange={(e) => { setName(e.target.value); setErrors(prev => ({ ...prev, name: false })); }}
                       placeholder={t('namePlaceholder')}
                       required
-                      className="w-full text-xs bg-card-border border border-card-border rounded-xl pl-10 pr-3 rtl:pr-10 rtl:pl-3 py-3.5 text-foreground placeholder:text-text-muted focus:outline-none focus:border-primary-red/50 transition-colors"
+                      className={`w-full text-xs bg-card-border border rounded-xl pl-10 pr-3 rtl:pr-10 rtl:pl-3 py-3.5 text-foreground placeholder:text-text-muted focus:outline-none transition-colors ${
+                        errors.name ? 'border-red-500' : 'border-card-border focus:border-primary-red/50'
+                      }`}
                     />
+                    {errors.name && <span className="text-[10px] text-red-500 block mt-1 px-1">{locale === 'en' ? 'Name is required' : 'الاسم مطلوب'}</span>}
                   </div>
                   <div className="relative">
                     <Phone className="absolute left-3 rtl:right-3 rtl:left-auto top-3.5 h-4.5 w-4.5 text-text-muted" />
                     <input
                       type="tel"
+                      id="input-phone"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => { setPhone(e.target.value); setErrors(prev => ({ ...prev, phone: false })); }}
                       placeholder={t('phonePlaceholder')}
                       required
-                      className="w-full text-xs bg-card-border border border-card-border rounded-xl pl-10 pr-3 rtl:pr-10 rtl:pl-3 py-3.5 text-foreground placeholder:text-text-muted focus:outline-none focus:border-primary-red/50 transition-colors"
+                      className={`w-full text-xs bg-card-border border rounded-xl pl-10 pr-3 rtl:pr-10 rtl:pl-3 py-3.5 text-foreground placeholder:text-text-muted focus:outline-none transition-colors ${
+                        errors.phone ? 'border-red-500' : 'border-card-border focus:border-primary-red/50'
+                      }`}
                     />
+                    {errors.phone && <span className="text-[10px] text-red-500 block mt-1 px-1">{locale === 'en' ? 'Phone is required' : 'رقم الهاتف مطلوب'}</span>}
                   </div>
                 </div>
               </div>
@@ -406,18 +435,22 @@ export default function CheckoutPage() {
                     )}
                   </div>
 
-                  {/* Apartment / Floor / Building details */}
+                   {/* Apartment / Floor / Building details */}
                   <div className="space-y-1">
                     <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
                       {locale === 'en' ? 'Apartment / Floor / Building Number' : 'رقم الشقة / الطابق / العمارة'}
                     </label>
                     <input
                       type="text"
+                      id="input-apptDetails"
                       value={apptDetails}
-                      onChange={(e) => setApptDetails(e.target.value)}
+                      onChange={(e) => { setApptDetails(e.target.value); setErrors(prev => ({ ...prev, apptDetails: false })); }}
                       placeholder={locale === 'en' ? 'e.g. Appt 4, Floor 3, Building 12' : 'مثال: شقة ٤، الدور ٣، عمارة ١٢'}
-                      className="w-full text-xs bg-card-border border border-card-border rounded-xl px-4 py-3.5 text-foreground placeholder:text-text-muted focus:outline-none focus:border-primary-red/50 transition-colors"
+                      className={`w-full text-xs bg-card-border border rounded-xl px-4 py-3.5 text-foreground placeholder:text-text-muted focus:outline-none transition-colors ${
+                        errors.apptDetails ? 'border-red-500' : 'border-card-border focus:border-primary-red/50'
+                      }`}
                     />
+                    {errors.apptDetails && <span className="text-[10px] text-red-500 block mt-1 px-1">{locale === 'en' ? 'Apartment details are required for delivery' : 'تفاصيل الشقة/العمارة مطلوبة للتوصيل'}</span>}
                   </div>
 
                   {/* Street address */}
@@ -429,14 +462,18 @@ export default function CheckoutPage() {
                       <MapPin className="absolute left-3 rtl:right-3 rtl:left-auto top-3.5 h-4.5 w-4.5 text-text-muted" />
                       <input
                         type="text"
+                        id="input-address"
                         value={address}
-                        onChange={(e) => setAddress(e.target.value)}
+                        onChange={(e) => { setAddress(e.target.value); setErrors(prev => ({ ...prev, address: false })); }}
                         onBlur={handleAddressBlur}
                         placeholder={t('addressPlaceholder')}
                         required
-                        className="w-full text-xs bg-card-border border border-card-border rounded-xl pl-10 pr-3 rtl:pr-10 rtl:pl-3 py-3.5 text-foreground placeholder:text-text-muted focus:outline-none focus:border-primary-red/50 transition-colors"
+                        className={`w-full text-xs bg-card-border border rounded-xl pl-10 pr-3 rtl:pr-10 rtl:pl-3 py-3.5 text-foreground placeholder:text-text-muted focus:outline-none transition-colors ${
+                          errors.address ? 'border-red-500' : 'border-card-border focus:border-primary-red/50'
+                        }`}
                       />
                     </div>
+                    {errors.address && <span className="text-[10px] text-red-500 block mt-1 px-1">{locale === 'en' ? 'Street location/address is required for delivery' : 'موقع الشارع/العنوان مطلوب للتوصيل'}</span>}
                   </div>
 
                   <div className="flex items-center gap-2 pt-1">
