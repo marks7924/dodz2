@@ -208,6 +208,7 @@ export default function CheckoutPage() {
         size: it.size,
         quantity: it.quantity,
         price: it.price,
+        customizations: it.customizations || [],
       })),
       lat: deliveryType === 'DELIVERY' ? pinLat : undefined,
       lng: deliveryType === 'DELIVERY' ? pinLng : undefined,

@@ -94,6 +94,7 @@ export async function POST(req: NextRequest) {
           size: it.size || 'NONE',
           quantity: it.quantity || 1,
           price: it.price,
+          customizations: it.customizations || [],
         }));
 
         const { error: itemsError } = await supabase

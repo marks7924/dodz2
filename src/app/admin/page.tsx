@@ -1189,9 +1189,20 @@ export default function AdminDashboardPage() {
                       </div>
 
                       {/* Items */}
-                      <div className="text-[11px] text-text-muted space-y-1">
+                      <div className="text-[11px] text-text-muted space-y-1.5">
                         {order.items.map((it, idx) => (
-                          <div key={idx}>• {it.quantity}x {locale === 'en' ? it.productNameEn : it.productNameAr}</div>
+                          <div key={idx} className="space-y-0.5">
+                            <div>• {it.quantity}x {locale === 'en' ? it.productNameEn : it.productNameAr} {it.size !== 'NONE' && `(${it.size})`}</div>
+                            {it.customizations && it.customizations.length > 0 && (
+                              <div className="pl-4 text-[9px] text-accent-amber font-semibold flex flex-wrap gap-1">
+                                {it.customizations.map((cust: any, cIdx: number) => (
+                                  <span key={cIdx} className="bg-accent-amber/10 border border-accent-amber/20 px-1 py-0.2 rounded">
+                                    + {locale === 'en' ? cust.nameEn : cust.nameAr}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         ))}
                       </div>
 
@@ -1295,9 +1306,20 @@ export default function AdminDashboardPage() {
                       </div>
 
                       {/* Items */}
-                      <div className="text-[11px] text-text-muted space-y-1">
+                      <div className="text-[11px] text-text-muted space-y-1.5">
                         {order.items.map((it, idx) => (
-                          <div key={idx}>• {it.quantity}x {locale === 'en' ? it.productNameEn : it.productNameAr} {it.size !== 'NONE' && `(${it.size})`}</div>
+                          <div key={idx} className="space-y-0.5">
+                            <div>• {it.quantity}x {locale === 'en' ? it.productNameEn : it.productNameAr} {it.size !== 'NONE' && `(${it.size})`}</div>
+                            {it.customizations && it.customizations.length > 0 && (
+                              <div className="pl-4 text-[9px] text-accent-amber font-semibold flex flex-wrap gap-1">
+                                {it.customizations.map((cust: any, cIdx: number) => (
+                                  <span key={cIdx} className="bg-accent-amber/10 border border-accent-amber/20 px-1 py-0.2 rounded">
+                                    + {locale === 'en' ? cust.nameEn : cust.nameAr}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         ))}
                       </div>
 

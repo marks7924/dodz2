@@ -524,17 +524,28 @@ export default function OrderTrackingPage() {
           <h2 className="text-sm font-bold uppercase tracking-wider text-accent-amber">{locale === 'en' ? 'Items List' : 'قائمة المشتريات'}</h2>
           <div className="divide-y divide-card-border/30">
             {order.items.map((item, idx) => (
-              <div key={idx} className="flex justify-between items-center py-3 text-xs text-text-muted">
-                <div>
-                  <span className="font-bold text-white">{item.quantity}x</span>{' '}
-                  <span className="text-foreground">{locale === 'en' ? item.productNameEn : item.productNameAr}</span>
-                  {item.size !== 'NONE' && (
-                    <span className="block text-[9px] text-primary-red font-bold uppercase">
-                      {item.size === 'SINGLE' ? t('single') : t('double')}
-                    </span>
-                  )}
+              <div key={idx} className="py-3 border-b border-card-border/10 text-xs text-text-muted space-y-1">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span className="font-bold text-white">{item.quantity}x</span>{' '}
+                    <span className="text-foreground">{locale === 'en' ? item.productNameEn : item.productNameAr}</span>
+                    {item.size !== 'NONE' && (
+                      <span className="block text-[9px] text-primary-red font-bold uppercase">
+                        {item.size === 'SINGLE' ? t('single') : t('double')}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-white font-bold">{item.price * item.quantity} {t('egp')}</span>
                 </div>
-                <span className="text-white font-bold">{item.price * item.quantity} {t('egp')}</span>
+                {item.customizations && item.customizations.length > 0 && (
+                  <div className="pl-4 text-[10px] text-accent-amber font-semibold flex flex-wrap gap-1">
+                    {item.customizations.map((cust: any, cIdx: number) => (
+                      <span key={cIdx} className="bg-accent-amber/10 border border-accent-amber/25 px-1.5 py-0.5 rounded">
+                        + {locale === 'en' ? cust.nameEn : cust.nameAr}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
           </div>
