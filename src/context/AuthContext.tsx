@@ -15,6 +15,7 @@ export interface UserProfile {
   is_active: boolean;
   is_suspended: boolean;
   branch_id: string | null;
+  show_as_driver?: boolean;
   created_at: string;
 }
 

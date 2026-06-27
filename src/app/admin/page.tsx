@@ -1030,7 +1030,8 @@ export default function AdminDashboardPage() {
               )}
             </div>
           </div>
-        )}
+        </div>
+      )}
 
         {/* ========================================================================= */}
         {/* MENU CRUD CONTROL PANEL TAB */}
