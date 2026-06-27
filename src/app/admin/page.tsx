@@ -16,11 +16,11 @@ import { useModal } from '@/context/ModalContext';
 
 export default function AdminDashboardPage() {
   const { t, locale } = useLanguage();
-  const { confirm, prompt } = useModal();
+  const { confirm, prompt, alert } = useModal();
   const queryClient = useQueryClient();
   const [mounted, setMounted] = useState(false);
   const { user, profile, role, isAuthenticated, isLoading } = useAuth();
-  const { selectedBranchId, selectBranch, allBranches, userBranches, hasGlobalAccess, isGlobalView } = useBranch();
+  const { selectedBranchId, selectBranch, allBranches, userBranches, hasGlobalAccess, isGlobalView, storeStatus, fetchStoreStatus, refetchBranches } = useBranch();
 
   // Tab state: 'ORDERS', 'MENU', 'COUPONS', 'CHAT', or 'LOGS'
   const [activeTab, setActiveTab] = useState<'ORDERS' | 'MENU' | 'COUPONS' | 'CHAT' | 'LOGS'>('ORDERS');
@@ -147,6 +147,76 @@ export default function AdminDashboardPage() {
   // Category management state
   const supabase = createClient();
   const canManageCategories = role && ['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role);
+
+  const handleToggleStoreStatus = async () => {
+    try {
+      if (filterBranchId === 'ALL') {
+        if (!hasGlobalAccess) return;
+        const newStatus = storeStatus === 'OPEN' ? 'CLOSED' : 'OPEN';
+        
+        const { data } = await supabase
+          .from('restaurant_settings')
+          .select('key')
+          .eq('key', 'restaurant_status')
+          .is('branch_id', null);
+
+        if (data && data.length > 0) {
+          const { error } = await supabase
+            .from('restaurant_settings')
+            .update({ value: newStatus })
+            .eq('key', 'restaurant_status')
+            .is('branch_id', null);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase
+            .from('restaurant_settings')
+            .insert({ key: 'restaurant_status', value: newStatus });
+          if (error) throw error;
+        }
+        
+        await fetchStoreStatus();
+        alert(
+          locale === 'en' 
+            ? `Whole restaurant status set to ${newStatus}` 
+            : `تم تغيير حالة المطعم بالكامل إلى ${newStatus === 'OPEN' ? 'يعمل' : 'مغلق'}`,
+          locale === 'en' ? 'Success' : 'نجاح'
+        );
+      } else {
+        const hasBranchPermission = hasGlobalAccess || userBranches.some(b => b.id === filterBranchId);
+        if (!hasBranchPermission) {
+          alert(
+            locale === 'en' 
+              ? 'Access Denied: You do not have permission to manage this branch' 
+              : 'تم رفض الدخول: ليس لديك صلاحية لإدارة هذا الفرع',
+            locale === 'en' ? 'Access Denied' : 'غير مسموح'
+          );
+          return;
+        }
+
+        const branchObj = allBranches.find(b => b.id === filterBranchId);
+        if (!branchObj) return;
+        const newStatus = branchObj.status === 'OPEN' ? 'CLOSED' : 'OPEN';
+        
+        const { error } = await supabase
+          .from('branches')
+          .update({ status: newStatus })
+          .eq('id', filterBranchId);
+
+        if (error) throw error;
+        
+        await refetchBranches();
+        alert(
+          locale === 'en' 
+            ? `Branch status set to ${newStatus}` 
+            : `تم تغيير حالة الفرع إلى ${newStatus === 'OPEN' ? 'يعمل' : 'مغلق'}`,
+          locale === 'en' ? 'Success' : 'نجاح'
+        );
+      }
+    } catch (e: any) {
+      alert('Error updating status: ' + e.message);
+    }
+  };
+
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [newCatNameEn, setNewCatNameEn] = useState('');
   const [newCatNameAr, setNewCatNameAr] = useState('');
@@ -861,23 +931,65 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="flex flex-col items-stretch sm:items-end gap-3 w-full sm:w-auto">
-            {/* Branch Filter Dropdown */}
-            <div className="flex items-center gap-2 bg-card border border-card-border px-4 py-2.5 rounded-2xl w-full sm:w-auto">
-              <span className="text-[10px] text-text-muted font-bold uppercase shrink-0">{locale === 'en' ? 'Branch:' : 'الفرع:'}</span>
-              <select
-                value={filterBranchId}
-                onChange={(e) => setFilterBranchId(e.target.value)}
-                className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer flex-1 sm:flex-none"
-              >
-                {hasGlobalAccess && (
-                  <option value="ALL" className="bg-[#18181B] text-white font-bold">{locale === 'en' ? '🌐 All Branches' : '🌐 جميع الفروع'}</option>
-                )}
-                {(hasGlobalAccess ? allBranches : userBranches).map((b) => (
-                  <option key={b.id} value={b.id} className="bg-[#18181B] text-white font-bold">
-                    {locale === 'en' ? b.nameEn : b.nameAr}
-                  </option>
-                ))}
-              </select>
+            {/* Branch Filter Dropdown & Status Toggle */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-2 bg-card border border-card-border px-4 py-2.5 rounded-2xl w-full sm:w-auto">
+                <span className="text-[10px] text-text-muted font-bold uppercase shrink-0">{locale === 'en' ? 'Branch:' : 'الفرع:'}</span>
+                <select
+                  value={filterBranchId}
+                  onChange={(e) => setFilterBranchId(e.target.value)}
+                  className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer flex-1 sm:flex-none"
+                >
+                  {hasGlobalAccess && (
+                    <option value="ALL" className="bg-[#18181B] text-white font-bold">{locale === 'en' ? '🌐 All Branches' : '🌐 جميع الفروع'}</option>
+                  )}
+                  {(hasGlobalAccess ? allBranches : userBranches).map((b) => (
+                    <option key={b.id} value={b.id} className="bg-[#18181B] text-white font-bold">
+                      {locale === 'en' ? b.nameEn : b.nameAr}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {(() => {
+                const isCurrentlyOpen = filterBranchId === 'ALL'
+                  ? storeStatus === 'OPEN'
+                  : (allBranches.find(b => b.id === filterBranchId)?.status !== 'CLOSED');
+                
+                const canManageCurrentStatus = filterBranchId === 'ALL'
+                  ? hasGlobalAccess
+                  : (hasGlobalAccess || userBranches.some(b => b.id === filterBranchId));
+
+                return (
+                  <button
+                    onClick={handleToggleStoreStatus}
+                    disabled={!canManageCurrentStatus}
+                    className={`px-4 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer shadow-md flex items-center justify-center gap-1.5 disabled:opacity-50 ${
+                      isCurrentlyOpen
+                        ? 'bg-green-500 hover:bg-green-600 text-white shadow-green-500/10'
+                        : 'bg-primary-red hover:bg-primary-red-hover text-white shadow-red-500/10'
+                    }`}
+                  >
+                    <span className="relative flex h-2 w-2">
+                      <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                        isCurrentlyOpen ? 'bg-green-400' : 'bg-red-400'
+                      }`}></span>
+                      <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                        isCurrentlyOpen ? 'bg-green-300' : 'bg-red-500'
+                      }`}></span>
+                    </span>
+                    <span>
+                      {filterBranchId === 'ALL'
+                        ? (locale === 'en'
+                            ? `Store: ${isCurrentlyOpen ? 'OPEN' : 'CLOSED'}`
+                            : `المطعم: ${isCurrentlyOpen ? 'مفتوح' : 'مغلق'}`)
+                        : (locale === 'en'
+                            ? `Branch: ${isCurrentlyOpen ? 'OPEN' : 'CLOSED'}`
+                            : `الفرع: ${isCurrentlyOpen ? 'مفتوح' : 'مغلق'}`)}
+                    </span>
+                  </button>
+                );
+              })()}
             </div>
 
             {/* Desktop Navigation for Main Tabs */}

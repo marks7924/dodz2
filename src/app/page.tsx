@@ -156,7 +156,7 @@ export default function Home() {
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   const { user, profile, isAuthenticated, role } = useAuth();
-  const { selectedBranch, selectedBranchId, selectBranch, allBranches, isGlobalView, storeStatus } = useBranch();
+  const { selectedBranch, selectedBranchId, selectBranch, allBranches, isGlobalView, isClosed } = useBranch();
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
   const [showChangeBranchDialog, setShowChangeBranchDialog] = useState(false);
   const [pendingBranchId, setPendingBranchId] = useState<string | null>(null);
@@ -358,7 +358,7 @@ export default function Home() {
   };
 
   const handleAddToCartClicked = (product: Product, size: 'SINGLE' | 'DOUBLE' | 'NONE') => {
-    if (storeStatus === 'CLOSED') {
+    if (isClosed) {
       alert(
         locale === 'en'
           ? 'The store is currently closed. You can start ordering again during working hours.'

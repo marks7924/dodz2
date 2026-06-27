@@ -9,11 +9,12 @@ DELETE FROM public.categories;
 -- 2. Insert new categories
 INSERT INTO public.categories (id, name_en, name_ar, sort_order) VALUES
   ('c1000000-0000-0000-0000-000000000001', 'Offers & Bundles', 'أقوى العروض والـ Bundles', 1),
-  ('c1000000-0000-0000-0000-000000000002', 'Chicken & Beef Sandwiches', 'سندوتشات الفراخ والبرجر', 2),
-  ('c1000000-0000-0000-0000-000000000003', 'Single & Family Broasted/Tenders Meals', 'الوجبات الفردية والعائلية', 3),
-  ('c1000000-0000-0000-0000-000000000004', 'Sides, Mac & Cheese, and Rizo', 'الأصناف الجانبية، الماك أند تشيز والريزو', 4),
-  ('c1000000-0000-0000-0000-000000000005', 'Kids Meals', 'وجبات الأطفال', 5),
-  ('c1000000-0000-0000-0000-000000000006', 'Desserts & Beverages', 'الحلويات والمشروبات', 6);
+  ('c1000000-0000-0000-0000-000000000002', 'Beef Burgers', 'سندوتشات البرجر', 2),
+  ('c1000000-0000-0000-0000-000000000007', 'Chicken Sandwiches', 'سندوتشات الدجاج', 3),
+  ('c1000000-0000-0000-0000-000000000003', 'Single & Family Broasted/Tenders Meals', 'الوجبات الفردية والعائلية', 4),
+  ('c1000000-0000-0000-0000-000000000004', 'Sides, Mac & Cheese, and Rizo', 'الأصناف الجانبية، الماك أند تشيز والريزو', 5),
+  ('c1000000-0000-0000-0000-000000000005', 'Kids Meals', 'وجبات الأطفال', 6),
+  ('c1000000-0000-0000-0000-000000000006', 'Desserts & Beverages', 'الحلويات والمشروبات', 7);
 
 -- 3. Insert new menu items (All using /placeholder.png image)
 INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_ar, price_single, price_double, image_url, sort_order) VALUES
@@ -44,37 +45,39 @@ INSERT INTO public.menu_items (id, category_id, name_en, name_ar, desc_en, desc_
    '2 سندوتش من اختيارك + 2 ناشفيل تندرز + بطاطس بالجبنة + كوب صوص + 2 مشروب',
    750.00, NULL, '/placeholder.png', 5),
 
-  -- Category 2: Chicken & Beef Sandwiches
-  ('f1000000-0000-0000-0000-000000000006', 'c1000000-0000-0000-0000-000000000002',
+  -- Category 7: Chicken Sandwiches
+  ('f1000000-0000-0000-0000-000000000006', 'c1000000-0000-0000-0000-000000000007',
    'Super Crunchy', 'سوبر كرانشي',
    'Chicken pieces, cheddar sauce, BBQ, Doodz sauce, smoked turkey, lettuce, and pickled cucumber',
    'قطع دجاج، صوص تشيدر، باربكيو، صوص دودز، تركي مدخن، خس، ومخلل',
    220.00, NULL, '/placeholder.png', 1),
-  ('f1000000-0000-0000-0000-000000000007', 'c1000000-0000-0000-0000-000000000002',
+  ('f1000000-0000-0000-0000-000000000007', 'c1000000-0000-0000-0000-000000000007',
    'Dodz Pizza Wich', 'سندوتش دودز بيتزا ويتش',
    'Crispy chicken breast, marinara sauce, pepperoni, mushrooms, mozzarella cheese, and ranch sauce',
    'صدر دجاج، صوص مارينارا، ببروني، مشروم، موتزاريلًا ورانش',
    59.00, NULL, '/placeholder.png', 2),
-  ('f1000000-0000-0000-0000-000000000008', 'c1000000-0000-0000-0000-000000000002',
+  ('f1000000-0000-0000-0000-000000000008', 'c1000000-0000-0000-0000-000000000007',
    'Dodz Secret Sandwich', 'سندوتش دودز سيكرت',
    'Crispy chicken, buffalo sauce, ranch, American cheddar, lettuce, and pickles',
    'دجاج مقرمش، صوص بافلو، رانش، تشيدر أمريكي، ومخلل',
    59.00, NULL, '/placeholder.png', 3),
-  ('f1000000-0000-0000-0000-000000000009', 'c1000000-0000-0000-0000-000000000002',
+  ('f1000000-0000-0000-0000-000000000009', 'c1000000-0000-0000-0000-000000000007',
    'Cheese Lava Sandwich', 'سندوتش تشيز لافا',
    'Loaded with liquid cheddar cheese sauce, lettuce, and mayo',
    'غرقان بصوص جبنة التشيدر السائلة، خس، ومايونيز',
    59.00, NULL, '/placeholder.png', 4),
-  ('f1000000-0000-0000-0000-000000000010', 'c1000000-0000-0000-0000-000000000002',
+  ('f1000000-0000-0000-0000-000000000010', 'c1000000-0000-0000-0000-000000000007',
    'Fire Dodz', 'فاير دودز',
    'Crispy breast topped with spicy cheddar fingers, hot comeback sauce, hot cheddar sauce, and jalapenos',
    'صدر دجاج، أصابع تشيدر حارة، صوص كامباك حار، وهالبينو',
    180.00, NULL, '/placeholder.png', 5),
-  ('f1000000-0000-0000-0000-000000000011', 'c1000000-0000-0000-0000-000000000002',
+  ('f1000000-0000-0000-0000-000000000011', 'c1000000-0000-0000-0000-000000000007',
    'Mighty D', 'مايتي دي',
    'Crispy chicken breast, melted American cheese, comeback sauce, lettuce, and pickles',
    'صدر دجاج مقرمش، جبنة أمريكية، خس، ومخلل وصوص كامباك',
    170.00, NULL, '/placeholder.png', 6),
+
+  -- Category 2: Beef Burgers
   ('f1000000-0000-0000-0000-000000000012', 'c1000000-0000-0000-0000-000000000002',
    'Mushroom Honey Burger', 'مشروم هاني برجر',
    'Grilled smashed beef burger, American cheese, mushrooms, honey BBQ sauce, comeback sauce, onions, and pickles',

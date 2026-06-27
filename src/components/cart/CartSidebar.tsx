@@ -33,7 +33,7 @@ export default function CartSidebar() {
     getTotal,
   } = useCartStore();
 
-  const { selectedBranchId, storeStatus } = useBranch();
+  const { selectedBranchId, isClosed } = useBranch();
 
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
@@ -184,7 +184,7 @@ export default function CartSidebar() {
                     <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
                     <button
                       onClick={() => {
-                        if (storeStatus === 'CLOSED') {
+                        if (isClosed) {
                           alert(
                             locale === 'en'
                               ? 'The store is currently closed. You can start ordering again during working hours.'
@@ -290,7 +290,7 @@ export default function CartSidebar() {
             {/* Checkout CTA */}
             <button
               onClick={async () => {
-                if (storeStatus === 'CLOSED') {
+                if (isClosed) {
                   await alert(
                     locale === 'en'
                       ? 'The store is currently closed. You can start ordering again during working hours.'

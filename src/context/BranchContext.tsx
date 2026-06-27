@@ -37,6 +37,7 @@ interface BranchContextType {
   hasGlobalAccess: boolean;
   isLoading: boolean;
   storeStatus: 'OPEN' | 'CLOSED';
+  isClosed: boolean;
   // Actions
   selectBranch: (branchId: string | null, alwaysRemember?: boolean) => void;
   clearBranch: () => void;
@@ -273,6 +274,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
   const selectedBranch = allBranches.find((b) => b.id === selectedBranchId) || null;
   // "Global view" = has global access AND no specific branch selected
   const isGlobalView = hasGlobalAccess && !selectedBranchId;
+  const isClosed = storeStatus === 'CLOSED' || (selectedBranch !== null && selectedBranch.status === 'CLOSED');
 
   return (
     <BranchContext.Provider
@@ -285,6 +287,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
         hasGlobalAccess,
         isLoading,
         storeStatus,
+        isClosed,
         selectBranch,
         clearBranch,
         refetchBranches,
