@@ -132,6 +132,12 @@ export default function AdminDashboardPage() {
     enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
+  const [filterEditCategoryId, setFilterEditCategoryId] = useState<string>('ALL');
+
+  const displayedProducts = filterEditCategoryId === 'ALL'
+    ? products
+    : products.filter((p) => p.categoryId === filterEditCategoryId || p.categoryIds?.includes(filterEditCategoryId));
+
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['admin-categories'],
     queryFn: () => db.getCategories(),
@@ -310,32 +316,40 @@ export default function AdminDashboardPage() {
     const [removed] = updatedList.splice(dragIdx, 1);
     updatedList.splice(targetIdx, 0, removed);
 
-    for (let i = 0; i < updatedList.length; i++) {
-      await supabase
-        .from('categories')
-        .update({ sort_order: i })
-        .eq('id', updatedList[i].id);
+    const upsertData = updatedList.map((c, i) => ({
+      id: c.id,
+      sort_order: i,
+    }));
+
+    const { error } = await supabase.from('categories').upsert(upsertData, { onConflict: 'id' });
+    if (error) {
+      alert(locale === 'en' ? 'Failed to reorder categories' : 'فشل إعادة ترتيب الأقسام');
+    } else {
+      refetchCategories();
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
     }
-    refetchCategories();
-    queryClient.invalidateQueries({ queryKey: ['admin-products'] });
   };
 
   const handleReorderProducts = async (draggedId: string, targetId: string) => {
-    const dragIdx = products.findIndex((p) => p.id === draggedId);
-    const targetIdx = products.findIndex((p) => p.id === targetId);
+    const dragIdx = displayedProducts.findIndex((p) => p.id === draggedId);
+    const targetIdx = displayedProducts.findIndex((p) => p.id === targetId);
     if (dragIdx === -1 || targetIdx === -1 || dragIdx === targetIdx) return;
 
-    const updatedList = [...products];
+    const updatedList = [...displayedProducts];
     const [removed] = updatedList.splice(dragIdx, 1);
     updatedList.splice(targetIdx, 0, removed);
 
-    for (let i = 0; i < updatedList.length; i++) {
-      await supabase
-        .from('menu_items')
-        .update({ sort_order: i })
-        .eq('id', updatedList[i].id);
+    const upsertData = updatedList.map((p, i) => ({
+      id: p.id,
+      sort_order: i,
+    }));
+
+    const { error } = await supabase.from('menu_items').upsert(upsertData, { onConflict: 'id' });
+    if (error) {
+      alert(locale === 'en' ? 'Failed to reorder items' : 'فشل إعادة ترتيب المنتجات');
+    } else {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
     }
-    queryClient.invalidateQueries({ queryKey: ['admin-products'] });
   };
 
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
@@ -1549,11 +1563,31 @@ export default function AdminDashboardPage() {
           <div className="bg-card border border-card-border rounded-3xl p-6 space-y-6">
             
             {/* Header CRUD */}
-            <div className="flex justify-between items-center">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-accent-amber">{t('menuManagement')}</h2>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full sm:w-auto">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-accent-amber">{t('menuManagement')}</h2>
+                
+                {/* Category Selection Filter */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">{locale === 'en' ? 'Category Filter:' : 'تصفية بالقسم:'}</span>
+                  <select
+                    value={filterEditCategoryId}
+                    onChange={(e) => setFilterEditCategoryId(e.target.value)}
+                    className="bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-primary-red/50 cursor-pointer"
+                  >
+                    <option value="ALL">{locale === 'en' ? 'ALL' : 'الكل'}</option>
+                    {categories.map((c: any) => (
+                      <option key={c.id} value={c.id}>
+                        {locale === 'en' ? c.nameEn : c.nameAr}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <button
                 onClick={handleOpenAddProduct}
-                className="px-4 py-2 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+                className="px-4 py-2 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer w-full sm:w-auto justify-center"
               >
                 <Plus className="h-4.5 w-4.5" />
                 <span>{t('addNewProduct')}</span>
@@ -1573,7 +1607,7 @@ export default function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-card-border/30">
-                  {products.map((product) => (
+                  {displayedProducts.map((product) => (
                     <tr 
                       key={product.id} 
                       draggable={true}
