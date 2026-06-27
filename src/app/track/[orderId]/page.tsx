@@ -36,6 +36,7 @@ export default function OrderTrackingPage() {
   // Driver live location state
   const [driverLat, setDriverLat] = useState<number | null>(null);
   const [driverLng, setDriverLng] = useState<number | null>(null);
+  const [liveEta, setLiveEta] = useState<number | null>(null);
 
   const supabase = createClient();
 
@@ -196,10 +197,15 @@ export default function OrderTrackingPage() {
           </div>
 
           <div className="px-4 py-2 rounded-2xl bg-primary-red/10 border border-primary-red/20 text-center md:text-right">
-            <span className="text-[10px] text-text-muted block font-semibold">{t('estimatedDelivery')}</span>
+            <span className="text-[10px] text-text-muted block font-semibold">
+              {liveEta !== null ? (locale === 'en' ? 'Live GPS Estimate' : 'تقدير GPS المباشر') : t('estimatedDelivery')}
+            </span>
             <span className="text-base font-extrabold text-accent-amber">
-              {order.status === 'DELIVERED' ? '0' : order.status === 'ON_THE_WAY' ? '10-20' : '35-45'}{' '}
-              {t('minutes')}
+              {liveEta !== null ? (
+                `${liveEta} ${t('minutes')}`
+              ) : (
+                `${order.status === 'DELIVERED' ? '0' : order.status === 'ON_THE_WAY' ? '10-20' : '35-45'} ${t('minutes')}`
+              )}
             </span>
           </div>
         </div>
@@ -279,6 +285,7 @@ export default function OrderTrackingPage() {
               driverName={order.driverName}
               orderStatus={order.status}
               locale={locale}
+              onEtaChange={setLiveEta}
             />
           </div>
         )}

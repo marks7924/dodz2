@@ -66,7 +66,10 @@ export default function CustomerOrderTracker({ userId }: { userId?: string }) {
   const config = getStatusConfig(order.status);
 
   return (
-    <div className="w-full bg-[#18181B] border-b border-card-border overflow-hidden">
+    <Link 
+      href={`/track/${order.id}`}
+      className="block w-full bg-[#18181B] border-b border-card-border overflow-hidden hover:bg-[#202024] transition-colors group cursor-pointer"
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
         <div className={`flex items-center justify-between px-4 py-2 rounded-xl border ${config.bg} backdrop-blur-md`}>
           <div className="flex items-center gap-3">
@@ -83,15 +86,22 @@ export default function CustomerOrderTracker({ userId }: { userId?: string }) {
             </div>
           </div>
           
-          <div className="hidden sm:block">
-            {order.type === 'DELIVERY' && order.driverName && (
-              <div className="text-[10px] text-text-muted">
-                Driver: <span className="font-bold text-white">{order.driverName}</span>
-              </div>
-            )}
+          <div className="flex items-center gap-4">
+            <div className="hidden sm:block">
+              {order.type === 'DELIVERY' && order.driverName && (
+                <div className="text-[10px] text-text-muted">
+                  Driver: <span className="font-bold text-white">{order.driverName}</span>
+                </div>
+              )}
+            </div>
+            
+            <span className="px-3 py-1.5 bg-primary-red group-hover:bg-primary-red-hover text-white text-[10px] font-black rounded-lg transition-colors flex items-center gap-1.5">
+              <span>{locale === 'en' ? 'Track Live' : 'تتبع الآن'}</span>
+              <span className="text-xs transition-transform group-hover:translate-x-1 rtl:group-hover:-translate-x-1">➔</span>
+            </span>
           </div>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }

@@ -4,7 +4,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Navigation, Truck, Clock, MapPin } from 'lucide-react';
 import L from 'leaflet';
 
-// Fix Leaflet default icon broken by webpack
+// Fix Leaflet default icon broken by webpack builds
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -27,6 +27,7 @@ interface Props {
   driverName?: string;
   orderStatus: string;
   locale?: string;
+  onEtaChange?: (eta: number | null) => void;
 }
 
 export default function LiveTrackingMap({
@@ -40,6 +41,7 @@ export default function LiveTrackingMap({
   driverName,
   orderStatus,
   locale = 'en',
+  onEtaChange,
 }: Props) {
   const mapContainerRef   = useRef<HTMLDivElement>(null);
   const mapRef            = useRef<L.Map | null>(null);
@@ -62,7 +64,7 @@ export default function LiveTrackingMap({
     L.tileLayer(TILE_URL, { attribution: TILE_ATTR, subdomains: 'abcd', maxZoom: 20 }).addTo(map);
     mapRef.current = map;
 
-    // Customer pin
+    // Customer pin (red house pin)
     const customerIcon = L.divIcon({
       className: '',
       html: `<div style="display:flex;flex-direction:column;align-items:center;filter:drop-shadow(0 4px 8px rgba(0,0,0,0.7))">
@@ -81,7 +83,7 @@ export default function LiveTrackingMap({
       .addTo(map)
       .bindPopup(locale === 'en' ? '📍 Your location' : '📍 موقعك');
 
-    // Branch pin
+    // Branch pin (amber)
     if (branchLat && branchLng) {
       const branchIcon = L.divIcon({
         className: '',
@@ -101,23 +103,71 @@ export default function LiveTrackingMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Create/move driver marker ─────────────────────────────────────
+  // ── Create/move driver marker (Motorbike SVG) ──────────────────────
   const moveDriver = useCallback((lat: number, lng: number) => {
     if (!mapRef.current) return;
+    
+    const icon = L.divIcon({
+      className: '',
+      html: `
+        <div style="
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          filter: drop-shadow(0 4px 10px rgba(34, 197, 94, 0.65));
+        ">
+          <!-- Pulse Ring Animation -->
+          <div style="
+            position: absolute;
+            width: 46px;
+            height: 46px;
+            border: 2px solid #22c55e;
+            border-radius: 50%;
+            animation: custom-ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+            pointer-events: none;
+          "></div>
+          
+          <!-- Motorbike container -->
+          <div style="
+            background: #0A0A0B;
+            border: 2px solid #22c55e;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            z-index: 10;
+          ">
+            <!-- Custom detailed Motorbike SVG -->
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="5" cy="18" r="3" />
+              <circle cx="19" cy="18" r="3" />
+              <path d="M12 18V9h4l2 3" />
+              <path d="m16 9-4-4-3 3H3" />
+              <path d="m12 12-4-4" />
+            </svg>
+          </div>
+        </div>
+        <style>
+          @keyframes custom-ping {
+            0% { transform: scale(0.85); opacity: 1; }
+            100% { transform: scale(1.4); opacity: 0; }
+          }
+        </style>
+      `,
+      iconSize: [46, 46],
+      iconAnchor: [23, 23],
+    });
+
     if (!driverMarkerRef.current) {
-      const icon = L.divIcon({
-        className: '',
-        html: `<div style="background:#111;border:2px solid #22c55e;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 12px rgba(34,197,94,0.6);">
-          <span style="font-size:16px;">🛵</span>
-        </div>`,
-        iconSize: [36, 36],
-        iconAnchor: [18, 18],
-      });
       driverMarkerRef.current = L.marker([lat, lng], { icon, zIndexOffset: 500 })
         .addTo(mapRef.current)
         .bindPopup(`🛵 ${driverName || (locale === 'en' ? 'Driver' : 'السائق')}`);
     } else {
       driverMarkerRef.current.setLatLng([lat, lng]);
+      driverMarkerRef.current.setIcon(icon);
     }
   }, [driverName, locale]);
 
@@ -135,8 +185,14 @@ export default function LiveTrackingMap({
         const data = await res.json();
         if (data.code !== 'Ok' || !data.routes?.length) return;
         const route = data.routes[0];
-        setDistance(Math.round((route.distance / 1000) * 10) / 10);
-        setEta(Math.ceil(route.duration / 60));
+        
+        const distanceKm = Math.round((route.distance / 1000) * 10) / 10;
+        const durationMin = Math.ceil(route.duration / 60);
+
+        setDistance(distanceKm);
+        setEta(durationMin);
+        onEtaChange?.(durationMin);
+
         const poly: [number, number][] = route.geometry.coordinates.map(([lng, lat]: [number, number]) => [lat, lng]);
         routeLayerRef.current?.remove();
         routeLayerRef.current = L.polyline(poly, { color: '#22c55e', weight: 4, opacity: 0.85, dashArray: '8 6' }).addTo(mapRef.current!);
@@ -147,7 +203,7 @@ export default function LiveTrackingMap({
     // Fit map to show driver + customer
     const bounds = L.latLngBounds([[driverLat, driverLng], [customerLat, customerLng]]);
     mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
-  }, [driverLat, driverLng, customerLat, customerLng, moveDriver]);
+  }, [driverLat, driverLng, customerLat, customerLng, moveDriver, onEtaChange]);
 
   return (
     <div className="space-y-3">
