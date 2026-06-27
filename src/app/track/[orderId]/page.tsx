@@ -57,8 +57,9 @@ export default function OrderTrackingPage() {
   const selectedBranch = order ? branches.find((b) => b.id === order.branchId) : null;
 
   const [isCancelling, setIsCancelling] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
   const cancelOrder = async () => {
-    if (!confirm(locale === 'en' ? 'Are you sure you want to cancel your order?' : 'هل أنت متأكد من إلغاء الطلب؟')) return;
     setIsCancelling(true);
     try {
       const res = await fetch(`/api/orders/${orderId}/status`, {
@@ -346,7 +347,7 @@ export default function OrderTrackingPage() {
               </p>
             </div>
             <button
-              onClick={cancelOrder}
+              onClick={() => setShowCancelModal(true)}
               disabled={isCancelling}
               className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-extrabold rounded-xl transition-all shadow-lg shadow-red-600/10 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shrink-0 w-full sm:w-auto"
             >
@@ -513,6 +514,44 @@ export default function OrderTrackingPage() {
         </div>
 
       </main>
+
+      {/* Premium Web Cancellation Confirmation Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#1C1917] border border-card-border rounded-3xl p-6 max-w-sm w-full space-y-6 animate-in fade-in zoom-in duration-200 shadow-2xl">
+            <div className="text-center space-y-2">
+              <span className="text-3xl block mb-1">⚠️</span>
+              <h3 className="text-base font-black text-white">
+                {locale === 'en' ? 'Cancel Your Order?' : 'إلغاء الطلب؟'}
+              </h3>
+              <p className="text-xs text-text-muted leading-relaxed">
+                {locale === 'en'
+                  ? 'Are you absolutely sure you want to cancel this order? This action cannot be undone.'
+                  : 'هل أنت متأكد تماماً من إلغاء هذا الطلب؟ لا يمكن التراجع عن هذا الإجراء.'}
+              </p>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="flex-1 py-2.5 bg-card border border-card-border hover:bg-white/5 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+              >
+                {locale === 'en' ? 'Keep Order' : 'الاحتفاظ بالطلب'}
+              </button>
+              <button
+                onClick={async () => {
+                  setShowCancelModal(false);
+                  await cancelOrder();
+                }}
+                disabled={isCancelling}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-red-600/10"
+              >
+                {locale === 'en' ? 'Yes, Cancel' : 'نعم، إلغاء'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </>

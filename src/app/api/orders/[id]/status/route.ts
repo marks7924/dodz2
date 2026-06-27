@@ -26,23 +26,43 @@ export async function PATCH(
                    process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project-ref') ||
                    !user;
 
-    if (!isMock) {
-      // Check user role in Supabase
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (!profile || !['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'DRIVER'].includes(profile.role)) {
-        return NextResponse.json({ error: 'Forbidden: Unauthorized role' }, { status: 403 });
-      }
-    }
-
-    // 1. Update order status in the database
     const useSupabase =
       process.env.NEXT_PUBLIC_SUPABASE_URL &&
       !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project-ref');
+
+    if (useSupabase && !isMock) {
+      // 1. Fetch current order
+      const adminClient = createAdminClient();
+      const { data: order, error: orderErr } = await adminClient
+        .from('orders')
+        .select('*')
+        .eq('id', orderId)
+        .single();
+
+      if (orderErr || !order) {
+        return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+      }
+
+      // Check if user is the customer cancelling their own order
+      const isOwnCancellation = order.customer_id === user.id && status === 'CANCELLED';
+      const orderTime = new Date(order.created_at).getTime();
+      const elapsedMinutes = (Date.now() - orderTime) / 60000;
+      
+      const isCustomerAllowed = isOwnCancellation && order.status === 'PENDING' && elapsedMinutes < 5;
+
+      if (!isCustomerAllowed) {
+        // Otherwise, verify staff/driver role
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single();
+
+        if (!profile || !['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'DRIVER'].includes(profile.role)) {
+          return NextResponse.json({ error: 'Forbidden: Unauthorized role' }, { status: 403 });
+        }
+      }
+    }
 
     let updatedOrder: any = null;
 
