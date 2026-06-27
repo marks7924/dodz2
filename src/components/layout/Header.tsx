@@ -21,6 +21,7 @@ export default function Header() {
   const [showBranchDropdown, setShowBranchDropdown] = useState(false);
   const [pendingBranchId, setPendingBranchId] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  const [alwaysRemember, setAlwaysRemember] = useState(false);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
   const { user, profile, role, isAuthenticated, signOut, isLoading } = useAuth();
 
@@ -67,7 +68,7 @@ export default function Header() {
       return;
     }
     setSubmitting(true);
-    selectBranch(pendingBranchId);
+    selectBranch(pendingBranchId, alwaysRemember);
     setShowBranchDropdown(false);
     setTimeout(() => {
       window.location.reload();
@@ -180,6 +181,20 @@ export default function Header() {
 
           {/* Submit */}
           <div className="p-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+            {pendingBranchId && pendingBranchId !== selectedBranchId && (
+              <div className="mb-2 flex items-center gap-2 px-1">
+                <input
+                  type="checkbox"
+                  id="header-always-remember"
+                  checked={alwaysRemember}
+                  onChange={(e) => setAlwaysRemember(e.target.checked)}
+                  className="rounded bg-[#121214] border-card-border text-primary-red focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                />
+                <label htmlFor="header-always-remember" className="text-[10px] text-text-muted cursor-pointer hover:text-white transition-colors select-none">
+                  {locale === 'en' ? 'Always remember selection' : 'تذكر خياري دائماً'}
+                </label>
+              </div>
+            )}
             <button
               type="button"
               onClick={handleConfirmBranch}

@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     }
 
     // Parse body parameters
-    const { email, password, fullName, phone, role, branchId } = await request.json();
+    const { email, password, fullName, phone, role, branchIds = [] } = await request.json();
 
     if (!email || !password || !fullName || !role) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
@@ -46,6 +46,7 @@ export async function POST(request: Request) {
     const newUserId = newAuthUser.user.id;
 
     // Create profile
+    const firstBranchId = branchIds.length > 0 ? branchIds[0] : null;
     const { error: profileError } = await adminClient
       .from('profiles')
       .insert({
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
         full_name: fullName,
         phone: phone || null,
         role: role,
-        branch_id: branchId || null,
+        branch_id: firstBranchId,
         is_active: true,
         is_suspended: false,
       });
@@ -62,6 +63,21 @@ export async function POST(request: Request) {
       // Cleanup auth user if profile creation fails
       await adminClient.auth.admin.deleteUser(newUserId);
       return NextResponse.json({ error: profileError.message }, { status: 400 });
+    }
+
+    // Create many-to-many branch assignments in user_branch_assignments
+    if (branchIds && branchIds.length > 0) {
+      const assignments = branchIds.map((bid: string) => ({
+        user_id: newUserId,
+        branch_id: bid,
+      }));
+      const { error: assignError } = await adminClient
+        .from('user_branch_assignments')
+        .insert(assignments);
+      
+      if (assignError) {
+        console.error('Failed to create branch assignments during user creation:', assignError);
+      }
     }
 
     // Log activity

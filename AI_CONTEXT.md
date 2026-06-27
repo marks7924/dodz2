@@ -103,7 +103,8 @@ supabase/
     ├── 003_functions.sql       # ✅ DB triggers + functions
     ├── 004_seed.sql            # ✅ Initial data seed
     ├── 013_fix_orders_rls_leak.sql # ✅ Fix legacy orders RLS leak
-    └── 014_branch_customizations.sql # ✅ Branch menu customization and chat isolation RLS
+    ├── 014_branch_customizations.sql # ✅ Branch menu customization and chat isolation RLS
+    └── 015_branch_scoped_items.sql # ✅ Branch scoped menu items
 middleware.ts                   # ✅ Route protection + session refresh
 AI_CONTEXT.md                   # ✅ This file
 ```

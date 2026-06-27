@@ -1618,7 +1618,7 @@ export default function AdminDashboardPage() {
                     value={editingProduct.nameEn || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, nameEn: e.target.value })}
                     required
-                    disabled={filterBranchId !== 'ALL'}
+                    disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   />
                 </div>
@@ -1629,7 +1629,7 @@ export default function AdminDashboardPage() {
                     value={editingProduct.nameAr || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, nameAr: e.target.value })}
                     required
-                    disabled={filterBranchId !== 'ALL'}
+                    disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   />
                 </div>
@@ -1640,11 +1640,29 @@ export default function AdminDashboardPage() {
                   <select
                     value={editingProduct.categoryId || 'cat-1'}
                     onChange={(e) => setEditingProduct({ ...editingProduct, categoryId: e.target.value })}
-                    disabled={filterBranchId !== 'ALL'}
+                    disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>{locale === 'en' ? c.nameEn : c.nameAr}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Branch Scope select */}
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                    {locale === 'en' ? 'Item Branch Scope' : 'نطاق فرع المنتج'}
+                  </label>
+                  <select
+                    value={editingProduct.branchId || ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, branchId: e.target.value || null })}
+                    disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
+                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
+                  >
+                    <option value="">{locale === 'en' ? 'All Branches (Global)' : 'جميع الفروع (عام)'}</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>{locale === 'en' ? b.nameEn : b.nameAr}</option>
                     ))}
                   </select>
                 </div>
@@ -1657,7 +1675,7 @@ export default function AdminDashboardPage() {
                     onChange={(e) => setEditingProduct({ ...editingProduct, descEn: e.target.value })}
                     required
                     rows={2}
-                    disabled={filterBranchId !== 'ALL'}
+                    disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors resize-none disabled:opacity-50"
                   />
                 </div>
@@ -1668,7 +1686,7 @@ export default function AdminDashboardPage() {
                     onChange={(e) => setEditingProduct({ ...editingProduct, descAr: e.target.value })}
                     required
                     rows={2}
-                    disabled={filterBranchId !== 'ALL'}
+                    disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors resize-none disabled:opacity-50"
                   />
                 </div>
@@ -1730,7 +1748,7 @@ export default function AdminDashboardPage() {
                       value={editingProduct.imageUrl || ''}
                       onChange={(e) => setEditingProduct({ ...editingProduct, imageUrl: e.target.value })}
                       placeholder="https://..."
-                      disabled={filterBranchId !== 'ALL'}
+                      disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
                       className="flex-1 text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                     />
                     <div className="relative">
@@ -1738,12 +1756,12 @@ export default function AdminDashboardPage() {
                         type="file"
                         accept="image/*"
                         onChange={handleImageUpload}
-                        disabled={isUploadingImage || filterBranchId !== 'ALL'}
+                        disabled={isUploadingImage || (filterBranchId !== 'ALL' && !!editingProduct.id)}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                       />
                       <button
                         type="button"
-                        disabled={isUploadingImage || filterBranchId !== 'ALL'}
+                        disabled={isUploadingImage || (filterBranchId !== 'ALL' && !!editingProduct.id)}
                         className="px-4 py-2.5 bg-card border border-card-border text-white text-xs font-bold rounded-xl whitespace-nowrap hover:bg-card-border transition-colors disabled:opacity-50"
                       >
                         {isUploadingImage ? '...' : (locale === 'en' ? 'Upload' : 'رفع ملف')}

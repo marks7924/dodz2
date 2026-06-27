@@ -27,25 +27,47 @@ export async function PATCH(
 
     // Parse body parameters
     const updates = await request.json();
+    const { fullName, phone, role, branchIds = [], isSuspended, isActive } = updates;
 
     const adminClient = createAdminClient();
 
     // Update the profile table
+    const firstBranchId = branchIds.length > 0 ? branchIds[0] : null;
     const { error: profileError } = await adminClient
       .from('profiles')
       .update({
-        full_name: updates.fullName,
-        phone: updates.phone,
-        role: updates.role,
-        branch_id: updates.branchId,
-        is_suspended: updates.isSuspended,
-        is_active: updates.isActive,
+        full_name: fullName,
+        phone: phone,
+        role: role,
+        branch_id: firstBranchId,
+        is_suspended: isSuspended,
+        is_active: isActive,
         updated_at: new Date().toISOString(),
       })
       .eq('id', targetUserId);
 
     if (profileError) {
       return NextResponse.json({ error: profileError.message }, { status: 400 });
+    }
+
+    // Sync user_branch_assignments
+    await adminClient
+      .from('user_branch_assignments')
+      .delete()
+      .eq('user_id', targetUserId);
+
+    if (branchIds && branchIds.length > 0) {
+      const assignments = branchIds.map((bid: string) => ({
+        user_id: targetUserId,
+        branch_id: bid,
+      }));
+      const { error: assignError } = await adminClient
+        .from('user_branch_assignments')
+        .insert(assignments);
+
+      if (assignError) {
+        console.error('Failed to update branch assignments during user update:', assignError);
+      }
     }
 
     // If suspended is set to true, we should revoke user's sessions

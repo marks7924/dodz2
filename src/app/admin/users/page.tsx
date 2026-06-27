@@ -58,7 +58,7 @@ export default function UserManagementPage() {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [userRole, setUserRole] = useState<string>('CUSTOMER');
-  const [branchId, setBranchId] = useState<string>('');
+  const [branchIds, setBranchIds] = useState<string[]>([]);
   const [formError, setFormError] = useState('');
   const [formLoading, setFormLoading] = useState(false);
 
@@ -81,7 +81,7 @@ export default function UserManagementPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
+        .select('*, user_branch_assignments(*)')
         .order('created_at', { ascending: false });
       if (error) throw error;
 
@@ -161,7 +161,7 @@ export default function UserManagementPage() {
     setFullName('');
     setPhone('');
     setUserRole('CUSTOMER');
-    setBranchId('');
+    setBranchIds([]);
     setFormError('');
   };
 
@@ -170,7 +170,8 @@ export default function UserManagementPage() {
     setFullName(user.full_name);
     setPhone(user.phone || '');
     setUserRole(user.role);
-    setBranchId(user.branch_id || '');
+    const assignedIds = user.user_branch_assignments?.map((a: any) => a.branch_id) || [];
+    setBranchIds(assignedIds);
     setIsEditingUser(true);
   };
 
@@ -183,7 +184,7 @@ export default function UserManagementPage() {
       fullName,
       phone,
       role: userRole,
-      branchId: branchId || null,
+      branchIds,
     });
   };
 
@@ -197,19 +198,20 @@ export default function UserManagementPage() {
         fullName,
         phone,
         role: userRole,
-        branchId: branchId || null,
+        branchIds,
       },
     });
   };
 
   const toggleSuspension = (user: any) => {
+    const assignedIds = user.user_branch_assignments?.map((a: any) => a.branch_id) || [];
     updateUserMutation.mutate({
       id: user.id,
       updates: {
         fullName: user.full_name,
         phone: user.phone,
         role: user.role,
-        branchId: user.branch_id,
+        branchIds: assignedIds,
         isSuspended: !user.is_suspended,
       },
     });
@@ -322,8 +324,15 @@ export default function UserManagementPage() {
                       </td>
                       <td className="p-4 text-text-muted">
                         {(() => {
-                          const br = branches.find((b: any) => b.id === u.branch_id);
-                          return br ? (locale === 'en' ? br.name_en : br.name_ar) : '-';
+                          const assignedIds = u.user_branch_assignments?.map((a: any) => a.branch_id) || [];
+                          if (assignedIds.length === 0) return '-';
+                          return assignedIds
+                            .map((id: string) => {
+                              const br = branches.find((b: any) => b.id === id);
+                              return br ? (locale === 'en' ? br.name_en : br.name_ar) : null;
+                            })
+                            .filter(Boolean)
+                            .join(', ');
                         })()}
                       </td>
                       <td className="p-4">
@@ -446,19 +455,29 @@ export default function UserManagementPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Branch Assignment</label>
-                  <select
-                    value={branchId}
-                    onChange={(e) => setBranchId(e.target.value)}
-                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
-                  >
-                    <option value="">None (All / Corporate)</option>
-                    {branches.map((b: any) => (
-                      <option key={b.id} value={b.id}>
-                        {locale === 'en' ? b.name_en : b.name_ar}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider mb-2">Branch Assignments</label>
+                  <div className="space-y-2 max-h-32 overflow-y-auto bg-[#18181B] border border-card-border rounded-xl p-3">
+                    {branches.map((b: any) => {
+                      const isChecked = branchIds.includes(b.id);
+                      return (
+                        <label key={b.id} className="flex items-center gap-2 text-xs text-white cursor-pointer hover:text-primary-red transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setBranchIds([...branchIds, b.id]);
+                              } else {
+                                setBranchIds(branchIds.filter(id => id !== b.id));
+                              }
+                            }}
+                            className="rounded bg-[#121214] border-card-border text-primary-red focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                          />
+                          <span>{locale === 'en' ? b.name_en : b.name_ar}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
@@ -534,19 +553,29 @@ export default function UserManagementPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Branch Assignment</label>
-                  <select
-                    value={branchId}
-                    onChange={(e) => setBranchId(e.target.value)}
-                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
-                  >
-                    <option value="">None (All / Corporate)</option>
-                    {branches.map((b: any) => (
-                      <option key={b.id} value={b.id}>
-                        {locale === 'en' ? b.name_en : b.name_ar}
-                      </option>
-                    ))}
-                  </select>
+                  <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider mb-2">Branch Assignments</label>
+                  <div className="space-y-2 max-h-32 overflow-y-auto bg-[#18181B] border border-card-border rounded-xl p-3">
+                    {branches.map((b: any) => {
+                      const isChecked = branchIds.includes(b.id);
+                      return (
+                        <label key={b.id} className="flex items-center gap-2 text-xs text-white cursor-pointer hover:text-primary-red transition-colors">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setBranchIds([...branchIds, b.id]);
+                              } else {
+                                setBranchIds(branchIds.filter(id => id !== b.id));
+                              }
+                            }}
+                            className="rounded bg-[#121214] border-card-border text-primary-red focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                          />
+                          <span>{locale === 'en' ? b.name_en : b.name_ar}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 

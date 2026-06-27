@@ -15,6 +15,7 @@ export default function BranchWelcomePopup() {
   const [mounted, setMounted] = useState(false);
   const [chosen, setChosen] = useState<string>('');
   const [submitted, setSubmitted] = useState(false);
+  const [alwaysRemember, setAlwaysRemember] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -29,7 +30,7 @@ export default function BranchWelcomePopup() {
 
   const handleSubmit = () => {
     if (chosen) {
-      selectBranch(chosen);
+      selectBranch(chosen, alwaysRemember);
       // Reload so branch-specific menu/prices load fresh
       setSubmitted(true);
       sessionStorage.setItem(POPUP_SESSION_KEY, '1');
@@ -160,6 +161,20 @@ export default function BranchWelcomePopup() {
                 </button>
               );
             })}
+          </div>
+
+          {/* Always remember option */}
+          <div className="flex items-center gap-2.5 px-1 py-1">
+            <input
+              type="checkbox"
+              id="welcome-always-remember"
+              checked={alwaysRemember}
+              onChange={(e) => setAlwaysRemember(e.target.checked)}
+              className="rounded bg-[#121214] border-card-border text-primary-red focus:ring-0 focus:ring-offset-0 cursor-pointer"
+            />
+            <label htmlFor="welcome-always-remember" className="text-xs text-text-muted cursor-pointer hover:text-white transition-colors select-none">
+              {locale === 'en' ? 'Always remember my branch selection' : 'تذكر فرعي المفضل دائماً'}
+            </label>
           </div>
 
           {/* Actions */}

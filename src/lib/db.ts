@@ -25,6 +25,7 @@ export interface Product {
   imageUrl: string;
   categoryId: string;
   isAvailable: boolean;
+  branchId?: string | null;
 }
 
 export interface OrderItem {
@@ -341,6 +342,7 @@ function mapProduct(p: any, branchId?: string | null): Product {
     priceDouble,
     imageUrl: p.image_url,
     isAvailable,
+    branchId: p.branch_id || null,
   };
 }
 
@@ -531,6 +533,9 @@ export const db = {
         if (categoryId && isValidUuid(categoryId)) {
           query = query.eq('category_id', categoryId);
         }
+        if (branchId && isValidUuid(branchId)) {
+          query = query.or(`branch_id.is.null,branch_id.eq.${branchId}`);
+        }
         const { data, error } = await query;
         if (!error && data) {
           return data.map((p: any) => mapProduct(p, branchId));
@@ -577,6 +582,7 @@ export const db = {
             price_double: data.priceDouble || null,
             image_url: data.imageUrl,
             is_available: true,
+            branch_id: data.branchId || null,
           })
           .select()
           .single();
@@ -604,6 +610,7 @@ export const db = {
         if (data.priceDouble !== undefined) updateData.price_double = data.priceDouble || null;
         if (data.imageUrl !== undefined) updateData.image_url = data.imageUrl;
         if (data.isAvailable !== undefined) updateData.is_available = data.isAvailable;
+        if (data.branchId !== undefined) updateData.branch_id = data.branchId || null;
 
         const { data: prod, error } = await getSupabase()
           .from('menu_items')
@@ -1225,7 +1232,26 @@ export const db = {
         const { data, error } = await query.order('updated_at', { ascending: false });
 
         if (!error && data) {
-          return data.map((chat: any) => {
+          const now = new Date().getTime();
+          const activeChatsList = [];
+
+          for (const chat of data) {
+            const isOlderThan24h = (now - new Date(chat.updated_at).getTime()) > 24 * 60 * 60 * 1000;
+            if (chat.status === 'OPEN' && isOlderThan24h) {
+              // Auto-close in database (background fire-and-forget)
+              getSupabase()
+                .from('support_chats')
+                .update({ status: 'CLOSED' })
+                .eq('id', chat.id)
+                .then((res: any) => {
+                  if (res.error) console.error('Failed to auto-close chat:', chat.id, res.error);
+                });
+            } else {
+              activeChatsList.push(chat);
+            }
+          }
+
+          return activeChatsList.map((chat: any) => {
             const msgs = chat.support_messages || [];
             msgs.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
             const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1].content : '';

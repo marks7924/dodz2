@@ -173,6 +173,8 @@ export default function Home() {
 
   const comboDiscountSetting = settings.find((s) => s.key === 'combo_discount_percentage');
   const comboDiscount = comboDiscountSetting ? Number(comboDiscountSetting.value) : 25;
+  const comboFixedPriceSetting = settings.find((s) => s.key === 'combo_fixed_price');
+  const comboFixedPrice = comboFixedPriceSetting && comboFixedPriceSetting.value ? Number(comboFixedPriceSetting.value) : null;
 
   useEffect(() => {
     if (profile) {
@@ -993,7 +995,9 @@ export default function Home() {
         const comboItems = [fries, drink].filter(Boolean) as typeof products;
         if (comboItems.length === 0) { setComboModal(null); return null; }
         const originalPrice = comboItems.reduce((s, i) => s + i.priceSingle, 0);
-        const comboPrice = Math.round(originalPrice * ((100 - comboDiscount) / 100));
+        const comboPrice = comboFixedPrice !== null && comboFixedPrice !== undefined
+          ? comboFixedPrice
+          : Math.round(originalPrice * ((100 - comboDiscount) / 100));
         return (
           <ComboOfferModal
             triggerItemName={locale === 'en' ? comboModal.product.nameEn : comboModal.product.nameAr}
@@ -1001,8 +1005,14 @@ export default function Home() {
             comboPrice={comboPrice}
             originalPrice={originalPrice}
             onAccept={() => {
-              comboItems.forEach(p => {
-                addItem({ productId: p.id, nameEn: p.nameEn, nameAr: p.nameAr, price: p.priceSingle, size: 'NONE', imageUrl: p.imageUrl });
+              const ratio = comboPrice / (originalPrice || 1);
+              comboItems.forEach((p, idx) => {
+                let itemPrice = Math.round(p.priceSingle * ratio);
+                if (idx === comboItems.length - 1) {
+                  const sumOthers = comboItems.slice(0, -1).reduce((sum, item) => sum + Math.round(item.priceSingle * ratio), 0);
+                  itemPrice = comboPrice - sumOthers;
+                }
+                addItem({ productId: p.id, nameEn: p.nameEn, nameAr: p.nameAr, price: itemPrice, size: 'NONE', imageUrl: p.imageUrl });
               });
               setComboModal(null);
               setCartOpen(true);

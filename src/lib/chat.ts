@@ -37,8 +37,15 @@ export async function getOrCreateChatSession(customerId: string, branchId?: stri
 
   if (existingChat) {
     const isOlderThan24h = (new Date().getTime() - new Date(existingChat.updated_at).getTime()) > 24 * 60 * 60 * 1000;
-    if (existingChat.status !== 'CLOSED' && existingChat.status !== 'RESOLVED' && !isOlderThan24h) {
-      return existingChat.id;
+    if (existingChat.status !== 'CLOSED' && existingChat.status !== 'RESOLVED') {
+      if (isOlderThan24h) {
+        await supabase
+          .from('support_chats')
+          .update({ status: 'CLOSED' })
+          .eq('id', existingChat.id);
+      } else {
+        return existingChat.id;
+      }
     }
   }
 

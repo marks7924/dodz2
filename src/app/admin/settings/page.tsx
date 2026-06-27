@@ -200,6 +200,29 @@ export default function SettingsPage() {
                     </div>
                   );
                 })()}
+
+                {/* Setting 5: Combo Fixed Price */}
+                {(() => {
+                  const comboFixedPriceSetting = settings.find((s: any) => s.key === 'combo_fixed_price') || { value: '' };
+                  return (
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                        {locale === 'en' ? 'Combo Fixed Price (EGP) - Overrides percentage' : 'السعر الثابت للكومبو (ج.م) - يلغي نسبة الخصم'}
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          id="setting-combo-fixed"
+                          type="number"
+                          min="0"
+                          placeholder="e.g. 50"
+                          defaultValue={comboFixedPriceSetting.value}
+                          className="flex-grow text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                          onBlur={(e) => handleSave('combo_fixed_price', e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>

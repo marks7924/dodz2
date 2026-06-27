@@ -35,7 +35,7 @@ interface BranchContextType {
   hasGlobalAccess: boolean;
   isLoading: boolean;
   // Actions
-  selectBranch: (branchId: string | null) => void;
+  selectBranch: (branchId: string | null, alwaysRemember?: boolean) => void;
   clearBranch: () => void;
   refetchBranches: () => void;
 }
@@ -132,12 +132,55 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
   // Restore selected branch from localStorage
   // -------------------------------------------------------
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const storageKey = isAuthenticated ? BRANCH_STORAGE_KEY : CUSTOMER_BRANCH_KEY;
-      const saved = localStorage.getItem(storageKey);
-      if (saved) setSelectedBranchId(saved);
-    }
-  }, [isAuthenticated]);
+    const restoreBranch = async () => {
+      if (typeof window !== 'undefined') {
+        if (isAuthenticated) {
+          try {
+            const userRes = await supabase.auth.getUser();
+            const userId = userRes.data.user?.id;
+            if (userId) {
+              const { data: prof } = await supabase
+                .from('profiles')
+                .select('branch_id, role')
+                .eq('id', userId)
+                .single();
+
+              if (prof && prof.branch_id && prof.role === 'CUSTOMER') {
+                setSelectedBranchId(prof.branch_id);
+                localStorage.setItem(BRANCH_STORAGE_KEY, prof.branch_id);
+                localStorage.setItem(CUSTOMER_BRANCH_KEY, prof.branch_id);
+                localStorage.setItem('dodz_branch_remember_always', 'true');
+                localStorage.removeItem('dodz_branch_expire_time');
+                return;
+              }
+            }
+          } catch (e) {
+            console.error('Failed to restore branch from profile:', e);
+          }
+        }
+
+        const storageKey = isAuthenticated ? BRANCH_STORAGE_KEY : CUSTOMER_BRANCH_KEY;
+        const saved = localStorage.getItem(storageKey);
+        const rememberAlways = localStorage.getItem('dodz_branch_remember_always') === 'true';
+        const expireTimeStr = localStorage.getItem('dodz_branch_expire_time');
+        const expireTime = expireTimeStr ? Number(expireTimeStr) : null;
+
+        if (saved) {
+          if (rememberAlways || !expireTime || Date.now() < expireTime) {
+            setSelectedBranchId(saved);
+          } else {
+            // Selection expired after 24 hours
+            localStorage.removeItem(storageKey);
+            localStorage.removeItem(CUSTOMER_BRANCH_KEY);
+            localStorage.removeItem('dodz_branch_remember_always');
+            localStorage.removeItem('dodz_branch_expire_time');
+            setSelectedBranchId(null);
+          }
+        }
+      }
+    };
+    restoreBranch();
+  }, [isAuthenticated, supabase]);
 
   // -------------------------------------------------------
   // Auto-select if user only has one branch
@@ -151,19 +194,52 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
   // -------------------------------------------------------
   // Actions
   // -------------------------------------------------------
-  const selectBranch = useCallback((branchId: string | null) => {
+  const selectBranch = useCallback(async (branchId: string | null, alwaysRemember: boolean = false) => {
     setSelectedBranchId(branchId);
     if (typeof window !== 'undefined') {
       const storageKey = BRANCH_STORAGE_KEY;
       if (branchId) {
         localStorage.setItem(storageKey, branchId);
         localStorage.setItem(CUSTOMER_BRANCH_KEY, branchId);
+        localStorage.setItem('dodz_branch_remember_always', alwaysRemember ? 'true' : 'false');
+        if (!alwaysRemember) {
+          const expireTime = Date.now() + 24 * 60 * 60 * 1000;
+          localStorage.setItem('dodz_branch_expire_time', String(expireTime));
+        } else {
+          localStorage.removeItem('dodz_branch_expire_time');
+        }
+
+        // Save selection to profiles in database if user is authenticated customer and chose alwaysRemember
+        if (isAuthenticated && alwaysRemember) {
+          try {
+            const userRes = await supabase.auth.getUser();
+            const userId = userRes.data.user?.id;
+            if (userId) {
+              const { data: prof } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', userId)
+                .single();
+              
+              if (prof && prof.role === 'CUSTOMER') {
+                await supabase
+                  .from('profiles')
+                  .update({ branch_id: branchId })
+                  .eq('id', userId);
+              }
+            }
+          } catch (e) {
+            console.error('Failed to save selected branch to profile:', e);
+          }
+        }
       } else {
         localStorage.removeItem(storageKey);
         localStorage.removeItem(CUSTOMER_BRANCH_KEY);
+        localStorage.removeItem('dodz_branch_remember_always');
+        localStorage.removeItem('dodz_branch_expire_time');
       }
     }
-  }, []);
+  }, [isAuthenticated, supabase]);
 
   const clearBranch = useCallback(() => {
     selectBranch(null);
