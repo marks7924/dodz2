@@ -4,10 +4,11 @@
 -- ============================================================
 
 -- Table: stores the latest GPS position per driver
+-- lat/lng are nullable so drivers can have an "offline" row without coordinates
 CREATE TABLE IF NOT EXISTS public.driver_locations (
   driver_id   UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
-  lat         DOUBLE PRECISION NOT NULL,
-  lng         DOUBLE PRECISION NOT NULL,
+  lat         DOUBLE PRECISION,             -- nullable: null when offline/no GPS yet
+  lng         DOUBLE PRECISION,             -- nullable: null when offline/no GPS yet
   accuracy    DOUBLE PRECISION,             -- GPS accuracy in metres
   speed       DOUBLE PRECISION,             -- speed in km/h
   heading     DOUBLE PRECISION,             -- compass degrees 0-360
@@ -29,14 +30,14 @@ ALTER TABLE public.driver_locations REPLICA IDENTITY FULL;
 
 ALTER TABLE public.driver_locations ENABLE ROW LEVEL SECURITY;
 
--- Drivers can upsert their own location
+-- Drivers can upsert their own location row
 CREATE POLICY "driver_location_self_upsert"
   ON public.driver_locations
   FOR ALL
   USING (driver_id = auth.uid())
   WITH CHECK (driver_id = auth.uid());
 
--- Customers can read the driver location for orders that belong to them
+-- Customers can read the driver location for their own orders
 CREATE POLICY "driver_location_customer_read"
   ON public.driver_locations
   FOR SELECT

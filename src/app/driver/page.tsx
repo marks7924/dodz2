@@ -115,10 +115,12 @@ export default function DriverPortalPage() {
     if (error) console.warn('Failed to push driver location:', error.message);
   }, []);
 
+  // UPDATE only (row must already exist) — avoids 400 from inserting without NOT NULL lat/lng
   const setOffline = useCallback(async (driverId: string) => {
     await supabaseRef.current
       .from('driver_locations')
-      .upsert({ driver_id: driverId, is_online: false, updated_at: new Date().toISOString() }, { onConflict: 'driver_id' });
+      .update({ is_online: false, updated_at: new Date().toISOString() })
+      .eq('driver_id', driverId);
   }, []);
 
   useEffect(() => {
@@ -145,8 +147,10 @@ export default function DriverPortalPage() {
       },
       (err) => {
         console.warn('GPS error:', err.message);
+        // Only attempt setOffline if we had a valid session (row exists)
+        // Do NOT call setOffline on first-time permission denial — no row exists yet
+        if (gpsCoords !== null) setOffline(driverUser.id);
         setGpsStatus('error');
-        setOffline(driverUser.id);
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
     );
