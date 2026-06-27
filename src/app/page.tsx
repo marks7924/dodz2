@@ -137,7 +137,7 @@ function BannerAnnouncement() {
 
 export default function Home() {
   const { t, locale, dir } = useLanguage();
-  const { confirm } = useModal();
+  const { confirm, alert } = useModal();
   const { addItem, cartOpen, setCartOpen } = useCartStore();
   const queryClient = useQueryClient();
 
@@ -1075,7 +1075,7 @@ export default function Home() {
                   queryClient.invalidateQueries({ queryKey: ['products'] });
                   setHeroEditOpen(false);
                 } catch (err) {
-                  alert('Save failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+                   await alert('Save failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
                 } finally {
                   setHeroSaving(false);
                 }

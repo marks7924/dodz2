@@ -14,18 +14,20 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const coupon = await db.getCouponByCode(code, branchId);
+    const userId = url.searchParams.get('userId') || undefined;
 
-    if (!coupon) {
+    const result = await db.validateCoupon(code, branchId, userId);
+
+    if (!result.isValid) {
       return NextResponse.json(
-        { success: false, error: 'Invalid or inactive coupon code' },
+        { success: false, error: result.error || 'Invalid or inactive coupon code' },
         { status: 200 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      coupon,
+      coupon: result.coupon,
     });
   } catch (err: any) {
     console.error('Failed to validate coupon:', err);

@@ -99,6 +99,8 @@ export interface Coupon {
   discountValue: number;
   isActive: boolean;
   branchId?: string | null;
+  maxUsesPerUser?: number | null;
+  usageLimit?: number | null;
 }
 
 export interface Discount {
@@ -275,8 +277,8 @@ let mockReviews: Review[] = [
 ];
 
 let mockCoupons: Coupon[] = [
-  { id: 'coup-1', code: 'FIRST15', discountType: 'PERCENT', discountValue: 15, isActive: true },
-  { id: 'coup-2', code: 'DODZ10', discountType: 'FIXED', discountValue: 30, isActive: true },
+  { id: 'coup-1', code: 'FIRST15', discountType: 'PERCENT', discountValue: 15, isActive: true, maxUsesPerUser: 1 },
+  { id: 'coup-2', code: 'DODZ10', discountType: 'FIXED', discountValue: 30, isActive: true, usageLimit: 10 },
 ];
 
 let mockDiscounts: Discount[] = [];
@@ -424,6 +426,8 @@ function mapCoupon(c: any): Coupon {
     discountValue: Number(c.discount_value),
     isActive: c.is_active,
     branchId: c.branch_id || undefined,
+    maxUsesPerUser: c.max_uses_per_user !== null && c.max_uses_per_user !== undefined ? Number(c.max_uses_per_user) : null,
+    usageLimit: c.usage_limit !== null && c.usage_limit !== undefined ? Number(c.usage_limit) : null,
   };
 }
 
@@ -1084,6 +1088,52 @@ export const db = {
     return mockCoupons.find((c) => c.code.toUpperCase() === code.toUpperCase() && c.isActive && (!c.branchId || c.branchId === branchId));
   },
 
+  async validateCoupon(code: string, branchId?: string, userId?: string): Promise<{ isValid: boolean; error?: string; coupon?: Coupon }> {
+    const coupon = await this.getCouponByCode(code, branchId);
+    if (!coupon) {
+      return { isValid: false, error: 'Invalid or inactive coupon code' };
+    }
+
+    // Check total limit
+    if (coupon.usageLimit !== null && coupon.usageLimit !== undefined && coupon.usageLimit > 0) {
+      let totalCount = 0;
+      if (isSupabaseConfigured()) {
+        const { count, error } = await getSupabase()
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('coupon_code', code.toUpperCase())
+          .neq('status', 'CANCELLED');
+        if (!error && count !== null) totalCount = count;
+      } else {
+        totalCount = mockOrders.filter(o => o.couponCode?.toUpperCase() === code.toUpperCase() && o.status !== 'CANCELLED').length;
+      }
+      if (totalCount >= coupon.usageLimit) {
+        return { isValid: false, error: 'This coupon has reached its maximum total usage limit' };
+      }
+    }
+
+    // Check user limit
+    if (userId && coupon.maxUsesPerUser !== null && coupon.maxUsesPerUser !== undefined && coupon.maxUsesPerUser > 0) {
+      let userCount = 0;
+      if (isSupabaseConfigured()) {
+        const { count, error } = await getSupabase()
+          .from('orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('coupon_code', code.toUpperCase())
+          .eq('customer_id', userId)
+          .neq('status', 'CANCELLED');
+        if (!error && count !== null) userCount = count;
+      } else {
+        userCount = mockOrders.filter(o => o.couponCode?.toUpperCase() === code.toUpperCase() && o.userId === userId && o.status !== 'CANCELLED').length;
+      }
+      if (userCount >= coupon.maxUsesPerUser) {
+        return { isValid: false, error: 'You have already used this coupon' };
+      }
+    }
+
+    return { isValid: true, coupon };
+  },
+
   async getCoupons(): Promise<Coupon[]> {
     if (isSupabaseConfigured()) {
       try {
@@ -1109,6 +1159,8 @@ export const db = {
             discount_value: data.discountValue,
             is_active: true,
             branch_id: data.branchId || null,
+            max_uses_per_user: data.maxUsesPerUser || null,
+            usage_limit: data.usageLimit || null,
           })
           .select()
           .single();

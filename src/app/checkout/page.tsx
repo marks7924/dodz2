@@ -14,9 +14,11 @@ import { MapPin, Phone, User, CreditCard, ChevronRight, CheckCircle, Navigation,
 import LazyDeliveryMap from '@/components/map/LazyDeliveryMap';
 import { searchAddress } from '@/lib/nominatim';
 import { calcDeliveryFee } from '@/lib/osrm';
+import { useModal } from '@/context/ModalContext';
 
 export default function CheckoutPage() {
   const { t, locale, dir } = useLanguage();
+  const { alert } = useModal();
   const router = useRouter();
   const {
     items,
@@ -137,7 +139,7 @@ export default function CheckoutPage() {
     setErrors(newErrors);
 
     if (Object.keys(newErrors).length > 0) {
-      alert(locale === 'en' ? 'Please complete the data' : 'برجاء استكمال البيانات');
+      await alert(locale === 'en' ? 'Please complete the data' : 'برجاء استكمال البيانات');
       const firstErrorKey = Object.keys(newErrors)[0];
       const errorElement = document.getElementById(`input-${firstErrorKey}`);
       if (errorElement) {
@@ -148,12 +150,20 @@ export default function CheckoutPage() {
     }
 
     if (!selectedBranchId) {
-      alert(locale === 'en' ? 'Please select a branch before completing your checkout.' : 'يرجى اختيار فرع قبل إتمام الطلب.');
+      await alert(locale === 'en' ? 'Please select a branch before completing your checkout.' : 'يرجى اختيار فرع قبل إتمام الطلب.');
       const selectorElement = document.getElementById('checkout-branch-selector');
       if (selectorElement) {
         selectorElement.scrollIntoView({ behavior: 'smooth' });
       }
       return;
+    }
+
+    if (coupon?.code) {
+      const couponCheck = await db.validateCoupon(coupon.code, selectedBranchId || undefined, user?.id);
+      if (!couponCheck.isValid) {
+        await alert(couponCheck.error || 'The applied coupon is no longer valid.');
+        return;
+      }
     }
 
     setIsOrdering(true);
@@ -237,7 +247,7 @@ export default function CheckoutPage() {
       }
     } catch (err: any) {
       console.error('Checkout place order failure:', err);
-      alert(locale === 'en' ? `Error: ${err.message}` : `خطأ: ${err.message}`);
+      await alert(locale === 'en' ? `Error: ${err.message}` : `خطأ: ${err.message}`);
       setIsOrdering(false);
     }
   };

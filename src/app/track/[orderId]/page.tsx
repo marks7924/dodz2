@@ -11,6 +11,7 @@ import { db, Order } from '@/lib/db';
 import { createClient } from '@/lib/supabase/client';
 import { Clock, CheckCircle2, Truck, Check, ChevronRight, ShoppingBag, MapPin, User, Phone, Play, AlertTriangle } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import { useModal } from '@/context/ModalContext';
 
 // Lazy-load LiveTrackingMap (Leaflet is browser-only)
 const LiveTrackingMap = dynamic(() => import('@/components/map/LiveTrackingMap'), {
@@ -27,6 +28,7 @@ const LiveTrackingMap = dynamic(() => import('@/components/map/LiveTrackingMap')
 
 export default function OrderTrackingPage() {
   const { t, locale } = useLanguage();
+  const { alert } = useModal();
   const router = useRouter();
   const params = useParams();
   const orderId = params?.orderId as string;
@@ -72,9 +74,9 @@ export default function OrderTrackingPage() {
         }),
       });
       if (!res.ok) throw new Error('Failed to cancel order');
-      alert(locale === 'en' ? 'Your order has been cancelled successfully.' : 'تم إلغاء طلبك بنجاح.');
+      await alert(locale === 'en' ? 'Your order has been cancelled successfully.' : 'تم إلغاء طلبك بنجاح.');
     } catch (e: any) {
-      alert(e.message || 'Error cancelling order');
+      await alert(e.message || 'Error cancelling order');
     } finally {
       setIsCancelling(false);
     }

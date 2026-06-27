@@ -6,11 +6,13 @@ import { useCartStore, CartItem } from '@/store/useCartStore';
 import { X, Plus, Minus, Trash2, Tag, ShoppingBag, ArrowRight, ArrowLeft } from 'lucide-react';
 import { db } from '@/lib/db';
 import { useBranch } from '@/context/BranchContext';
+import { useAuth } from '@/context/AuthContext';
 import Image from 'next/image';
 import Link from 'next/link';
 
 export default function CartSidebar() {
   const { t, locale, dir } = useLanguage();
+  const { user } = useAuth();
   const {
     items,
     cartOpen,
@@ -53,8 +55,9 @@ export default function CartSidebar() {
     if (!couponInput.trim()) return;
 
     try {
-      const foundCoupon = await db.getCouponByCode(couponInput.trim(), selectedBranchId || undefined);
-      if (foundCoupon) {
+      const result = await db.validateCoupon(couponInput.trim(), selectedBranchId || undefined, user?.id);
+      if (result.isValid && result.coupon) {
+        const foundCoupon = result.coupon;
         applyCoupon({
           code: foundCoupon.code,
           discountType: foundCoupon.discountType,
@@ -62,7 +65,7 @@ export default function CartSidebar() {
         });
         setCouponSuccess(true);
       } else {
-        setCouponError(t('couponInvalid'));
+        setCouponError(result.error || t('couponInvalid'));
       }
     } catch (err) {
       setCouponError(t('couponInvalid'));

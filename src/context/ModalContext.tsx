@@ -8,11 +8,13 @@ interface ModalOptions {
   message: string;
   placeholder?: string;
   isPrompt?: boolean;
+  isAlert?: boolean;
 }
 
 interface ModalContextType {
   confirm: (message: string, title?: string) => Promise<boolean>;
   prompt: (message: string, placeholder?: string, title?: string) => Promise<string | null>;
+  alert: (message: string, title?: string) => Promise<void>;
 }
 
 const ModalContext = createContext<ModalContextType | undefined>(undefined);
@@ -27,7 +29,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
 
   const confirm = (message: string, title?: string): Promise<boolean> => {
     const defaultTitle = locale === 'en' ? 'Confirm Action' : 'تأكيد الإجراء';
-    setOptions({ message, title: title || defaultTitle, isPrompt: false });
+    setOptions({ message, title: title || defaultTitle, isPrompt: false, isAlert: false });
     setPromptValue('');
     setIsOpen(true);
     return new Promise((resolve) => {
@@ -37,7 +39,17 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
 
   const prompt = (message: string, placeholder = '', title?: string): Promise<string | null> => {
     const defaultTitle = locale === 'en' ? 'Input Required' : 'مطلوب إدخال بيانات';
-    setOptions({ message, placeholder, title: title || defaultTitle, isPrompt: true });
+    setOptions({ message, placeholder, title: title || defaultTitle, isPrompt: true, isAlert: false });
+    setPromptValue('');
+    setIsOpen(true);
+    return new Promise((resolve) => {
+      resolverRef.current = resolve;
+    });
+  };
+
+  const alert = (message: string, title?: string): Promise<void> => {
+    const defaultTitle = locale === 'en' ? 'Notification' : 'تنبيه';
+    setOptions({ message, title: title || defaultTitle, isPrompt: false, isAlert: true });
     setPromptValue('');
     setIsOpen(true);
     return new Promise((resolve) => {
@@ -64,7 +76,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <ModalContext.Provider value={{ confirm, prompt }}>
+    <ModalContext.Provider value={{ confirm, prompt, alert }}>
       {children}
 
       {isOpen && options && (
@@ -87,20 +99,31 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
               />
             )}
 
-            <div className="flex gap-3">
-              <button
-                onClick={handleCancel}
-                className="flex-1 py-2.5 bg-card border border-card-border hover:bg-white/5 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
-              >
-                {locale === 'en' ? 'Cancel' : 'إلغاء'}
-              </button>
-              <button
-                onClick={handleConfirm}
-                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-red-600/10"
-              >
-                {locale === 'en' ? 'Confirm' : 'تأكيد'}
-              </button>
-            </div>
+            {options.isAlert ? (
+              <div className="flex justify-center">
+                <button
+                  onClick={handleConfirm}
+                  className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-red-600/10 text-center"
+                >
+                  {locale === 'en' ? 'OK' : 'موافق'}
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-3">
+                <button
+                  onClick={handleCancel}
+                  className="flex-1 py-2.5 bg-card border border-card-border hover:bg-white/5 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+                >
+                  {locale === 'en' ? 'Cancel' : 'إلغاء'}
+                </button>
+                <button
+                  onClick={handleConfirm}
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-red-600/10"
+                >
+                  {locale === 'en' ? 'Confirm' : 'تأكيد'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

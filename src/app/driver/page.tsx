@@ -15,7 +15,7 @@ import { useModal } from '@/context/ModalContext';
 
 export default function DriverPortalPage() {
   const { t, locale } = useLanguage();
-  const { confirm } = useModal();
+  const { confirm, alert } = useModal();
   const queryClient = useQueryClient();
   const { user, profile } = useAuth();
   const [mounted, setMounted] = useState(false);
@@ -210,8 +210,8 @@ export default function DriverPortalPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['driver-orders'] });
     },
-    onError: (err: any) => {
-      alert(err.message || 'Failed to update order status');
+    onError: async (err: any) => {
+      await alert(err.message || 'Failed to update order status');
     },
   });
 
@@ -230,8 +230,8 @@ export default function DriverPortalPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['driver-orders'] });
     },
-    onError: (err: any) => {
-      alert(err.message || 'Failed to decline order');
+    onError: async (err: any) => {
+      await alert(err.message || 'Failed to decline order');
     },
   });
 

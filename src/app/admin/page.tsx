@@ -59,7 +59,7 @@ export default function AdminDashboardPage() {
       setEditingProduct((prev: any) => ({ ...prev, imageUrl: data.publicUrl }));
     } catch (error) {
       console.error('Error uploading image:', error);
-      alert(locale === 'en' ? 'Failed to upload image' : 'فشل تحميل الصورة');
+      await alert(locale === 'en' ? 'Failed to upload image' : 'فشل تحميل الصورة');
     } finally {
       setIsUploadingImage(false);
     }
@@ -68,24 +68,27 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     setMounted(true);
 
-    // Handle auto-edit redirect param
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const editId = params.get('edit');
-      if (editId) {
-        if (role === 'OWNER' || role === 'ADMIN') {
-          setActiveTab('MENU');
-          db.getProductById(editId).then((prod) => {
+    const checkEdit = async () => {
+      // Handle auto-edit redirect param
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const editId = params.get('edit');
+        if (editId) {
+          if (role === 'OWNER' || role === 'ADMIN') {
+            setActiveTab('MENU');
+            const prod = await db.getProductById(editId);
             if (prod) {
               setEditingProduct(prod);
               setIsEditingProduct(true);
             }
-          });
-        } else {
-          alert('Access Denied: Staff accounts are not permitted to edit menu configurations.');
+          } else {
+            await alert('Access Denied: Staff accounts are not permitted to edit menu configurations.');
+          }
         }
       }
-    }
+    };
+
+    checkEdit();
   }, [role]);
 
   // Poll orders database every 2 seconds for live kitchen updates!
@@ -180,6 +183,8 @@ export default function AdminDashboardPage() {
   const [newCouponValue, setNewCouponValue] = useState(0);
   const [newCouponExpiry, setNewCouponExpiry] = useState('');
   const [newCouponBranchId, setNewCouponBranchId] = useState('');
+  const [newCouponMaxUsesPerUser, setNewCouponMaxUsesPerUser] = useState<string>('');
+  const [newCouponUsageLimit, setNewCouponUsageLimit] = useState<string>('');
 
   const handleOpenAddCoupon = () => {
     if (!hasGlobalAccess && userBranches.length > 0) {
@@ -197,8 +202,15 @@ export default function AdminDashboardPage() {
   });
 
   const createCouponMutation = useMutation({
-    mutationFn: (data: { code: string; discountType: 'PERCENT' | 'FIXED'; discountValue: number; expiryDate: Date; branchId?: string | null }) =>
-      db.createCoupon(data),
+    mutationFn: (data: { 
+      code: string; 
+      discountType: 'PERCENT' | 'FIXED'; 
+      discountValue: number; 
+      expiryDate: Date; 
+      branchId?: string | null;
+      maxUsesPerUser?: number | null;
+      usageLimit?: number | null;
+    }) => db.createCoupon(data),
     onSuccess: () => {
       db.logActivity('CREATED_COUPON', 'coupon', '', { code: newCouponCode });
       queryClient.invalidateQueries({ queryKey: ['admin-coupons'] });
@@ -207,6 +219,8 @@ export default function AdminDashboardPage() {
       setNewCouponValue(0);
       setNewCouponExpiry('');
       setNewCouponBranchId('');
+      setNewCouponMaxUsesPerUser('');
+      setNewCouponUsageLimit('');
     },
   });
 
@@ -1229,6 +1243,8 @@ export default function AdminDashboardPage() {
                     <th className="p-4 font-bold">{locale === 'en' ? 'Branch' : 'الفرع'}</th>
                     <th className="p-4 font-bold">{locale === 'en' ? 'Discount Type' : 'نوع الخصم'}</th>
                     <th className="p-4 font-bold">{locale === 'en' ? 'Discount Value' : 'قيمة الخصم'}</th>
+                    <th className="p-4 font-bold">{locale === 'en' ? 'Max per User' : 'الحد الأقصى لكل مستخدم'}</th>
+                    <th className="p-4 font-bold">{locale === 'en' ? 'Usage Limit' : 'حد الاستخدام الكلي'}</th>
                     <th className="p-4 font-bold">{locale === 'en' ? 'Status' : 'الحالة'}</th>
                   </tr>
                 </thead>
@@ -1250,6 +1266,12 @@ export default function AdminDashboardPage() {
                       <td className="p-4 text-text-muted">{cp.discountType}</td>
                       <td className="p-4 font-bold text-accent-amber">
                         {cp.discountValue} {cp.discountType === 'PERCENT' ? '%' : 'EGP'}
+                      </td>
+                      <td className="p-4 text-text-muted font-medium">
+                        {cp.maxUsesPerUser ? `${cp.maxUsesPerUser}x` : '—'}
+                      </td>
+                      <td className="p-4 text-text-muted font-medium">
+                        {cp.usageLimit ? `${cp.usageLimit}x` : '—'}
                       </td>
                       <td className="p-4">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -1278,6 +1300,8 @@ export default function AdminDashboardPage() {
                       discountValue: newCouponValue,
                       expiryDate: newCouponExpiry ? new Date(newCouponExpiry) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
                       branchId: newCouponBranchId || null,
+                      maxUsesPerUser: newCouponMaxUsesPerUser ? Number(newCouponMaxUsesPerUser) : null,
+                      usageLimit: newCouponUsageLimit ? Number(newCouponUsageLimit) : null,
                     });
                   }}
                   className="relative w-full max-w-md bg-card border border-card-border rounded-3xl p-6 shadow-2xl space-y-4 z-10"
@@ -1337,6 +1361,29 @@ export default function AdminDashboardPage() {
                           value={newCouponValue || ''}
                           onChange={(e) => setNewCouponValue(Number(e.target.value))}
                           required
+                          className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Max Uses per User (Optional)</label>
+                        <input
+                          type="number"
+                          placeholder="e.g. 1"
+                          value={newCouponMaxUsesPerUser}
+                          onChange={(e) => setNewCouponMaxUsesPerUser(e.target.value)}
+                          className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Total Usage Limit (Optional)</label>
+                        <input
+                          type="number"
+                          placeholder="e.g. 10"
+                          value={newCouponUsageLimit}
+                          onChange={(e) => setNewCouponUsageLimit(e.target.value)}
                           className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none"
                         />
                       </div>
