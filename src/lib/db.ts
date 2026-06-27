@@ -43,6 +43,8 @@ export interface Branch {
   nameEn: string;
   nameAr: string;
   mapUrl: string;
+  lat?: number | null;
+  lng?: number | null;
 }
 
 export interface Order {
@@ -349,7 +351,14 @@ function mapProduct(p: any, branchId?: string | null): Product {
 }
 
 function mapBranch(b: any): Branch {
-  return { id: b.id, nameEn: b.name_en, nameAr: b.name_ar, mapUrl: b.map_url || '' };
+  return {
+    id: b.id,
+    nameEn: b.name_en,
+    nameAr: b.name_ar,
+    mapUrl: b.map_url || '',
+    lat: b.lat !== undefined && b.lat !== null ? Number(b.lat) : null,
+    lng: b.lng !== undefined && b.lng !== null ? Number(b.lng) : null,
+  };
 }
 
 function mapOrder(o: any): Order {

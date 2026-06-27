@@ -19,6 +19,8 @@ export interface BranchInfo {
   openingHours?: Record<string, string>;
   status: 'OPEN' | 'CLOSED';
   isActive: boolean;
+  lat?: number;
+  lng?: number;
 }
 
 interface BranchContextType {
@@ -58,6 +60,8 @@ function mapBranchRow(row: any): BranchInfo {
     openingHours: row.opening_hours || {},
     status: row.status || 'OPEN',
     isActive: row.is_active,
+    lat: row.lat ? Number(row.lat) : undefined,
+    lng: row.lng ? Number(row.lng) : undefined,
   };
 }
 

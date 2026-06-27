@@ -167,12 +167,13 @@ export default function OrderTrackingPage() {
     { label: t('statusDelivered'), desc: locale === 'en' ? 'Enjoy your Dodz Fried Chicken!' : 'بالهناء والشفاء! نتمنى لك وجبة شهية', icon: Check },
   ];
 
-  // Show the live map when order is in delivery and has customer lat/lng
+  // Show the live map when order is in delivery and has customer lat/lng, and status is active
   const showLiveMap =
     order.type === 'DELIVERY' &&
     order.lat !== undefined && order.lat !== null &&
     order.lng !== undefined && order.lng !== null &&
-    (order.status === 'ON_THE_WAY' || order.status === 'PREPARING');
+    order.status !== 'DELIVERED' &&
+    order.status !== 'CANCELLED';
 
   return (
     <>
@@ -318,7 +319,14 @@ export default function OrderTrackingPage() {
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-xs font-bold text-white">{order.driverName}</h3>
-                  <p className="text-[10px] text-text-muted uppercase tracking-wider">{locale === 'en' ? 'Active Driver' : 'سائق التوصيل المعتمد'}</p>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p className="text-[10px] text-text-muted uppercase tracking-wider">{locale === 'en' ? 'Active Driver' : 'سائق التوصيل المعتمد'}</p>
+                    {driverLat !== null && driverLng !== null && (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 text-[8px] font-black text-green-400 bg-green-500/10 border border-green-500/25 rounded-md animate-pulse">
+                        LIVE GPS
+                      </span>
+                    )}
+                  </div>
                   <a href={`tel:${order.driverPhone}`} className="text-xs text-primary-red font-bold flex items-center gap-1.5 hover:underline mt-1">
                     <Phone className="h-3 w-3" />
                     <span>{order.driverPhone}</span>

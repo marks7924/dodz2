@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/context/AuthContext';
+import { useBranch } from '@/context/BranchContext';
 import { X, Megaphone, Pencil, Check, Trash2 } from 'lucide-react';
 
 const BANNER_KEY = 'promo_banner_text';
@@ -10,6 +11,7 @@ const BANNER_ACTIVE_KEY = 'promo_banner_active';
 
 export default function PromoBanner() {
   const { role } = useAuth();
+  const { selectedBranchId, selectedBranch } = useBranch();
   const supabase = createClient();
 
   const [bannerText, setBannerText] = useState<string | null>(null);
@@ -25,13 +27,22 @@ export default function PromoBanner() {
   useEffect(() => {
     const fetchBanner = async () => {
       try {
+        setLoading(true);
         const { data } = await supabase
           .from('restaurant_settings')
-          .select('key, value')
+          .select('key, value, branch_id')
           .in('key', [BANNER_KEY, BANNER_ACTIVE_KEY]);
 
-        const textRow = data?.find((r: any) => r.key === BANNER_KEY);
-        const activeRow = data?.find((r: any) => r.key === BANNER_ACTIVE_KEY);
+        // Helper to get branch-specific setting or fallback to global (null branch_id)
+        const getSetting = (keyName: string) => {
+          const rows = data?.filter((r: any) => r.key === keyName) || [];
+          const branchRow = selectedBranchId ? rows.find((r: any) => r.branch_id === selectedBranchId) : null;
+          const globalRow = rows.find((r: any) => r.branch_id === null);
+          return branchRow || globalRow || null;
+        };
+
+        const textRow = getSetting(BANNER_KEY);
+        const activeRow = getSetting(BANNER_ACTIVE_KEY);
 
         setBannerText(textRow?.value || null);
         setBannerActive(activeRow?.value === 'true');
@@ -42,27 +53,49 @@ export default function PromoBanner() {
       }
     };
     fetchBanner();
-  }, []);
+  }, [selectedBranchId]);
 
   const saveBanner = async (text: string, active: boolean) => {
     setSaving(true);
     try {
-      await supabase.from('restaurant_settings').upsert([
-        { key: BANNER_KEY, value: text, description: 'Promotional banner text shown sitewide' },
-        { key: BANNER_ACTIVE_KEY, value: active ? 'true' : 'false', description: 'Whether promo banner is visible' },
-      ], { onConflict: 'key' });
+      const targetBranchId = selectedBranchId || null;
+
+      // Delete existing settings for the current branch state to avoid partial unique index issues
+      if (targetBranchId) {
+        await supabase
+          .from('restaurant_settings')
+          .delete()
+          .in('key', [BANNER_KEY, BANNER_ACTIVE_KEY])
+          .eq('branch_id', targetBranchId);
+      } else {
+        await supabase
+          .from('restaurant_settings')
+          .delete()
+          .in('key', [BANNER_KEY, BANNER_ACTIVE_KEY])
+          .is('branch_id', null);
+      }
+
+      // Insert new settings for current branch state
+      const { error } = await supabase.from('restaurant_settings').insert([
+        { key: BANNER_KEY, value: text, branch_id: targetBranchId, description: 'Promotional banner text' },
+        { key: BANNER_ACTIVE_KEY, value: active ? 'true' : 'false', branch_id: targetBranchId, description: 'Whether promo banner is visible' },
+      ]);
+
+      if (error) throw error;
 
       setBannerText(text);
       setBannerActive(active);
       setIsEditing(false);
       setDismissed(false);
+    } catch (e) {
+      console.error('Failed to save banner:', e);
     } finally {
       setSaving(false);
     }
   };
 
   const removeBanner = async () => {
-    await saveBanner(bannerText || '', false);
+    await saveBanner('', false);
     setDismissed(true);
   };
 
@@ -86,7 +119,13 @@ export default function PromoBanner() {
               <Megaphone className="h-4 w-4 text-accent-amber" />
               Promotional Banner
             </h3>
-            <p className="text-[10px] text-text-muted">This banner appears at the top of every page for all visitors. Leave empty to disable.</p>
+            <p className="text-[10px] text-[#A1A1AA]">
+              {selectedBranch ? (
+                <span>Editing for branch: <strong className="text-accent-amber">{selectedBranch.nameEn} / {selectedBranch.nameAr}</strong>. This banner appears at the top of every page for visitors of this branch.</span>
+              ) : (
+                <span>Editing <strong className="text-primary-red">Global Banner</strong>. This banner appears for visitors who haven't selected a branch or as a fallback.</span>
+              )}
+            </p>
             <textarea
               value={editValue}
               onChange={(e) => setEditValue(e.target.value)}
