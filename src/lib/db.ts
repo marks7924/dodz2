@@ -66,6 +66,7 @@ export interface Order {
   driverId?: string;
   driverName?: string;
   driverPhone?: string;
+  notes?: string;
   createdAt: string;
   updatedAt: string;
   items: OrderItem[];
@@ -381,6 +382,7 @@ function mapOrder(o: any): Order {
     driverId: o.driver_id || undefined,
     driverName: o.driver?.full_name || undefined,
     driverPhone: o.driver?.phone || undefined,
+    notes: o.notes || undefined,
     createdAt: o.created_at,
     updatedAt: o.updated_at,
     items: Array.isArray(o.order_items) ? o.order_items.map(mapOrderItem) : [],
@@ -853,6 +855,7 @@ export const db = {
     deliveryFee: number;
     discount: number;
     couponCode?: string;
+    notes?: string;
     items: Omit<OrderItem, 'id'>[];
   }): Promise<Order> {
     // Creating order on client side calls supabase insert
@@ -876,6 +879,7 @@ export const db = {
             payment_method: data.paymentMethod,
             customer_name: data.userName,
             customer_phone: data.userPhone,
+            notes: data.notes || null,
           })
           .select()
           .single();
@@ -910,6 +914,7 @@ export const db = {
       status: 'PENDING',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      notes: data.notes || undefined,
       ...data,
       items: data.items.map((it, idx) => ({ id: `oi-${Date.now()}-${idx}`, ...it })),
     };

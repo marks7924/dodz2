@@ -116,6 +116,7 @@ export async function POST(req: NextRequest) {
           deliveryFee,
           discount,
           couponCode,
+          notes,
           items,
         });
         orderId = mockOrder.id;
@@ -134,6 +135,7 @@ export async function POST(req: NextRequest) {
         deliveryFee,
         discount,
         couponCode,
+        notes,
         items,
       });
       orderId = mockOrder.id;

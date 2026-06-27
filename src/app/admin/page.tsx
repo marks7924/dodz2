@@ -257,7 +257,7 @@ export default function AdminDashboardPage() {
   const { data: drivers = [] } = useQuery({
     queryKey: ['admin-drivers'],
     queryFn: () => db.getDrivers(),
-    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
 
   // Support Chat admin states
@@ -757,6 +757,12 @@ export default function AdminDashboardPage() {
                       <div className="text-[11px] text-text-muted space-y-1 bg-[#18181B] p-2.5 rounded-xl border border-card-border/50">
                         <div className="text-white font-bold">{order.userName}</div>
                         <div>{order.address}</div>
+                        {order.notes && (
+                          <div className="text-[10px] bg-accent-amber/5 border border-accent-amber/20 text-accent-amber p-2 rounded-xl mt-1">
+                            <span className="font-bold block uppercase text-[8px] tracking-wider mb-0.5">⚠️ Instructions:</span>
+                            <span className="italic font-medium">{order.notes}</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Accept/Assign Driver Action widget */}
@@ -843,6 +849,12 @@ export default function AdminDashboardPage() {
                       <div className="text-[11px] text-text-muted space-y-1">
                         <div className="text-white font-bold">{order.userName} ({order.userPhone})</div>
                         {order.type === 'DELIVERY' && <div>📍 {order.address}</div>}
+                        {order.notes && (
+                          <div className="text-[10px] bg-accent-amber/5 border border-accent-amber/20 text-accent-amber p-2 rounded-xl mt-1">
+                            <span className="font-bold block uppercase text-[8px] tracking-wider mb-0.5">⚠️ Instructions:</span>
+                            <span className="italic font-medium">{order.notes}</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Driver Assigned / Reassign widget */}

@@ -36,6 +36,8 @@ export default function CheckoutPage() {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [apptDetails, setApptDetails] = useState('');
+  const [notes, setNotes] = useState('');
   const [saveDetails, setSaveDetails] = useState(false);
   const [payment, setPayment] = useState<'COD' | 'FAWRY' | 'CARD'>('COD');
   
@@ -68,6 +70,8 @@ export default function CheckoutPage() {
         initialName = parsed.name || '';
         initialPhone = parsed.phone || '';
         initialAddress = parsed.address || '';
+        if (parsed.apptDetails) setApptDetails(parsed.apptDetails);
+        if (parsed.notes) setNotes(parsed.notes);
         setSaveDetails(true);
       } catch (e) {}
     }
@@ -137,18 +141,23 @@ export default function CheckoutPage() {
       ? (locale === 'en' ? selectedBranch.nameEn : selectedBranch.nameAr)
       : 'Dodz Restaurant Main Branch';
 
+    const finalAddress = deliveryType === 'DELIVERY'
+      ? (apptDetails.trim() ? `${apptDetails.trim()}, ${address}` : address)
+      : `PICKUP - ${branchName}`;
+
     const orderPayload = {
       userId: profile?.id || 'guest-user',
       userName: name,
       userPhone: phone,
       branchId: selectedBranchId,
       type: deliveryType,
-      address: deliveryType === 'DELIVERY' ? address : `PICKUP - ${branchName}`,
+      address: finalAddress,
       paymentMethod: payment,
       total: getTotal(),
       deliveryFee: deliveryType === 'DELIVERY' ? customDeliveryFee : 0,
       discount: getDiscountAmount(),
       couponCode: coupon?.code || undefined,
+      notes: notes.trim() || undefined,
       items: items.map((it) => ({
         productId: it.productId as string,
         productNameEn: it.nameEn,
@@ -165,7 +174,9 @@ export default function CheckoutPage() {
       localStorage.setItem('dodz_saved_delivery', JSON.stringify({
         name,
         phone,
-        address: deliveryType === 'DELIVERY' ? address : ''
+        address: deliveryType === 'DELIVERY' ? address : '',
+        apptDetails: deliveryType === 'DELIVERY' ? apptDetails : '',
+        notes
       }));
     } else {
       localStorage.removeItem('dodz_saved_delivery');
@@ -395,20 +406,40 @@ export default function CheckoutPage() {
                     )}
                   </div>
 
-                  <div className="relative">
-                    <MapPin className="absolute left-3 rtl:right-3 rtl:left-auto top-3.5 h-4.5 w-4.5 text-text-muted" />
+                  {/* Apartment / Floor / Building details */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                      {locale === 'en' ? 'Apartment / Floor / Building Number' : 'رقم الشقة / الطابق / العمارة'}
+                    </label>
                     <input
                       type="text"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      onBlur={handleAddressBlur}
-                      placeholder={t('addressPlaceholder')}
-                      required
-                      className="w-full text-xs bg-card-border border border-card-border rounded-xl pl-10 pr-3 rtl:pr-10 rtl:pl-3 py-3.5 text-foreground placeholder:text-text-muted focus:outline-none focus:border-primary-red/50 transition-colors"
+                      value={apptDetails}
+                      onChange={(e) => setApptDetails(e.target.value)}
+                      placeholder={locale === 'en' ? 'e.g. Appt 4, Floor 3, Building 12' : 'مثال: شقة ٤، الدور ٣، عمارة ١٢'}
+                      className="w-full text-xs bg-card-border border border-card-border rounded-xl px-4 py-3.5 text-foreground placeholder:text-text-muted focus:outline-none focus:border-primary-red/50 transition-colors"
                     />
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  {/* Street address */}
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                      {locale === 'en' ? 'Street Location / Address (Auto-filled by Map)' : 'موقع الشارع / العنوان (يملأ تلقائياً من الخريطة)'}
+                    </label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 rtl:right-3 rtl:left-auto top-3.5 h-4.5 w-4.5 text-text-muted" />
+                      <input
+                        type="text"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        onBlur={handleAddressBlur}
+                        placeholder={t('addressPlaceholder')}
+                        required
+                        className="w-full text-xs bg-card-border border border-card-border rounded-xl pl-10 pr-3 rtl:pr-10 rtl:pl-3 py-3.5 text-foreground placeholder:text-text-muted focus:outline-none focus:border-primary-red/50 transition-colors"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1">
                     <input
                       type="checkbox"
                       id="saveDetails"
@@ -440,6 +471,27 @@ export default function CheckoutPage() {
                   </div>
                 </div>
               )}
+
+              {/* Custom Instructions / Notes */}
+              <div className="bg-card border border-card-border rounded-3xl p-6 space-y-4">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-accent-amber">
+                  {locale === 'en' ? 'Custom Instructions / Notes' : 'تعليمات خاصة / ملاحظات'}
+                </h2>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                    {locale === 'en' ? 'Instructions for the Kitchen or Driver' : 'تعليمات للمطبخ أو سائق التوصيل'}
+                  </label>
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder={locale === 'en' 
+                      ? "e.g. Please separate the sauces, don't ring the bell, or call when you arrive." 
+                      : 'مثال: يرجى فصل الصوصات، عدم رن الجرس، أو الاتصال عند الوصول.'}
+                    rows={3}
+                    className="w-full text-xs bg-card-border border border-card-border rounded-xl px-4 py-3 text-foreground placeholder:text-text-muted focus:outline-none focus:border-primary-red/50 transition-colors resize-none"
+                  />
+                </div>
+              </div>
 
               {/* Payment Gateways */}
               <div className="bg-card border border-card-border rounded-3xl p-6 space-y-4">
