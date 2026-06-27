@@ -217,9 +217,7 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const [isAddingCategory, setIsAddingCategory] = useState(false);
-  const [newCatNameEn, setNewCatNameEn] = useState('');
-  const [newCatNameAr, setNewCatNameAr] = useState('');
+  const [editingCategory, setEditingCategory] = useState<any | null>(null);
 
   const { data: adminCategories = [], refetch: refetchCategories } = useQuery({
     queryKey: ['admin-categories-list'],
@@ -231,24 +229,38 @@ export default function AdminDashboardPage() {
     enabled: isAuthenticated,
   });
 
-  const addCategoryMutation = useMutation({
-    mutationFn: async ({ nameEn, nameAr }: { nameEn: string; nameAr: string }) => {
-      const maxOrder = adminCategories.reduce((m: number, c: any) => Math.max(m, c.sort_order || 0), 0);
-      const { error } = await supabase.from('categories').insert({
-        name_en: nameEn,
-        name_ar: nameAr || nameEn,
-        sort_order: maxOrder + 1,
-      });
-      if (error) throw error;
+  const saveCategoryMutation = useMutation({
+    mutationFn: async (cat: { id?: string; name_en: string; name_ar: string; desc_en?: string; desc_ar?: string }) => {
+      if (cat.id) {
+        const { error } = await supabase
+          .from('categories')
+          .update({
+            name_en: cat.name_en,
+            name_ar: cat.name_ar || cat.name_en,
+            desc_en: cat.desc_en || '',
+            desc_ar: cat.desc_ar || '',
+          })
+          .eq('id', cat.id);
+        if (error) throw error;
+      } else {
+        const maxOrder = adminCategories.reduce((m: number, c: any) => Math.max(m, c.sort_order || 0), 0);
+        const { error } = await supabase.from('categories').insert({
+          name_en: cat.name_en,
+          name_ar: cat.name_ar || cat.name_en,
+          desc_en: cat.desc_en || '',
+          desc_ar: cat.desc_ar || '',
+          sort_order: maxOrder + 1,
+        });
+        if (error) throw error;
+      }
     },
-    onSuccess: () => {
-      db.logActivity('CREATED_CATEGORY', 'category', '', { name: newCatNameEn });
+    onSuccess: (_, variables) => {
+      const action = variables.id ? 'EDITED_CATEGORY' : 'CREATED_CATEGORY';
+      db.logActivity(action, 'category', variables.id || '', { name: variables.name_en });
       refetchCategories();
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
       queryClient.invalidateQueries({ queryKey: ['admin-categories'] });
-      setIsAddingCategory(false);
-      setNewCatNameEn('');
-      setNewCatNameAr('');
+      setEditingCategory(null);
     },
   });
 
@@ -1513,7 +1525,7 @@ export default function AdminDashboardPage() {
                     </h3>
                   </div>
                   <button
-                    onClick={() => setIsAddingCategory(true)}
+                    onClick={() => setEditingCategory({ name_en: '', name_ar: '', desc_en: '', desc_ar: '' })}
                     className="px-3 py-1.5 bg-accent-amber/10 border border-accent-amber/30 text-accent-amber text-xs font-bold rounded-xl hover:bg-accent-amber hover:text-black transition-all flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -1527,51 +1539,110 @@ export default function AdminDashboardPage() {
                       <div>
                         <p className="text-xs font-bold text-white">{cat.name_en}</p>
                         <p className="text-[10px] text-text-muted">{cat.name_ar}</p>
+                        {(cat.desc_en || cat.desc_ar) && (
+                          <p className="text-[9px] text-[#A1A1AA] italic mt-0.5 line-clamp-1">
+                            {locale === 'en' ? cat.desc_en : cat.desc_ar}
+                          </p>
+                        )}
                       </div>
-                       <button
-                        onClick={async () => {
-                          if (await confirm(locale === 'en' ? 'Delete this category? Products inside will lose their category.' : 'حذف هذا القسم؟')) {
-                            deleteCategoryMutation.mutate(cat.id);
-                          }
-                        }}
-                        className="p-1.5 rounded-lg bg-card border border-card-border text-text-muted hover:text-primary-red transition-colors cursor-pointer"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => setEditingCategory({
+                            id: cat.id,
+                            name_en: cat.name_en,
+                            name_ar: cat.name_ar,
+                            desc_en: cat.desc_en || '',
+                            desc_ar: cat.desc_ar || '',
+                          })}
+                          className="p-1.5 rounded-lg bg-card border border-card-border text-text-muted hover:text-white transition-colors cursor-pointer"
+                          title={locale === 'en' ? 'Edit Category' : 'تعديل القسم'}
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (await confirm(locale === 'en' ? 'Delete this category? Products inside will lose their category.' : 'حذف هذا القسم؟')) {
+                              deleteCategoryMutation.mutate(cat.id);
+                            }
+                          }}
+                          className="p-1.5 rounded-lg bg-card border border-card-border text-text-muted hover:text-primary-red transition-colors cursor-pointer"
+                          title={locale === 'en' ? 'Delete Category' : 'حذف القسم'}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                {isAddingCategory && (
+                {editingCategory && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setIsAddingCategory(false)} />
-                    <div className="relative w-full max-w-sm bg-[#111113] border border-[#27272A] rounded-2xl p-6 shadow-2xl space-y-4 z-10">
+                    <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setEditingCategory(null)} />
+                    <div className="relative w-full max-w-sm bg-[#111113] border border-[#27272A] rounded-2xl p-6 shadow-2xl space-y-4 z-10 animate-in zoom-in duration-200">
                       <div className="flex justify-between items-center">
-                        <h3 className="text-sm font-extrabold text-white">{locale === 'en' ? 'New Category' : 'قسم جديد'}</h3>
-                        <button onClick={() => setIsAddingCategory(false)} className="p-1 rounded-full hover:bg-[#27272A] text-text-muted cursor-pointer">
+                        <h3 className="text-sm font-extrabold text-white">
+                          {editingCategory.id 
+                            ? (locale === 'en' ? 'Edit Category' : 'تعديل القسم')
+                            : (locale === 'en' ? 'New Category' : 'قسم جديد')}
+                        </h3>
+                        <button onClick={() => setEditingCategory(null)} className="p-1 rounded-full hover:bg-[#27272A] text-text-muted cursor-pointer">
                           <X className="h-4 w-4" />
                         </button>
                       </div>
                       <div className="space-y-3">
                         <div>
                           <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider mb-1">Name (English) *</label>
-                          <input type="text" value={newCatNameEn} onChange={(e) => setNewCatNameEn(e.target.value)} placeholder="e.g. Wraps & Rolls"
-                            className="w-full bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-primary-red/50" />
+                          <input 
+                            type="text" 
+                            value={editingCategory.name_en || ''} 
+                            onChange={(e) => setEditingCategory({ ...editingCategory, name_en: e.target.value })} 
+                            placeholder="e.g. Wraps & Rolls"
+                            className="w-full bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-primary-red/50" 
+                          />
                         </div>
                         <div>
                           <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider mb-1">Name (Arabic)</label>
-                          <input type="text" value={newCatNameAr} onChange={(e) => setNewCatNameAr(e.target.value)} placeholder="مثال: لفائف" dir="rtl"
-                            className="w-full bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-primary-red/50" />
+                          <input 
+                            type="text" 
+                            value={editingCategory.name_ar || ''} 
+                            onChange={(e) => setEditingCategory({ ...editingCategory, name_ar: e.target.value })} 
+                            placeholder="مثال: لفائف" 
+                            dir="rtl"
+                            className="w-full bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-primary-red/50" 
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider mb-1">Description (English)</label>
+                          <textarea 
+                            value={editingCategory.desc_en || ''} 
+                            onChange={(e) => setEditingCategory({ ...editingCategory, desc_en: e.target.value })} 
+                            placeholder="English description"
+                            rows={2}
+                            className="w-full bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-primary-red/50 resize-none" 
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider mb-1">Description (Arabic)</label>
+                          <textarea 
+                            value={editingCategory.desc_ar || ''} 
+                            onChange={(e) => setEditingCategory({ ...editingCategory, desc_ar: e.target.value })} 
+                            placeholder="الوصف باللغة العربية" 
+                            rows={2}
+                            dir="rtl"
+                            className="w-full bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-primary-red/50 resize-none" 
+                          />
                         </div>
                       </div>
                       <div className="flex gap-2 justify-end pt-1">
-                        <button onClick={() => setIsAddingCategory(false)} className="px-3 py-1.5 border border-[#27272A] rounded-xl text-xs font-bold text-text-muted hover:text-white cursor-pointer">
+                        <button onClick={() => setEditingCategory(null)} className="px-3 py-1.5 border border-[#27272A] rounded-xl text-xs font-bold text-text-muted hover:text-white cursor-pointer">
                           {locale === 'en' ? 'Cancel' : 'إلغاء'}
                         </button>
-                        <button disabled={!newCatNameEn.trim() || addCategoryMutation.isPending}
-                          onClick={() => addCategoryMutation.mutate({ nameEn: newCatNameEn.trim(), nameAr: newCatNameAr.trim() })}
-                          className="px-4 py-1.5 bg-primary-red text-white text-xs font-bold rounded-xl hover:bg-primary-red-hover flex items-center gap-1.5 cursor-pointer disabled:opacity-50">
-                          {addCategoryMutation.isPending ? '...' : (locale === 'en' ? 'Add Category' : 'إضافة')}
+                        <button 
+                          disabled={!editingCategory.name_en?.trim() || saveCategoryMutation.isPending}
+                          onClick={() => saveCategoryMutation.mutate(editingCategory)}
+                          className="px-4 py-1.5 bg-primary-red text-white text-xs font-bold rounded-xl hover:bg-primary-red-hover flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          {saveCategoryMutation.isPending ? '...' : (editingCategory.id ? (locale === 'en' ? 'Save' : 'حفظ') : (locale === 'en' ? 'Add' : 'إضافة'))}
                         </button>
                       </div>
                     </div>
