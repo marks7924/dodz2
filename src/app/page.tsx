@@ -15,6 +15,7 @@ import { ShoppingBag, Star, Flame, Sparkles, Plus, Check, StarIcon, X, MessageCi
 import { useAuth } from '@/context/AuthContext';
 import { useBranch } from '@/context/BranchContext';
 import { createClient } from '@/lib/supabase/client';
+import BranchWelcomePopup from '@/components/layout/BranchWelcomePopup';
 
 // ── Inline editable promo banner ────────────────────────────────────────────
 function BannerAnnouncement() {
@@ -157,27 +158,14 @@ export default function Home() {
   const [pendingBranchId, setPendingBranchId] = useState<string | null>(null);
   const { items: cartItems } = useCartStore();
 
-  // Redirect to branch selection if no branch is chosen (only for non-staff customers)
-  useEffect(() => {
-    if (!selectedBranchId && !isGlobalView && typeof window !== 'undefined') {
-      // Give a small delay to let context load
-      const timer = setTimeout(() => {
-        if (!selectedBranchId) {
-          window.location.href = '/select-branch';
-        }
-      }, 800);
-      return () => clearTimeout(timer);
-    }
-  }, [selectedBranchId, isGlobalView]);
-
   useEffect(() => {
     if (profile) {
-      setIsAdmin(['STAFF', 'OWNER', 'ADMIN', 'DEVELOPER'].includes(profile.role));
+      setIsAdmin(['STAFF', 'OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(profile.role));
     }
   }, [profile]);
 
   // Determine if user can edit menu items (Owner or Admin only)
-  const canEditMenu = role === 'OWNER' || role === 'ADMIN';
+  const canEditMenu = role === 'OWNER' || role === 'HEAD_ADMIN' || role === 'ADMIN';
 
   // Combo offer state
   const [comboModal, setComboModal] = useState<{ product: Product } | null>(null);
@@ -274,9 +262,9 @@ export default function Home() {
   });
 
   const { data: activeDiscounts = [] } = useQuery({
-    queryKey: ['active-discounts'],
+    queryKey: ['active-discounts', selectedBranchId],
     queryFn: async () => {
-      const allDiscounts = await db.getDiscounts();
+      const allDiscounts = await db.getDiscounts(selectedBranchId || undefined);
       return allDiscounts.filter(d => d.isActive);
     },
   });
@@ -1072,7 +1060,7 @@ export default function Home() {
           </div>
         </div>
       )}
-
+      <BranchWelcomePopup />
     </>
   );
 }

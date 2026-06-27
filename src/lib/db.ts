@@ -90,6 +90,7 @@ export interface Coupon {
   discountType: 'PERCENT' | 'FIXED';
   discountValue: number;
   isActive: boolean;
+  branchId?: string | null;
 }
 
 export interface Discount {
@@ -101,6 +102,7 @@ export interface Discount {
   isActive: boolean;
   startsAt?: string;
   endsAt?: string;
+  branchId?: string | null;
 }
 
 export interface ChatMessage {
@@ -380,6 +382,7 @@ function mapCoupon(c: any): Coupon {
     discountType: c.discount_type,
     discountValue: Number(c.discount_value),
     isActive: c.is_active,
+    branchId: c.branch_id || undefined,
   };
 }
 
@@ -393,6 +396,7 @@ function mapDiscount(d: any): Discount {
     isActive: d.is_active,
     startsAt: d.starts_at,
     endsAt: d.ends_at,
+    branchId: d.branch_id || undefined,
   };
 }
 
@@ -953,22 +957,25 @@ export const db = {
   },
 
   // COUPONS
-  async getCouponByCode(code: string): Promise<Coupon | undefined> {
+  async getCouponByCode(code: string, branchId?: string): Promise<Coupon | undefined> {
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await getSupabase()
           .from('coupons')
           .select('*')
           .eq('code', code.toUpperCase())
-          .eq('is_active', true)
-          .single();
+          .eq('is_active', true);
 
-        if (!error && data) return mapCoupon(data);
+        if (!error && data) {
+          // Find first coupon that either applies to all branches (branch_id is null) or specifically matches the branchId
+          const match = data.find((c: any) => !c.branch_id || c.branch_id === branchId);
+          if (match) return mapCoupon(match);
+        }
       } catch (err) {
         console.error('getCouponByCode Supabase error:', err);
       }
     }
-    return mockCoupons.find((c) => c.code.toUpperCase() === code.toUpperCase() && c.isActive);
+    return mockCoupons.find((c) => c.code.toUpperCase() === code.toUpperCase() && c.isActive && (!c.branchId || c.branchId === branchId));
   },
 
   async getCoupons(): Promise<Coupon[]> {
@@ -995,6 +1002,7 @@ export const db = {
             discount_type: data.discountType,
             discount_value: data.discountValue,
             is_active: true,
+            branch_id: data.branchId || null,
           })
           .select()
           .single();
@@ -1010,7 +1018,7 @@ export const db = {
   },
 
   // DISCOUNTS
-  async getDiscounts(): Promise<Discount[]> {
+  async getDiscounts(branchId?: string): Promise<Discount[]> {
     if (isSupabaseConfigured()) {
       try {
         const { data, error } = await getSupabase()
@@ -1018,10 +1026,19 @@ export const db = {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (!error && data) return data.map(mapDiscount);
+        if (!error && data) {
+          const mapped = data.map(mapDiscount);
+          if (branchId) {
+            return mapped.filter((d: Discount) => !d.branchId || d.branchId === branchId);
+          }
+          return mapped;
+        }
       } catch (err) {
         console.error('getDiscounts Supabase error:', err);
       }
+    }
+    if (branchId) {
+      return mockDiscounts.filter((d: Discount) => !d.branchId || d.branchId === branchId);
     }
     return mockDiscounts;
   },
@@ -1039,6 +1056,7 @@ export const db = {
             starts_at: data.startsAt || null,
             ends_at: data.endsAt || null,
             is_active: true,
+            branch_id: data.branchId || null,
           })
           .select()
           .single();

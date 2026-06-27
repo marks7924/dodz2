@@ -5,6 +5,7 @@ export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get('code');
+    const branchId = url.searchParams.get('branchId') || undefined;
 
     if (!code) {
       return NextResponse.json(
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const coupon = await db.getCouponByCode(code);
+    const coupon = await db.getCouponByCode(code, branchId);
 
     if (!coupon) {
       return NextResponse.json(

@@ -173,6 +173,7 @@ export default function AdminDashboardPage() {
   const [newCouponType, setNewCouponType] = useState<'PERCENT' | 'FIXED'>('PERCENT');
   const [newCouponValue, setNewCouponValue] = useState(0);
   const [newCouponExpiry, setNewCouponExpiry] = useState('');
+  const [newCouponBranchId, setNewCouponBranchId] = useState('');
 
   const { data: coupons = [] } = useQuery({
     queryKey: ['admin-coupons'],
@@ -181,7 +182,7 @@ export default function AdminDashboardPage() {
   });
 
   const createCouponMutation = useMutation({
-    mutationFn: (data: { code: string; discountType: 'PERCENT' | 'FIXED'; discountValue: number; expiryDate: Date }) =>
+    mutationFn: (data: { code: string; discountType: 'PERCENT' | 'FIXED'; discountValue: number; expiryDate: Date; branchId?: string | null }) =>
       db.createCoupon(data),
     onSuccess: () => {
       db.logActivity('CREATED_COUPON', 'coupon', '', { code: newCouponCode });
@@ -190,6 +191,7 @@ export default function AdminDashboardPage() {
       setNewCouponCode('');
       setNewCouponValue(0);
       setNewCouponExpiry('');
+      setNewCouponBranchId('');
     },
   });
 
@@ -199,6 +201,7 @@ export default function AdminDashboardPage() {
   const [newDiscountType, setNewDiscountType] = useState<'PERCENT' | 'FIXED'>('PERCENT');
   const [newDiscountValue, setNewDiscountValue] = useState(0);
   const [newDiscountAppliesTo, setNewDiscountAppliesTo] = useState('ALL');
+  const [newDiscountBranchId, setNewDiscountBranchId] = useState('');
 
   const { data: discounts = [] } = useQuery({
     queryKey: ['admin-discounts'],
@@ -207,7 +210,7 @@ export default function AdminDashboardPage() {
   });
 
   const createDiscountMutation = useMutation({
-    mutationFn: (data: { name: string; discountType: 'PERCENT' | 'FIXED'; discountValue: number; appliesTo: string }) =>
+    mutationFn: (data: { name: string; discountType: 'PERCENT' | 'FIXED'; discountValue: number; appliesTo: string; branchId?: string | null }) =>
       db.createDiscount(data),
     onSuccess: () => {
       db.logActivity('CREATED_DISCOUNT', 'discount', '', { name: newDiscountName });
@@ -216,6 +219,7 @@ export default function AdminDashboardPage() {
       setNewDiscountName('');
       setNewDiscountValue(0);
       setNewDiscountAppliesTo('ALL');
+      setNewDiscountBranchId('');
     },
   });
 
@@ -253,7 +257,7 @@ export default function AdminDashboardPage() {
     queryKey: ['admin-chat-messages', activeChatUserId],
     queryFn: () => (activeChatUserId ? db.getChatMessages(activeChatUserId) : Promise.resolve([])),
     refetchInterval: 2000,
-    enabled: isAuthenticated && ['OWNER', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || '') && !!activeChatUserId,
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || '') && !!activeChatUserId,
   });
 
   const sendAdminChatMutation = useMutation({
@@ -513,16 +517,18 @@ export default function AdminDashboardPage() {
                 {locale === 'en' ? 'Orders' : 'الطلبات'}
               </button>
               
-              {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
+              {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || '') && (
                 <>
-                  <button
-                    onClick={() => setActiveTab('MENU')}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      activeTab === 'MENU' ? 'bg-primary-red text-white shadow-md shadow-primary-red/20' : 'text-text-muted hover:text-white hover:bg-card-border'
-                    }`}
-                  >
-                    {locale === 'en' ? 'Menu' : 'المنيو'}
-                  </button>
+                  {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
+                    <button
+                      onClick={() => setActiveTab('MENU')}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        activeTab === 'MENU' ? 'bg-primary-red text-white shadow-md shadow-primary-red/20' : 'text-text-muted hover:text-white hover:bg-card-border'
+                      }`}
+                    >
+                      {locale === 'en' ? 'Menu' : 'المنيو'}
+                    </button>
+                  )}
                   {['OWNER', 'HEAD_ADMIN', 'ADMIN'].includes(role || '') && (
                     <button
                       onClick={() => setActiveTab('COUPONS')}
@@ -1001,6 +1007,7 @@ export default function AdminDashboardPage() {
                 <thead className="bg-[#18181B] text-text-muted border-b border-card-border">
                   <tr>
                     <th className="p-4 font-bold">{locale === 'en' ? 'Coupon Code' : 'كود الخصم'}</th>
+                    <th className="p-4 font-bold">{locale === 'en' ? 'Branch' : 'الفرع'}</th>
                     <th className="p-4 font-bold">{locale === 'en' ? 'Discount Type' : 'نوع الخصم'}</th>
                     <th className="p-4 font-bold">{locale === 'en' ? 'Discount Value' : 'قيمة الخصم'}</th>
                     <th className="p-4 font-bold">{locale === 'en' ? 'Status' : 'الحالة'}</th>
@@ -1010,6 +1017,17 @@ export default function AdminDashboardPage() {
                   {coupons.map((cp) => (
                     <tr key={cp.id} className="hover:bg-card-border/20 transition-all">
                       <td className="p-4 font-bold text-white font-mono">{cp.code}</td>
+                      <td className="p-4 text-text-muted font-medium">
+                        {cp.branchId ? (
+                          branches.find((b: any) => b.id === cp.branchId)
+                            ? (locale === 'en' ? branches.find((b: any) => b.id === cp.branchId)?.nameEn : branches.find((b: any) => b.id === cp.branchId)?.nameAr)
+                            : 'Specific Branch'
+                        ) : (
+                          <span className="text-[10px] bg-white/5 border border-white/10 text-white font-bold px-1.5 py-0.5 rounded">
+                            {locale === 'en' ? '🌐 All Branches' : '🌐 جميع الفروع'}
+                          </span>
+                        )}
+                      </td>
                       <td className="p-4 text-text-muted">{cp.discountType}</td>
                       <td className="p-4 font-bold text-accent-amber">
                         {cp.discountValue} {cp.discountType === 'PERCENT' ? '%' : 'EGP'}
@@ -1031,7 +1049,7 @@ export default function AdminDashboardPage() {
             {isAddingCoupon && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                 <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onClick={() => setIsAddingCoupon(false)} />
-                <form
+                 <form
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (!newCouponCode.trim() || newCouponValue <= 0) return;
@@ -1040,6 +1058,7 @@ export default function AdminDashboardPage() {
                       discountType: newCouponType,
                       discountValue: newCouponValue,
                       expiryDate: newCouponExpiry ? new Date(newCouponExpiry) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+                      branchId: newCouponBranchId || null,
                     });
                   }}
                   className="relative w-full max-w-md bg-card border border-card-border rounded-3xl p-6 shadow-2xl space-y-4 z-10"
@@ -1049,6 +1068,22 @@ export default function AdminDashboardPage() {
                   </h3>
 
                   <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Scope (Branch)</label>
+                      <select
+                        value={newCouponBranchId}
+                        onChange={(e) => setNewCouponBranchId(e.target.value)}
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                      >
+                        <option value="">All Branches (Global)</option>
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {locale === 'en' ? b.nameEn : b.nameAr}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     <div className="space-y-1">
                       <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Coupon Code</label>
                       <input
@@ -1142,6 +1177,7 @@ export default function AdminDashboardPage() {
                 <thead className="bg-[#18181B] text-text-muted border-b border-card-border">
                   <tr>
                     <th className="p-4 font-bold">{locale === 'en' ? 'Event Name' : 'اسم الحدث'}</th>
+                    <th className="p-4 font-bold">{locale === 'en' ? 'Branch' : 'الفرع'}</th>
                     <th className="p-4 font-bold">{locale === 'en' ? 'Applies To' : 'ينطبق على'}</th>
                     <th className="p-4 font-bold">{locale === 'en' ? 'Discount Value' : 'قيمة الخصم'}</th>
                     <th className="p-4 font-bold">{locale === 'en' ? 'Status' : 'الحالة'}</th>
@@ -1151,6 +1187,17 @@ export default function AdminDashboardPage() {
                   {discounts.map((dsc) => (
                     <tr key={dsc.id} className="hover:bg-card-border/20 transition-all">
                       <td className="p-4 font-bold text-white">{dsc.name}</td>
+                      <td className="p-4 text-text-muted font-medium">
+                        {dsc.branchId ? (
+                          branches.find((b: any) => b.id === dsc.branchId)
+                            ? (locale === 'en' ? branches.find((b: any) => b.id === dsc.branchId)?.nameEn : branches.find((b: any) => b.id === dsc.branchId)?.nameAr)
+                            : 'Specific Branch'
+                        ) : (
+                          <span className="text-[10px] bg-white/5 border border-white/10 text-white font-bold px-1.5 py-0.5 rounded">
+                            {locale === 'en' ? '🌐 All Branches' : '🌐 جميع الفروع'}
+                          </span>
+                        )}
+                      </td>
                       <td className="p-4 text-text-muted">
                         {dsc.appliesTo === 'ALL' ? 'Entire Menu' : products.find(p => p.id === dsc.appliesTo)?.nameEn || dsc.appliesTo}
                       </td>
@@ -1186,6 +1233,7 @@ export default function AdminDashboardPage() {
                       discountType: newDiscountType,
                       discountValue: newDiscountValue,
                       appliesTo: newDiscountAppliesTo,
+                      branchId: newDiscountBranchId || null,
                     });
                   }}
                   className="relative w-full max-w-md bg-card border border-card-border rounded-3xl p-6 shadow-2xl space-y-4 z-10"
@@ -1195,6 +1243,21 @@ export default function AdminDashboardPage() {
                   </h3>
 
                   <div className="space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Scope (Branch)</label>
+                      <select
+                        value={newDiscountBranchId}
+                        onChange={(e) => setNewDiscountBranchId(e.target.value)}
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                      >
+                        <option value="">All Branches (Global)</option>
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {locale === 'en' ? b.nameEn : b.nameAr}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <div className="space-y-1">
                       <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Event / Discount Name</label>
                       <input
@@ -1644,7 +1707,7 @@ export default function AdminDashboardPage() {
             </>
           )}
 
-          {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
+          {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || '') && (
             <button
               onClick={() => setActiveTab('CHAT')}
               className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${

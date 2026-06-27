@@ -9,6 +9,7 @@ import Footer from '@/components/layout/Footer';
 import CartSidebar from '@/components/cart/CartSidebar';
 import { db } from '@/lib/db';
 import { useAuth } from '@/context/AuthContext';
+import { useBranch } from '@/context/BranchContext';
 import { MapPin, Phone, User, CreditCard, ChevronRight, CheckCircle, Navigation, ArrowRight } from 'lucide-react';
 
 export default function CheckoutPage() {
@@ -24,8 +25,9 @@ export default function CheckoutPage() {
     getTotal,
     coupon,
     clearCart,
-    selectedBranchId,
   } = useCartStore();
+
+  const { selectedBranchId, selectedBranch, selectBranch, allBranches } = useBranch();
 
   // Form states
   const [name, setName] = useState('');
@@ -46,11 +48,9 @@ export default function CheckoutPage() {
   const [isOrdering, setIsOrdering] = useState(false);
   const { user, profile } = useAuth();
   const [mounted, setMounted] = useState(false);
-  const [branches, setBranches] = useState<any[]>([]);
 
   useEffect(() => {
     setMounted(true);
-    db.getBranches().then(setBranches);
   }, []);
 
   useEffect(() => {
@@ -78,8 +78,6 @@ export default function CheckoutPage() {
     setPhone(initialPhone);
     setAddress(initialAddress);
   }, [profile]);
-
-  const selectedBranch = branches.find(b => b.id === selectedBranchId);
 
   if (!mounted) return null;
 
@@ -114,6 +112,15 @@ export default function CheckoutPage() {
     if (items.length === 0) return;
     if (!name.trim() || !phone.trim()) return;
     if (deliveryType === 'DELIVERY' && !address.trim()) return;
+
+    if (!selectedBranchId) {
+      alert(locale === 'en' ? 'Please select a branch before completing your checkout.' : 'يرجى اختيار فرع قبل إتمام الطلب.');
+      const selectorElement = document.getElementById('checkout-branch-selector');
+      if (selectorElement) {
+        selectorElement.scrollIntoView({ behavior: 'smooth' });
+      }
+      return;
+    }
 
     setIsOrdering(true);
 
@@ -250,6 +257,84 @@ export default function CheckoutPage() {
                     {t('pickup')}
                   </button>
                 </div>
+              </div>
+
+              {/* Branch Selection */}
+              <div id="checkout-branch-selector" className="bg-card border border-card-border rounded-3xl p-6 space-y-4">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-accent-amber">
+                  {locale === 'en' ? 'Select Restaurant Branch' : 'اختر فرع المطعم'}
+                </h2>
+                {selectedBranchId ? (
+                  <div className="p-4 rounded-2xl bg-card-border/45 border border-card-border flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-xl bg-primary-red/10 flex items-center justify-center text-primary-red shrink-0">
+                        <MapPin className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-bold text-white">
+                          {locale === 'en' ? selectedBranch?.nameEn : selectedBranch?.nameAr}
+                        </h4>
+                        <p className="text-[10px] text-text-muted mt-0.5">
+                          {locale === 'en' ? selectedBranch?.addressEn : selectedBranch?.addressAr}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => selectBranch(null)}
+                      className="px-3 py-1.5 bg-card hover:bg-card-border border border-card-border rounded-lg text-[10px] font-bold text-white transition-all cursor-pointer hover:text-primary-red animate-in fade-in"
+                    >
+                      {locale === 'en' ? 'Change' : 'تغيير'}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3 animate-in fade-in">
+                    <p className="text-xs text-text-muted">
+                      {locale === 'en'
+                        ? 'Please select the branch you want to order from:'
+                        : 'يرجى اختيار الفرع الذي ترغب في الطلب منه:'}
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {allBranches.map((branch) => {
+                        const isClosed = branch.status === 'CLOSED';
+                        return (
+                          <button
+                            key={branch.id}
+                            type="button"
+                            disabled={isClosed}
+                            onClick={() => selectBranch(branch.id)}
+                            className="w-full text-left rtl:text-right px-4 py-3 rounded-2xl border transition-all duration-150 cursor-pointer flex items-center justify-between gap-3 bg-card-border/20 border-card-border hover:border-white/20 disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <MapPin className="h-4 w-4 text-text-muted shrink-0" />
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-white truncate">
+                                  {locale === 'en' ? branch.nameEn : branch.nameAr}
+                                </p>
+                                {(branch.addressEn || branch.addressAr) && (
+                                  <p className="text-[10px] text-text-muted truncate mt-0.5">
+                                    {locale === 'en' ? branch.addressEn : branch.addressAr}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <span
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded-full shrink-0"
+                              style={{
+                                background: isClosed ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+                                color: isClosed ? '#f87171' : '#4ade80',
+                              }}
+                            >
+                              {isClosed
+                                ? (locale === 'en' ? 'Closed' : 'مغلق')
+                                : (locale === 'en' ? 'Open' : 'مفتوح')}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Personal Details */}

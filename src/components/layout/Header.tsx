@@ -1,51 +1,55 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useLanguage } from '@/context/LanguageContext';
 import { useCartStore } from '@/store/useCartStore';
-import { ShoppingBag, Globe, User, LogOut, Menu, X } from 'lucide-react';
+import { ShoppingBag, Globe, User, LogOut, Menu, X, MapPin, ChevronDown, Check, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { useBranch } from '@/context/BranchContext';
 import NotificationBell from './NotificationBell';
 import CustomerOrderTracker from '@/components/orders/CustomerOrderTracker';
 
 export default function Header() {
   const { locale, toggleLocale, t } = useLanguage();
-  const { items, setCartOpen, cartOpen, selectedBranchId, setSelectedBranchId } = useCartStore();
+  const { items, setCartOpen, cartOpen } = useCartStore();
+  const { allBranches, selectedBranch, selectedBranchId, selectBranch } = useBranch();
   const [mounted, setMounted] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showBranchDropdown, setShowBranchDropdown] = useState(false);
+  const [pendingBranchId, setPendingBranchId] = useState<string>('');
+  const [submitting, setSubmitting] = useState(false);
+  const branchDropdownRef = useRef<HTMLDivElement>(null);
   const { user, profile, role, isAuthenticated, signOut, isLoading } = useAuth();
 
-  const branches = [
-    { id: 'branch-1', nameEn: 'Seashell Walk Branch', nameAr: 'سي شيل ووك - الساحل' },
-    { id: 'branch-2', nameEn: 'Marina Walk Branch', nameAr: 'مارينا ووك - الساحل' },
-    { id: 'branch-3', nameEn: 'Tagamoa Branch', nameAr: 'فرع التجمع' },
-    { id: 'branch-4', nameEn: 'Almaza Branch', nameAr: 'فرع الماظه' },
-    { id: 'branch-5', nameEn: 'Nasr City Branch', nameAr: 'فرع مدينه نصر' },
-    { id: 'branch-6', nameEn: 'Hadayek El-Kobba Branch', nameAr: 'فرع حدائق القبه' },
-    { id: 'branch-7', nameEn: 'Ain Shams Branch', nameAr: 'فرع عين شمس' },
-  ];
+  useEffect(() => { setMounted(true); }, []);
 
+  // Sync pending selection with current branch
   useEffect(() => {
-    setMounted(true);
+    if (selectedBranchId) setPendingBranchId(selectedBranchId);
+  }, [selectedBranchId]);
+
+  // Close branch dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(e.target as Node)) {
+        setShowBranchDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   // Lock body scroll when drawer is open
   useEffect(() => {
     if (!mounted) return;
-    if (mobileMenuOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    document.body.style.overflow = mobileMenuOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [mobileMenuOpen, mounted]);
 
-  const totalItemsCount = mounted
-    ? items.reduce((acc, item) => acc + item.quantity, 0)
-    : 0;
+  const totalItemsCount = mounted ? items.reduce((acc, item) => acc + item.quantity, 0) : 0;
 
   const handleSignOut = async () => {
     try {
@@ -57,44 +61,172 @@ export default function Header() {
     }
   };
 
+  const handleConfirmBranch = () => {
+    if (!pendingBranchId || pendingBranchId === selectedBranchId) {
+      setShowBranchDropdown(false);
+      return;
+    }
+    setSubmitting(true);
+    selectBranch(pendingBranchId);
+    setShowBranchDropdown(false);
+    setTimeout(() => {
+      window.location.reload();
+    }, 200);
+  };
+
   const showAdminLink = role && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role);
   const showDriverLink = role === 'DRIVER';
 
-  // ── Mobile Drawer (rendered via portal directly on document.body) ──────────
+  // ── Branch Selector Dropdown ─────────────────────────────────────────────────
+  const branchSelectorContent = (
+    <div ref={branchDropdownRef} className="relative">
+      {/* Trigger */}
+      <button
+        onClick={() => setShowBranchDropdown(!showBranchDropdown)}
+        className="flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all cursor-pointer group"
+        style={{
+          background: showBranchDropdown ? 'rgba(220,38,38,0.1)' : 'rgba(255,255,255,0.04)',
+          border: showBranchDropdown ? '1px solid rgba(220,38,38,0.3)' : '1px solid rgba(255,255,255,0.08)',
+        }}
+      >
+        <MapPin className="h-3.5 w-3.5 text-primary-red shrink-0" />
+        <span className="text-xs font-bold text-white max-w-[130px] truncate">
+          {selectedBranch
+            ? (locale === 'en' ? selectedBranch.nameEn : selectedBranch.nameAr)
+            : (locale === 'en' ? 'Select Branch' : 'اختر فرع')}
+        </span>
+        <ChevronDown
+          className={`h-3 w-3 text-text-muted transition-transform ${showBranchDropdown ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      {/* Dropdown panel */}
+      {showBranchDropdown && (
+        <div
+          className="absolute top-full mt-2 left-0 w-72 rounded-2xl shadow-2xl overflow-hidden z-50"
+          style={{
+            background: 'linear-gradient(160deg, #111114 0%, #150808 100%)',
+            border: '1px solid rgba(220,38,38,0.15)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 40px rgba(220,38,38,0.06)',
+          }}
+        >
+          {/* Header */}
+          <div className="px-4 py-3 border-b" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+            <p className="text-[10px] font-bold text-primary-red uppercase tracking-widest">
+              {locale === 'en' ? '📍 Select Branch' : '📍 اختر فرع'}
+            </p>
+            <p className="text-[10px] text-text-muted mt-0.5">
+              {locale === 'en'
+                ? 'Menu & prices may vary per branch'
+                : 'قد يختلف المنيو والأسعار بين الفروع'}
+            </p>
+          </div>
+
+          {/* Branch list */}
+          <div className="p-2 max-h-60 overflow-y-auto space-y-1">
+            {allBranches.map((branch) => {
+              const isClosed = branch.status === 'CLOSED';
+              const isSelected = pendingBranchId === branch.id;
+              return (
+                <button
+                  key={branch.id}
+                  type="button"
+                  disabled={isClosed}
+                  onClick={() => !isClosed && setPendingBranchId(branch.id)}
+                  className="w-full text-left px-3 py-2.5 rounded-xl flex items-center justify-between gap-2 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  style={{
+                    background: isSelected ? 'rgba(220,38,38,0.12)' : 'rgba(255,255,255,0.02)',
+                    border: isSelected ? '1px solid rgba(220,38,38,0.3)' : '1px solid transparent',
+                  }}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <MapPin
+                      className="h-3 w-3 shrink-0"
+                      style={{ color: isSelected ? '#dc2626' : '#6b7280' }}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-white truncate">
+                        {locale === 'en' ? branch.nameEn : branch.nameAr}
+                      </p>
+                      {(branch.addressEn || branch.addressAr) && (
+                        <p className="text-[10px] text-text-muted truncate">
+                          {locale === 'en' ? branch.addressEn : branch.addressAr}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span
+                      className="text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                      style={{
+                        background: isClosed ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)',
+                        color: isClosed ? '#f87171' : '#4ade80',
+                      }}
+                    >
+                      {isClosed
+                        ? (locale === 'en' ? 'Closed' : 'مغلق')
+                        : (locale === 'en' ? 'Open' : 'مفتوح')}
+                    </span>
+                    {isSelected && (
+                      <div className="h-4 w-4 rounded-full bg-primary-red flex items-center justify-center">
+                        <Check className="h-2.5 w-2.5 text-white" />
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Submit */}
+          <div className="p-3 border-t" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
+            <button
+              type="button"
+              onClick={handleConfirmBranch}
+              disabled={!pendingBranchId || submitting}
+              className="w-full py-2.5 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:opacity-40"
+              style={{
+                background: pendingBranchId ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'rgba(220,38,38,0.2)',
+                boxShadow: pendingBranchId ? '0 4px 16px rgba(220,38,38,0.3)' : undefined,
+              }}
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>{locale === 'en' ? 'Switching...' : 'جاري التبديل...'}</span>
+                </>
+              ) : (
+                <span>
+                  {pendingBranchId === selectedBranchId
+                    ? (locale === 'en' ? 'Close' : 'إغلاق')
+                    : (locale === 'en' ? '✓ Confirm & Reload' : '✓ تأكيد وإعادة تحميل')}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ── Mobile Drawer ─────────────────────────────────────────────────────────────
   const drawerContent = mounted && mobileMenuOpen ? ReactDOM.createPortal(
     <>
-      {/* Dark backdrop */}
       <div
         onClick={() => setMobileMenuOpen(false)}
-        style={{
-          position: 'fixed',
-          inset: 0,
-          zIndex: 9998,
-          backgroundColor: 'rgba(0,0,0,0.85)',
-          backdropFilter: 'blur(4px)',
-          WebkitBackdropFilter: 'blur(4px)',
-        }}
+        style={{ position: 'fixed', inset: 0, zIndex: 9998, backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)' }}
       />
-
-      {/* Drawer panel — portal ensures it's OUTSIDE the header's CSS context */}
       <div
         style={{
-          position: 'fixed',
-          top: 0,
-          bottom: 0,
+          position: 'fixed', top: 0, bottom: 0,
           [locale === 'ar' ? 'left' : 'right']: 0,
-          zIndex: 9999,
-          width: '18rem',
-          maxWidth: '85vw',
+          zIndex: 9999, width: '18rem', maxWidth: '85vw',
           backgroundColor: '#0D0D0F',
           borderLeft: locale === 'ar' ? 'none' : '1px solid #27272A',
           borderRight: locale === 'ar' ? '1px solid #27272A' : 'none',
           boxShadow: '-8px 0 40px rgba(0,0,0,0.7)',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-          padding: '1.5rem',
-          overflowY: 'auto',
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+          padding: '1.5rem', overflowY: 'auto',
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -103,33 +235,61 @@ export default function Header() {
             <span style={{ fontSize: '1.1rem', fontWeight: 900, background: 'linear-gradient(to right, #E63946, #F4A261)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
               DODZ FRIED CHICKEN
             </span>
-            <button
-              onClick={() => setMobileMenuOpen(false)}
-              style={{ padding: '0.25rem', borderRadius: '999px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}
-            >
+            <button onClick={() => setMobileMenuOpen(false)} style={{ padding: '0.25rem', borderRadius: '999px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}>
               <X style={{ width: '1.25rem', height: '1.25rem' }} />
             </button>
           </div>
 
-          {/* Branch selector */}
-          <div style={{ background: '#18181B', border: '1px solid #27272A', padding: '0.75rem', borderRadius: '0.75rem' }}>
-            <label style={{ fontSize: '0.6rem', color: '#F4A261', fontWeight: 700, display: 'block', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.4rem' }}>
-              {locale === 'en' ? 'Delivery / Pickup Branch' : 'فرع التوصيل / الاستلام'}
-            </label>
-            <select
-              value={selectedBranchId}
-              onChange={(e) => setSelectedBranchId(e.target.value)}
-              style={{ width: '100%', background: 'transparent', border: 'none', color: '#fff', fontSize: '0.8rem', fontWeight: 600, outline: 'none', cursor: 'pointer' }}
+          {/* Mobile branch selector */}
+          <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(220,38,38,0.15)', padding: '0.75rem', borderRadius: '1rem' }}>
+            <p style={{ fontSize: '0.6rem', color: '#dc2626', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.5rem' }}>
+              {locale === 'en' ? '📍 Branch' : '📍 الفرع'}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto' }}>
+              {allBranches.map((branch) => {
+                const isClosed = branch.status === 'CLOSED';
+                const isSelected = pendingBranchId === branch.id;
+                return (
+                  <button
+                    key={branch.id}
+                    type="button"
+                    disabled={isClosed}
+                    onClick={() => !isClosed && setPendingBranchId(branch.id)}
+                    style={{
+                      width: '100%', textAlign: 'left', padding: '0.5rem 0.75rem',
+                      borderRadius: '0.625rem', fontSize: '0.75rem', fontWeight: 600,
+                      color: isSelected ? '#fff' : '#a1a1aa',
+                      background: isSelected ? 'rgba(220,38,38,0.15)' : 'rgba(255,255,255,0.03)',
+                      border: isSelected ? '1px solid rgba(220,38,38,0.4)' : '1px solid transparent',
+                      cursor: isClosed ? 'not-allowed' : 'pointer', opacity: isClosed ? 0.4 : 1,
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    }}
+                  >
+                    <span>{locale === 'en' ? branch.nameEn : branch.nameAr}</span>
+                    {isSelected && <Check style={{ width: '0.875rem', height: '0.875rem', color: '#dc2626' }} />}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              onClick={() => { handleConfirmBranch(); setMobileMenuOpen(false); }}
+              disabled={!pendingBranchId || submitting}
+              style={{
+                width: '100%', marginTop: '0.75rem', padding: '0.6rem',
+                background: pendingBranchId ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'rgba(220,38,38,0.2)',
+                border: 'none', borderRadius: '0.75rem', color: '#fff',
+                fontSize: '0.7rem', fontWeight: 700, cursor: pendingBranchId ? 'pointer' : 'not-allowed',
+                opacity: !pendingBranchId ? 0.4 : 1,
+              }}
             >
-              {branches.map((b) => (
-                <option key={b.id} value={b.id} style={{ background: '#0D0D0F', color: '#fff' }}>
-                  {locale === 'en' ? b.nameEn : b.nameAr}
-                </option>
-              ))}
-            </select>
+              {pendingBranchId === selectedBranchId
+                ? (locale === 'en' ? 'Close' : 'إغلاق')
+                : (locale === 'en' ? '✓ Confirm & Reload' : '✓ تأكيد وإعادة تحميل')}
+            </button>
           </div>
 
-          {/* Navigation links */}
+          {/* Nav links */}
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             <Link href="/" onClick={() => setMobileMenuOpen(false)}
               style={{ display: 'block', padding: '0.7rem 0', fontSize: '0.9rem', fontWeight: 600, color: '#fff', borderBottom: '1px solid #27272A', textDecoration: 'none' }}>
@@ -150,7 +310,6 @@ export default function Header() {
           </nav>
         </div>
 
-        {/* Footer */}
         <div style={{ borderTop: '1px solid #27272A', paddingTop: '1rem' }}>
           <button
             onClick={() => { toggleLocale(); setMobileMenuOpen(false); }}
@@ -172,7 +331,7 @@ export default function Header() {
           <div className="flex items-center justify-between h-14 md:h-20">
 
             {/* Logo */}
-            <div className="flex-shrink-0 flex items-center gap-2">
+            <div className="flex-shrink-0 flex items-center gap-3">
               <Link href="/" className="flex items-center gap-2 group">
                 <span className="text-xl md:text-3xl font-extrabold tracking-wider bg-gradient-to-r from-primary-red to-accent-amber bg-clip-text text-transparent group-hover:opacity-90 transition-opacity">
                   DODZ
@@ -182,72 +341,49 @@ export default function Header() {
                 </span>
               </Link>
 
-              {/* Branch Selector */}
-              {mounted && (
-                <div className="hidden lg:flex items-center gap-1.5 bg-[#18181B] border border-card-border px-3 py-1.5 rounded-xl text-xs font-semibold">
-                  <span className="text-accent-amber font-bold">📍</span>
-                  <select
-                    value={selectedBranchId}
-                    onChange={(e) => setSelectedBranchId(e.target.value)}
-                    className="bg-transparent border-none text-foreground focus:outline-none cursor-pointer max-w-[150px] text-xs font-semibold"
-                  >
-                    {branches.map((b) => (
-                      <option key={b.id} value={b.id} className="bg-card text-foreground">
-                        {locale === 'en' ? b.nameEn : b.nameAr}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              {/* Desktop Branch Selector */}
+              {mounted && <div className="hidden lg:block">{branchSelectorContent}</div>}
             </div>
 
-            {/* Center Navigation - Desktop */}
+            {/* Center Navigation */}
             <nav className="hidden md:flex space-x-1 lg:space-x-4 items-center rtl:space-x-reverse">
               <Link href="/" className="text-sm font-medium text-foreground hover:text-primary-red px-3 py-2 rounded-md transition-colors">
                 {t('menu')}
               </Link>
               {mounted && showDriverLink && (
-                <Link href="/driver" className="text-sm font-medium text-text-muted hover:text-foreground px-3 py-2 rounded-md transition-colors flex items-center gap-1">
-                  <span>{t('driverPortal')}</span>
+                <Link href="/driver" className="text-sm font-medium text-text-muted hover:text-foreground px-3 py-2 rounded-md transition-colors">
+                  {t('driverPortal')}
                 </Link>
               )}
               {mounted && showAdminLink && (
-                <Link href="/admin" className="text-sm font-medium text-text-muted hover:text-foreground px-3 py-2 rounded-md transition-colors flex items-center gap-1">
-                  <span>{t('adminPanel')}</span>
+                <Link href="/admin" className="text-sm font-medium text-text-muted hover:text-foreground px-3 py-2 rounded-md transition-colors">
+                  {t('adminPanel')}
                 </Link>
               )}
             </nav>
 
-            {/* Right Interface Elements */}
+            {/* Right elements */}
             <div className="flex items-center gap-2 md:gap-4">
-
-              {/* Hamburger Button for Mobile Nav */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="p-2 rounded-full hover:bg-card-border transition-colors text-foreground md:hidden flex items-center justify-center cursor-pointer"
-                aria-label="Toggle Mobile Menu"
               >
                 {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
 
-              {/* Language Switcher - Desktop Only */}
               <button
                 onClick={toggleLocale}
                 className="hidden sm:flex p-2 rounded-full hover:bg-card-border transition-colors text-foreground items-center gap-1.5 text-xs font-semibold"
-                title="Switch Language"
               >
                 <Globe className="h-5 w-5 text-accent-amber" />
                 <span>{t('language')}</span>
               </button>
 
-              {/* Notification Bell (authenticated users only) */}
               {mounted && isAuthenticated && <NotificationBell />}
 
-              {/* Cart Button */}
               <button
                 onClick={() => setCartOpen(!cartOpen)}
                 className="relative p-2.5 rounded-full hover:bg-card-border transition-colors text-foreground"
-                aria-label="Open Cart"
               >
                 <ShoppingBag className="h-6 w-6 text-foreground hover:text-primary-red transition-colors" />
                 {totalItemsCount > 0 && (
@@ -257,7 +393,6 @@ export default function Header() {
                 )}
               </button>
 
-              {/* Auth section */}
               {mounted && !isLoading && (
                 isAuthenticated ? (
                   <div className="relative">
@@ -281,21 +416,18 @@ export default function Header() {
                         <div className="text-[10px] font-bold text-text-muted px-3 py-1 uppercase tracking-wider border-b border-card-border mb-1">
                           {user?.email}
                         </div>
-
                         {showDriverLink && (
                           <Link href="/driver" onClick={() => setShowUserDropdown(false)}
                             className="w-full text-left rtl:text-right px-3 py-2 text-xs rounded-lg hover:bg-card-border text-foreground block md:hidden">
                             {t('driverPortal')}
                           </Link>
                         )}
-
                         {showAdminLink && (
                           <Link href="/admin" onClick={() => setShowUserDropdown(false)}
                             className="w-full text-left rtl:text-right px-3 py-2 text-xs rounded-lg hover:bg-card-border text-foreground block md:hidden">
                             {t('adminPanel')}
                           </Link>
                         )}
-
                         <button
                           onClick={handleSignOut}
                           className="w-full text-left rtl:text-right px-3 py-2 text-xs rounded-lg hover:bg-red-500/10 text-red-400 font-semibold transition-colors flex items-center justify-between cursor-pointer"
@@ -317,19 +449,15 @@ export default function Header() {
                   </div>
                 )
               )}
-
             </div>
-
           </div>
         </div>
 
-        {/* Global Customer Active Order Tracker */}
         {mounted && isAuthenticated && role === 'CUSTOMER' && user?.id && (
           <CustomerOrderTracker userId={user.id} />
         )}
       </header>
 
-      {/* Mobile Drawer — rendered via React Portal OUTSIDE the header */}
       {drawerContent}
     </>
   );

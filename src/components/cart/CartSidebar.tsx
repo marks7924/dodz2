@@ -5,6 +5,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useCartStore, CartItem } from '@/store/useCartStore';
 import { X, Plus, Minus, Trash2, Tag, ShoppingBag, ArrowRight, ArrowLeft } from 'lucide-react';
 import { db } from '@/lib/db';
+import { useBranch } from '@/context/BranchContext';
 import Image from 'next/image';
 import Link from 'next/link';
 
@@ -25,6 +26,8 @@ export default function CartSidebar() {
     getDiscountAmount,
     getTotal,
   } = useCartStore();
+
+  const { selectedBranchId } = useBranch();
 
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
@@ -50,7 +53,7 @@ export default function CartSidebar() {
     if (!couponInput.trim()) return;
 
     try {
-      const foundCoupon = await db.getCouponByCode(couponInput.trim());
+      const foundCoupon = await db.getCouponByCode(couponInput.trim(), selectedBranchId || undefined);
       if (foundCoupon) {
         applyCoupon({
           code: foundCoupon.code,
