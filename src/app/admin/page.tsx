@@ -7,7 +7,7 @@ import Footer from '@/components/layout/Footer';
 import CartSidebar from '@/components/cart/CartSidebar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, Order, Product, Category } from '@/lib/db';
-import { Plus, Edit2, Trash2, ShieldAlert, Bell, DollarSign, ListOrdered, Check, AlertTriangle, EyeOff, RotateCcw, Tag, X, Activity, MapPin, Sliders } from 'lucide-react';
+import { Plus, Edit2, Trash2, ShieldAlert, Bell, DollarSign, ListOrdered, Check, AlertTriangle, EyeOff, RotateCcw, Tag, X, Activity, MapPin, Sliders, ChevronUp, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useBranch } from '@/context/BranchContext';
 import Link from 'next/link';
@@ -217,6 +217,87 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleMoveCategory = async (catId: string, direction: 'UP' | 'DOWN') => {
+    const idx = adminCategories.findIndex((c: any) => c.id === catId);
+    if (idx === -1) return;
+    const targetIdx = direction === 'UP' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= adminCategories.length) return;
+
+    const currentCat = adminCategories[idx];
+    const targetCat = adminCategories[targetIdx];
+
+    let currentOrder = currentCat.sort_order;
+    let targetOrder = targetCat.sort_order;
+
+    if (currentOrder === targetOrder || currentOrder === null || targetOrder === null) {
+      for (let i = 0; i < adminCategories.length; i++) {
+        await supabase
+          .from('categories')
+          .update({ sort_order: i })
+          .eq('id', adminCategories[i].id);
+      }
+      refetchCategories();
+      setTimeout(() => handleMoveCategory(catId, direction), 500);
+      return;
+    }
+
+    const { error: err1 } = await supabase
+      .from('categories')
+      .update({ sort_order: targetOrder })
+      .eq('id', currentCat.id);
+    const { error: err2 } = await supabase
+      .from('categories')
+      .update({ sort_order: currentOrder })
+      .eq('id', targetCat.id);
+
+    if (err1 || err2) {
+      alert(locale === 'en' ? 'Failed to move category' : 'فشل نقل القسم');
+    } else {
+      refetchCategories();
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+    }
+  };
+
+  const handleMoveProduct = async (productId: string, direction: 'UP' | 'DOWN') => {
+    const idx = products.findIndex((p) => p.id === productId);
+    if (idx === -1) return;
+    const targetIdx = direction === 'UP' ? idx - 1 : idx + 1;
+    if (targetIdx < 0 || targetIdx >= products.length) return;
+
+    const currentProd = products[idx];
+    const targetProd = products[targetIdx];
+
+    let currentOrder = currentProd.sortOrder;
+    let targetOrder = targetProd.sortOrder;
+
+    if (currentOrder === targetOrder || currentOrder === null || targetOrder === null || currentOrder === undefined || targetOrder === undefined) {
+      for (let i = 0; i < products.length; i++) {
+        await supabase
+          .from('menu_items')
+          .update({ sort_order: i })
+          .eq('id', products[i].id);
+      }
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+      setTimeout(() => handleMoveProduct(productId, direction), 500);
+      return;
+    }
+
+    const { error: err1 } = await supabase
+      .from('menu_items')
+      .update({ sort_order: targetOrder })
+      .eq('id', currentProd.id);
+    const { error: err2 } = await supabase
+      .from('menu_items')
+      .update({ sort_order: currentOrder })
+      .eq('id', targetProd.id);
+
+    if (err1 || err2) {
+      alert(locale === 'en' ? 'Failed to move product' : 'فشل نقل المنتج');
+    } else {
+      queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+    }
+  };
+
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
 
   const { data: adminCategories = [], refetch: refetchCategories } = useQuery({
@@ -230,7 +311,14 @@ export default function AdminDashboardPage() {
   });
 
   const saveCategoryMutation = useMutation({
-    mutationFn: async (cat: { id?: string; name_en: string; name_ar: string; desc_en?: string; desc_ar?: string }) => {
+    mutationFn: async (cat: { id?: string; name_en: string; name_ar: string; desc_en?: string; desc_ar?: string; is_default?: boolean }) => {
+      if (cat.is_default) {
+        await supabase
+          .from('categories')
+          .update({ is_default: false })
+          .neq('id', cat.id || '00000000-0000-0000-0000-000000000000');
+      }
+
       if (cat.id) {
         const { error } = await supabase
           .from('categories')
@@ -239,6 +327,7 @@ export default function AdminDashboardPage() {
             name_ar: cat.name_ar || cat.name_en,
             desc_en: cat.desc_en || '',
             desc_ar: cat.desc_ar || '',
+            is_default: cat.is_default || false,
           })
           .eq('id', cat.id);
         if (error) throw error;
@@ -249,6 +338,7 @@ export default function AdminDashboardPage() {
           name_ar: cat.name_ar || cat.name_en,
           desc_en: cat.desc_en || '',
           desc_ar: cat.desc_ar || '',
+          is_default: cat.is_default || false,
           sort_order: maxOrder + 1,
         });
         if (error) throw error;
@@ -1484,6 +1574,20 @@ export default function AdminDashboardPage() {
                             <MapPin className="h-3.5 w-3.5" />
                           </button>
                           <button
+                            onClick={() => handleMoveProduct(product.id, 'UP')}
+                            title={locale === 'en' ? 'Move Up' : 'نقل لأعلى'}
+                            className="p-1.5 rounded bg-card border border-card-border text-text-muted hover:text-white transition-colors cursor-pointer"
+                          >
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleMoveProduct(product.id, 'DOWN')}
+                            title={locale === 'en' ? 'Move Down' : 'نقل لأسفل'}
+                            className="p-1.5 rounded bg-card border border-card-border text-text-muted hover:text-white transition-colors cursor-pointer"
+                          >
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          </button>
+                          <button
                             onClick={() => handleOpenCustomizationMapping(product)}
                             title={locale === 'en' ? 'Customization Options' : 'خيارات التخصيص'}
                             className="p-1.5 rounded bg-card border border-card-border text-text-muted hover:text-indigo-400 transition-colors cursor-pointer"
@@ -1525,7 +1629,7 @@ export default function AdminDashboardPage() {
                     </h3>
                   </div>
                   <button
-                    onClick={() => setEditingCategory({ name_en: '', name_ar: '', desc_en: '', desc_ar: '' })}
+                    onClick={() => setEditingCategory({ name_en: '', name_ar: '', desc_en: '', desc_ar: '', is_default: false })}
                     className="px-3 py-1.5 bg-accent-amber/10 border border-accent-amber/30 text-accent-amber text-xs font-bold rounded-xl hover:bg-accent-amber hover:text-black transition-all flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -1537,7 +1641,9 @@ export default function AdminDashboardPage() {
                   {adminCategories.map((cat: any) => (
                     <div key={cat.id} className="flex items-center justify-between bg-[#18181B] border border-card-border rounded-xl px-4 py-3">
                       <div>
-                        <p className="text-xs font-bold text-white">{cat.name_en}</p>
+                        <p className="text-xs font-bold text-white">
+                          {cat.name_en} {cat.is_default && <span className="text-[8px] bg-green-500/10 border border-green-500/20 text-green-400 font-bold px-1.5 py-0.5 rounded ml-1.5 uppercase">Default</span>}
+                        </p>
                         <p className="text-[10px] text-text-muted">{cat.name_ar}</p>
                         {(cat.desc_en || cat.desc_ar) && (
                           <p className="text-[9px] text-[#A1A1AA] italic mt-0.5 line-clamp-1">
@@ -1547,12 +1653,27 @@ export default function AdminDashboardPage() {
                       </div>
                       <div className="flex gap-1.5">
                         <button
+                          onClick={() => handleMoveCategory(cat.id, 'UP')}
+                          className="p-1.5 rounded-lg bg-card border border-card-border text-text-muted hover:text-white transition-colors cursor-pointer"
+                          title={locale === 'en' ? 'Move Up' : 'نقل لأعلى'}
+                        >
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          onClick={() => handleMoveCategory(cat.id, 'DOWN')}
+                          className="p-1.5 rounded-lg bg-card border border-card-border text-text-muted hover:text-white transition-colors cursor-pointer"
+                          title={locale === 'en' ? 'Move Down' : 'نقل لأسفل'}
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </button>
+                        <button
                           onClick={() => setEditingCategory({
                             id: cat.id,
                             name_en: cat.name_en,
                             name_ar: cat.name_ar,
                             desc_en: cat.desc_en || '',
                             desc_ar: cat.desc_ar || '',
+                            is_default: cat.is_default || false,
                           })}
                           className="p-1.5 rounded-lg bg-card border border-card-border text-text-muted hover:text-white transition-colors cursor-pointer"
                           title={locale === 'en' ? 'Edit Category' : 'تعديل القسم'}
@@ -1631,6 +1752,18 @@ export default function AdminDashboardPage() {
                             dir="rtl"
                             className="w-full bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-primary-red/50 resize-none" 
                           />
+                        </div>
+                        <div className="flex items-center gap-2 pt-1">
+                          <input
+                            type="checkbox"
+                            id="cat-is-default"
+                            checked={editingCategory.is_default || false}
+                            onChange={(e) => setEditingCategory({ ...editingCategory, is_default: e.target.checked })}
+                            className="rounded border-card-border bg-card-border text-primary-red focus:ring-primary-red/50 focus:ring-offset-background"
+                          />
+                          <label htmlFor="cat-is-default" className="text-xs text-text-muted cursor-pointer select-none">
+                            {locale === 'en' ? 'Set as default category' : 'تعيين كقسم افتراضي للعملاء'}
+                          </label>
                         </div>
                       </div>
                       <div className="flex gap-2 justify-end pt-1">

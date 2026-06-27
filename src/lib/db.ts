@@ -12,6 +12,9 @@ export interface Category {
   id: string;
   nameEn: string;
   nameAr: string;
+  isDefault?: boolean;
+  descEn?: string;
+  descAr?: string;
 }
 
 export interface CustomizationOption {
@@ -44,6 +47,7 @@ export interface Product {
   categoryIds?: string[];
   isAvailable: boolean;
   branchId?: string | null;
+  sortOrder?: number;
   customizationGroups?: CustomizationGroup[];
 }
 
@@ -335,7 +339,14 @@ function isValidUuid(id: string): boolean {
 // ============================================================
 
 function mapCategory(c: any): Category {
-  return { id: c.id, nameEn: c.name_en, nameAr: c.name_ar };
+  return {
+    id: c.id,
+    nameEn: c.name_en,
+    nameAr: c.name_ar,
+    isDefault: c.is_default || false,
+    descEn: c.desc_en || '',
+    descAr: c.desc_ar || '',
+  };
 }
 
 function mapProduct(p: any, branchId?: string | null): Product {
@@ -398,6 +409,7 @@ function mapProduct(p: any, branchId?: string | null): Product {
     imageUrl: p.image_url,
     isAvailable,
     branchId: p.branch_id || null,
+    sortOrder: p.sort_order || 0,
     customizationGroups,
   };
 }
@@ -599,7 +611,10 @@ export const db = {
   async getProducts(categoryId?: string, branchId?: string): Promise<Product[]> {
     if (isSupabaseConfigured()) {
       try {
-        let query = getSupabase().from('menu_items').select('*, branch_menu_items(*), menu_item_customization_groups(*, customization_groups(*, customization_options(*)))');
+        let query = getSupabase()
+          .from('menu_items')
+          .select('*, branch_menu_items(*), menu_item_customization_groups(*, customization_groups(*, customization_options(*)))')
+          .order('sort_order', { ascending: true });
         if (categoryId && isValidUuid(categoryId)) {
           query = query.or(`category_id.eq.${categoryId},category_ids.cs.{"${categoryId}"}`);
         }

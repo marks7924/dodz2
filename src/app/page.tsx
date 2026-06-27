@@ -278,6 +278,17 @@ export default function Home() {
     queryFn: () => db.getCategories(),
   });
 
+  const hasInitializedDefaultCategoryRef = useRef(false);
+  useEffect(() => {
+    if (categories && categories.length > 0 && !hasInitializedDefaultCategoryRef.current) {
+      hasInitializedDefaultCategoryRef.current = true;
+      const defaultCat = categories.find((c) => c.isDefault);
+      if (defaultCat) {
+        setActiveCategory(defaultCat.id);
+      }
+    }
+  }, [categories]);
+
   const { data: products = [] } = useQuery<Product[]>({
     queryKey: ['products', selectedBranchId],
     queryFn: () => db.getProducts(undefined, selectedBranchId || undefined),
