@@ -651,6 +651,9 @@ export default function AdminDashboardPage() {
                   <Link href="/admin/analytics" className="px-4 py-2 rounded-xl text-[10px] font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all uppercase tracking-wider">
                     {locale === 'en' ? 'Analytics' : 'التحليلات'}
                   </Link>
+                  <Link href="/admin/settings" className="px-4 py-2 rounded-xl text-[10px] font-bold text-text-muted hover:text-white bg-card border border-card-border hover:bg-card-border/50 transition-all uppercase tracking-wider flex items-center gap-1">
+                    ⚙️ {locale === 'en' ? 'Settings' : 'الإعدادات'}
+                  </Link>
                 </>
               )}
             </div>
