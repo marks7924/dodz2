@@ -5,6 +5,7 @@
 -- 1. Prune existing menu catalog
 DELETE FROM public.menu_items;
 DELETE FROM public.categories;
+DELETE FROM public.customization_groups;
 
 -- 2. Insert new categories
 INSERT INTO public.categories (id, name_en, name_ar, sort_order) VALUES
