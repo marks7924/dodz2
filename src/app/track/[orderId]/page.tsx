@@ -9,7 +9,7 @@ import CartSidebar from '@/components/cart/CartSidebar';
 import { useQuery } from '@tanstack/react-query';
 import { db, Order } from '@/lib/db';
 import { createClient } from '@/lib/supabase/client';
-import { Clock, CheckCircle2, Truck, Check, ChevronRight, ShoppingBag, MapPin, User, Phone, Play } from 'lucide-react';
+import { Clock, CheckCircle2, Truck, Check, ChevronRight, ShoppingBag, MapPin, User, Phone, Play, AlertTriangle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 // Lazy-load LiveTrackingMap (Leaflet is browser-only)
@@ -58,6 +58,7 @@ export default function OrderTrackingPage() {
 
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+  const [dismissedCancellation, setDismissedCancellation] = useState(false);
 
   const cancelOrder = async () => {
     setIsCancelling(true);
@@ -286,51 +287,90 @@ export default function OrderTrackingPage() {
           </div>
         </div>
 
-        {/* Dynamic Status Timeline Visualizer */}
-        <div className="bg-card border border-card-border rounded-3xl p-6 md:p-8 space-y-8">
-          <h2 className="text-sm font-bold uppercase tracking-wider text-accent-amber">{t('orderStatus')}</h2>
-          
-          <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-4">
-            {/* Timeline Progress Bar Line - Desktop */}
-            <div className="absolute top-6 left-6 right-6 h-1 bg-card-border -z-10 hidden md:block" />
-            <div
-              className="absolute top-6 left-6 h-1 bg-gradient-to-r from-primary-red to-accent-amber -z-10 hidden md:block transition-all duration-500"
-              style={{ width: `${(currentStep / (steps.length - 1)) * 95}%` }}
-            />
-
-            {/* Timeline Stages */}
-            {steps.map((step, idx) => {
-              const Icon = step.icon;
-              const isCompleted = idx < currentStep;
-              const isActive = idx === currentStep;
-
-              return (
-                <div key={idx} className="flex md:flex-col items-center gap-4 md:text-center md:flex-1 relative z-10 w-full">
-                  <div
-                    className={`h-12 w-12 rounded-full border-2 flex items-center justify-center transition-all ${
-                      isCompleted
-                        ? 'bg-gradient-to-tr from-primary-red to-accent-amber border-transparent text-white'
-                        : isActive
-                        ? 'bg-card border-primary-red text-primary-red shadow-lg shadow-primary-red/20 animate-pulse'
-                        : 'bg-card-border border-card-border text-text-muted'
-                    }`}
-                  >
-                    <Icon className="h-5 w-5" />
-                  </div>
-
-                  <div className="text-left md:text-center space-y-0.5">
-                    <h3 className={`text-xs font-bold ${isActive ? 'text-primary-red' : isCompleted ? 'text-white' : 'text-text-muted'}`}>
-                      {step.label}
-                    </h3>
-                    <p className="text-[10px] text-text-muted max-w-[150px] md:mx-auto">
-                      {step.desc}
+        {/* Dynamic Status Timeline Visualizer OR Cancellation Alert */}
+        {order.status === 'CANCELLED' && !dismissedCancellation ? (
+          <div className="bg-red-500/10 border-2 border-red-500/50 rounded-3xl p-6 md:p-8 space-y-4 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-full bg-red-500/20 text-red-500 flex items-center justify-center shrink-0">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <div className="space-y-1.5 flex-grow">
+                <h2 className="text-base font-black text-red-500 uppercase tracking-wide">
+                  {locale === 'en' ? '⚠️ ORDER CANCELLED' : '⚠️ تم إلغاء الطلب'}
+                </h2>
+                <p className="text-xs text-white font-semibold">
+                  {locale === 'en'
+                    ? 'We regret to inform you that your order has been cancelled.'
+                    : 'نأسف لإبلاغك بأنه قد تم إلغاء طلبك.'}
+                </p>
+                {order.cancellationReason && (
+                  <div className="bg-[#1C1917] border border-red-500/25 rounded-2xl p-4 mt-3">
+                    <span className="text-[9px] text-red-400 font-extrabold uppercase tracking-wider block mb-1">
+                      {locale === 'en' ? 'Reason for Cancellation' : 'سبب الإلغاء'}
+                    </span>
+                    <p className="text-xs text-text-muted italic">
+                      "{order.cancellationReason}"
                     </p>
                   </div>
-                </div>
-              );
-            })}
+                )}
+              </div>
+            </div>
+            
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setDismissedCancellation(true)}
+                className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-red-600/15"
+              >
+                {locale === 'en' ? 'Dismiss' : 'إغلاق'}
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-card border border-card-border rounded-3xl p-6 md:p-8 space-y-8">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-accent-amber">{t('orderStatus')}</h2>
+            
+            <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6 md:gap-4">
+              {/* Timeline Progress Bar Line - Desktop */}
+              <div className="absolute top-6 left-6 right-6 h-1 bg-card-border -z-10 hidden md:block" />
+              <div
+                className="absolute top-6 left-6 h-1 bg-gradient-to-r from-primary-red to-accent-amber -z-10 hidden md:block transition-all duration-500"
+                style={{ width: `${(currentStep / (steps.length - 1)) * 95}%` }}
+              />
+
+              {/* Timeline Stages */}
+              {steps.map((step, idx) => {
+                const Icon = step.icon;
+                const isCompleted = idx < currentStep;
+                const isActive = idx === currentStep;
+
+                return (
+                  <div key={idx} className="flex md:flex-col items-center gap-4 md:text-center md:flex-1 relative z-10 w-full">
+                    <div
+                      className={`h-12 w-12 rounded-full border-2 flex items-center justify-center transition-all ${
+                        isCompleted
+                          ? 'bg-gradient-to-tr from-primary-red to-accent-amber border-transparent text-white'
+                          : isActive
+                          ? 'bg-card border-primary-red text-primary-red shadow-lg shadow-primary-red/20 animate-pulse'
+                          : 'bg-card-border border-card-border text-text-muted'
+                      }`}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </div>
+
+                    <div className="text-left md:text-center space-y-0.5">
+                      <h3 className={`text-xs font-bold ${isActive ? 'text-primary-red' : isCompleted ? 'text-white' : 'text-text-muted'}`}>
+                        {step.label}
+                      </h3>
+                      <p className="text-[10px] text-text-muted max-w-[150px] md:mx-auto">
+                        {step.desc}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Customer Cancel Section (Only within first 5 minutes) */}
         {canCustomerCancel && (
