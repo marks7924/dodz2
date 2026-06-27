@@ -12,6 +12,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useBranch } from '@/context/BranchContext';
 import { MapPin, Phone, User, CreditCard, ChevronRight, CheckCircle, Navigation, ArrowRight } from 'lucide-react';
 import LazyDeliveryMap from '@/components/map/LazyDeliveryMap';
+import { searchAddress } from '@/lib/nominatim';
+import { calcDeliveryFee } from '@/lib/osrm';
 
 export default function CheckoutPage() {
   const { t, locale, dir } = useLanguage();
@@ -89,6 +91,29 @@ export default function CheckoutPage() {
     setAddress(addr);
     setCustomDeliveryFee(fee);
     setIsPinning(true);
+  };
+
+  // Automatically search and pin coordinates when user finishes typing address in text field
+  const handleAddressBlur = async () => {
+    if (!address.trim() || address.trim().length < 5) return;
+    try {
+      const results = await searchAddress(address);
+      if (results && results.length > 0) {
+        const topResult = results[0];
+        const lat = parseFloat(topResult.lat);
+        const lng = parseFloat(topResult.lon);
+        setPinLat(lat);
+        setPinLng(lng);
+
+        // Distance from Cairo center (Tahrir square fallback base calculation)
+        const dist = Math.sqrt(Math.pow(lat - 30.0444, 2) + Math.pow(lng - 31.2357, 2)) * 100;
+        const fee = calcDeliveryFee(dist / 10);
+        setCustomDeliveryFee(fee);
+        setIsPinning(true);
+      }
+    } catch (e) {
+      console.warn('Geocoding on blur failed:', e);
+    }
   };
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
@@ -376,6 +401,7 @@ export default function CheckoutPage() {
                       type="text"
                       value={address}
                       onChange={(e) => setAddress(e.target.value)}
+                      onBlur={handleAddressBlur}
                       placeholder={t('addressPlaceholder')}
                       required
                       className="w-full text-xs bg-card-border border border-card-border rounded-xl pl-10 pr-3 rtl:pr-10 rtl:pl-3 py-3.5 text-foreground placeholder:text-text-muted focus:outline-none focus:border-primary-red/50 transition-colors"

@@ -33,6 +33,9 @@ export default function OrderTrackingPage() {
   const [lastStatus, setLastStatus] = useState<Order['status'] | null>(null);
   const [branches, setBranches] = useState<any[]>([]);
 
+  const isMock = !process.env.NEXT_PUBLIC_SUPABASE_URL || 
+                 process.env.NEXT_PUBLIC_SUPABASE_URL.includes('your-project-ref');
+
   // Driver live location state
   const [driverLat, setDriverLat] = useState<number | null>(null);
   const [driverLng, setDriverLng] = useState<number | null>(null);
@@ -57,7 +60,7 @@ export default function OrderTrackingPage() {
   // Subscribe to driver_locations in real-time via Supabase Realtime
   // ---------------------------------------------------------------
   useEffect(() => {
-    if (!order?.driverId || order.status !== 'ON_THE_WAY') return;
+    if (!order?.driverId) return;
 
     // Fetch current location first
     const fetchLocation = async () => {
@@ -97,6 +100,40 @@ export default function OrderTrackingPage() {
       supabase.removeChannel(channel);
     };
   }, [order?.driverId, order?.status]);
+
+  // Simulate driver location updates for testing in mock mode or when no coordinates are present
+  useEffect(() => {
+    if (order?.status !== 'ON_THE_WAY') return;
+    
+    // Check if we already have coordinates from database (real mode)
+    // If not mock mode AND we have driverLat, don't simulate
+    if (!isMock && driverLat !== null && driverLng !== null) return;
+
+    // Use branch as start coordinates
+    const startLat = selectedBranch?.lat || 30.0444;
+    const startLng = selectedBranch?.lng || 31.2357;
+    // Use customer pinned coordinates as destination
+    const destLat = order.lat || 30.0583;
+    const destLng = order.lng || 31.2482;
+
+    let percent = 0.05;
+    setDriverLat(startLat);
+    setDriverLng(startLng);
+
+    const timer = setInterval(() => {
+      percent += 0.03; // move 3% every 2 seconds
+      if (percent >= 1.0) {
+        percent = 1.0;
+        clearInterval(timer);
+      }
+      const currentLat = startLat + (destLat - startLat) * percent;
+      const currentLng = startLng + (destLng - startLng) * percent;
+      setDriverLat(currentLat);
+      setDriverLng(currentLng);
+    }, 2000);
+
+    return () => clearInterval(timer);
+  }, [isMock, order?.status, order?.lat, order?.lng, selectedBranch?.lat, selectedBranch?.lng]);
 
   // Audio alert on status change
   useEffect(() => {

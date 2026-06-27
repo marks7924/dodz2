@@ -157,6 +157,21 @@ export default function DeliveryMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Listen to parent updates of initialLat/initialLng ─────────────
+  useEffect(() => {
+    if (!mapRef.current) return;
+    const currentCenter = mapRef.current.getCenter();
+    if (
+      Math.abs(currentCenter.lat - initialLat) > 0.0001 ||
+      Math.abs(currentCenter.lng - initialLng) > 0.0001
+    ) {
+      mapRef.current.setView([initialLat, initialLng], mapRef.current.getZoom());
+      markerRef.current?.setLatLng([initialLat, initialLng]);
+      setPinLat(initialLat);
+      setPinLng(initialLng);
+    }
+  }, [initialLat, initialLng]);
+
   // ── Refresh branch markers on prop change ─────────────────────────
   useEffect(() => {
     if (!mapRef.current) return;
