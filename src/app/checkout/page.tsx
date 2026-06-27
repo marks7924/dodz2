@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/context/LanguageContext';
 import { useCartStore } from '@/store/useCartStore';
@@ -11,67 +11,7 @@ import { db } from '@/lib/db';
 import { useAuth } from '@/context/AuthContext';
 import { useBranch } from '@/context/BranchContext';
 import { MapPin, Phone, User, CreditCard, ChevronRight, CheckCircle, Navigation, ArrowRight } from 'lucide-react';
-
-const darkMapStyle = [
-  { elementType: 'geometry', stylers: [{ color: '#111114' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#111114' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#747474' }] },
-  {
-    featureType: 'administrative.locality',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#dc2626' }],
-  },
-  {
-    featureType: 'poi',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#8d8d8d' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'geometry',
-    stylers: [{ color: '#18181b' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#616161' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry',
-    stylers: [{ color: '#27272a' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#18181b' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#7c7c7c' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry',
-    stylers: [{ color: '#dc2626', lightness: -40 }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#991b1b' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'geometry',
-    stylers: [{ color: '#0f172a' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#38bdf8' }],
-  },
-];
+import LazyDeliveryMap from '@/components/map/LazyDeliveryMap';
 
 export default function CheckoutPage() {
   const { t, locale, dir } = useLanguage();
@@ -101,108 +41,14 @@ export default function CheckoutPage() {
   const [fawryCode, setFawryCode] = useState<string | null>(null);
   const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
 
-  // Map mock states
-  const [pinLat, setPinLat] = useState(30.0444); // Cairo center
+  // Map states — updated by DeliveryMap
+  const [pinLat, setPinLat] = useState(30.0444);
   const [pinLng, setPinLng] = useState(31.2357);
-  const [customDeliveryFee, setCustomDeliveryFee] = useState(40);
   const [isPinning, setIsPinning] = useState(false);
+  const [customDeliveryFee, setCustomDeliveryFee] = useState(40);
   const [isOrdering, setIsOrdering] = useState(false);
   const { user, profile } = useAuth();
   const [mounted, setMounted] = useState(false);
-
-  // Google Maps refs & states
-  const mapRef = useRef<HTMLDivElement>(null);
-  const googleMapRef = useRef<any>(null);
-  const markerRef = useRef<any>(null);
-  const [mapLoaded, setMapLoaded] = useState(false);
-
-  // Dynamically load Google Maps script if API key is present
-  useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    if (!apiKey) return;
-
-    if (typeof window !== 'undefined' && (window as any).google) {
-      setMapLoaded(true);
-      return;
-    }
-
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    script.onload = () => setMapLoaded(true);
-    document.head.appendChild(script);
-  }, []);
-
-  // Initialize and handle Google Maps API
-  useEffect(() => {
-    if (!mapLoaded || !mapRef.current || !(window as any).google) return;
-
-    const google = (window as any).google;
-    const center = { lat: pinLat, lng: pinLng };
-
-    const map = new google.maps.Map(mapRef.current, {
-      center,
-      zoom: 14,
-      styles: darkMapStyle,
-      disableDefaultUI: true,
-      zoomControl: true,
-    });
-
-    googleMapRef.current = map;
-
-    const marker = new google.maps.Marker({
-      position: center,
-      map,
-      draggable: true,
-      animation: google.maps.Animation.DROP,
-    });
-
-    markerRef.current = marker;
-
-    const updateCoords = (lat: number, lng: number) => {
-      setPinLat(lat);
-      setPinLng(lng);
-      setIsPinning(true);
-
-      const dist = Math.sqrt(Math.pow(lat - 30.0444, 2) + Math.pow(lng - 31.2357, 2));
-      const fee = Math.round(20 + dist * 300);
-      setCustomDeliveryFee(fee);
-
-      if (google.maps.Geocoder) {
-        const geocoder = new google.maps.Geocoder();
-        geocoder.geocode({ location: { lat, lng } }, (results: any, status: any) => {
-          if (status === 'OK' && results[0]) {
-            setAddress(results[0].formatted_address);
-          } else {
-            setAddress(
-              locale === 'en'
-                ? `Pinned Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`
-                : `الموقع المحدد (${lat.toFixed(4)}، ${lng.toFixed(4)})`
-            );
-          }
-        });
-      } else {
-        setAddress(
-          locale === 'en'
-            ? `Pinned Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`
-            : `الموقع المحدد (${lat.toFixed(4)}، ${lng.toFixed(4)})`
-        );
-      }
-    };
-
-    map.addListener('click', (e: any) => {
-      const lat = e.latLng.lat();
-      const lng = e.latLng.lng();
-      updateCoords(lat, lng);
-      marker.setPosition({ lat, lng });
-    });
-
-    marker.addListener('dragend', () => {
-      const pos = marker.getPosition();
-      updateCoords(pos.lat(), pos.lng());
-    });
-  }, [mapLoaded]);
 
   useEffect(() => {
     setMounted(true);
@@ -236,30 +82,13 @@ export default function CheckoutPage() {
 
   if (!mounted) return null;
 
-  // Calculate dynamic delivery fee based on click coordinates on the mock map!
-  const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    // Convert pixel to simulated Cairo coordinates
-    const lat = 30.0 + (1 - y / rect.height) * 0.1;
-    const lng = 31.0 + (x / rect.width) * 0.4;
+  // Called by DeliveryMap whenever pin location changes
+  const handleLocationChange = (lat: number, lng: number, addr: string, fee: number) => {
     setPinLat(lat);
     setPinLng(lng);
-    setIsPinning(true);
-
-    // Calculate distance-based fee: center of Cairo is roughly 30.04, 31.23
-    const dist = Math.sqrt(Math.pow(lat - 30.0444, 2) + Math.pow(lng - 31.2357, 2));
-    const fee = Math.round(20 + dist * 300); // 20 EGP base + distance multiplier
+    setAddress(addr);
     setCustomDeliveryFee(fee);
-    
-    // Update delivery address description dynamically
-    setAddress(
-      locale === 'en'
-        ? `Simulated Address Pin (${lat.toFixed(4)}, ${lng.toFixed(4)}) - Delivery Zone A`
-        : `موقع الخريطة المحدد (${lat.toFixed(4)}، ${lng.toFixed(4)}) - منطقة التوصيل أ`
-    );
+    setIsPinning(true);
   };
 
   const handlePlaceOrder = async (e: React.FormEvent) => {
@@ -360,6 +189,11 @@ export default function CheckoutPage() {
   const discount = getDiscountAmount();
   const finalDeliveryFee = deliveryType === 'DELIVERY' ? customDeliveryFee : 0;
   const total = Math.max(0, subtotal - discount + finalDeliveryFee);
+
+  // Get selected branch lat/lng if available (branches need lat/lng in DB)
+  // For now we pass them as undefined — OSRM will gracefully fall back
+  const branchLat = undefined;
+  const branchLng = undefined;
 
   return (
     <>
@@ -523,14 +357,15 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
-              {/* Delivery Address & Map Pinning */}
+              {/* Delivery Address & OpenStreetMap */}
               {deliveryType === 'DELIVERY' && (
                 <div className="bg-card border border-card-border rounded-3xl p-6 space-y-4">
                   <div className="flex justify-between items-center">
                     <h2 className="text-sm font-bold uppercase tracking-wider text-accent-amber">{t('deliveryAddress')}</h2>
                     {isPinning && (
                       <span className="text-[10px] text-green-500 font-bold bg-green-500/10 px-2 py-0.5 rounded border border-green-500/20 flex items-center gap-1">
-                        <Navigation className="h-3 w-3 animate-pulse" /> Pin Registered
+                        <Navigation className="h-3 w-3 animate-pulse" />
+                        {locale === 'en' ? 'Location Pinned' : 'تم تحديد الموقع'}
                       </span>
                     )}
                   </div>
@@ -560,72 +395,22 @@ export default function CheckoutPage() {
                     </label>
                   </div>
 
-                  {/* HIGH FIDELITY SIMULATED GOOGLE MAPS COMPONENT */}
-                  {/* GOOGLE MAPS OR HIGH FIDELITY SIMULATION COMPONENT */}
-                  <div className="space-y-2">
+                  {/* Real OpenStreetMap — powered by Leaflet + CartoDB Dark tiles */}
+                  <div className="space-y-1">
                     <label className="text-xs text-text-muted block font-medium">
                       {locale === 'en'
-                        ? 'Pin your delivery location on the map to calculate distance-based fees:'
-                        : 'حدد موقع التوصيل على الخريطة لحساب الرسوم بدقة:'}
+                        ? 'Pin your delivery location or search an address:'
+                        : 'حدد موقع التوصيل على الخريطة أو ابحث عن عنوان:'}
                     </label>
-
-                    {process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ? (
-                      <div className="relative h-64 w-full rounded-2xl overflow-hidden border border-card-border shadow-inner">
-                        <div ref={mapRef} className="w-full h-full min-h-[256px]" />
-                        {/* Coordinates HUD overlay */}
-                        <div className="absolute bottom-3 right-3 bg-black/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/5 text-[9px] text-text-muted font-mono space-y-0.5 z-10 pointer-events-none select-none">
-                          <div className="flex gap-2"><span>LAT:</span> <span className="text-white">{pinLat.toFixed(6)}</span></div>
-                          <div className="flex gap-2"><span>LNG:</span> <span className="text-white">{pinLng.toFixed(6)}</span></div>
-                          <div className="flex gap-2"><span>ZONE FEE:</span> <span className="text-accent-amber font-bold">{customDeliveryFee} EGP</span></div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div
-                        onClick={handleMapClick}
-                        className="relative h-64 w-full bg-[#1e293b] rounded-2xl overflow-hidden border border-card-border cursor-crosshair group shadow-inner"
-                      >
-                        {/* Grid patterns simulating streets */}
-                        <div className="absolute inset-0 opacity-15" style={{
-                          backgroundImage: 'radial-gradient(circle, #38bdf8 1px, transparent 1px)',
-                          backgroundSize: '24px 24px'
-                        }} />
-                        <div className="absolute top-1/2 left-0 right-0 h-1 bg-amber-500/20" /> {/* Ring road */}
-                        <div className="absolute left-1/3 top-0 bottom-0 w-1 bg-emerald-500/20" /> {/* Nile River */}
-                        
-                        {/* Cairo labels */}
-                        <div className="absolute top-6 left-6 text-[10px] text-slate-400 font-bold">El Obour City (العبور)</div>
-                        <div className="absolute bottom-8 right-12 text-[10px] text-slate-400 font-bold">5th Settlement (التجمع الخامس)</div>
-                        <div className="absolute top-24 left-1/2 -translate-x-1/2 text-[10px] text-primary-red font-bold">Downtown Cairo (وسط البلد)</div>
-
-                        {/* Moving delivery icon */}
-                        <div className="absolute bottom-24 left-24 p-1.5 rounded-lg bg-card border border-card-border text-[9px] font-bold text-white flex items-center gap-1 shadow-md">
-                          🛵 {selectedBranch ? (locale === 'en' ? selectedBranch.nameEn : selectedBranch.nameAr) : 'Dodz Tagamoa'}
-                        </div>
-
-                        {/* Map Marker Pin */}
-                        <div
-                          className="absolute -translate-x-1/2 -translate-y-full transition-all duration-300"
-                          style={{
-                            left: `${((pinLng - 31.0) / 0.4) * 100}%`,
-                            top: `${(1 - (pinLat - 30.0) / 0.1) * 100}%`,
-                          }}
-                        >
-                          <div className="relative flex flex-col items-center">
-                            <span className="bg-primary-red text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded shadow-lg whitespace-nowrap mb-1">
-                              {locale === 'en' ? 'Deliver Here' : 'وصل هنا'}
-                            </span>
-                            <MapPin className="h-8 w-8 text-primary-red fill-primary-red drop-shadow-md animate-bounce" />
-                          </div>
-                        </div>
-
-                        {/* Coordinates HUD overlay */}
-                        <div className="absolute bottom-3 right-3 bg-black/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/5 text-[9px] text-text-muted font-mono space-y-0.5">
-                          <div className="flex gap-2"><span>LAT:</span> <span className="text-white">{pinLat.toFixed(6)}</span></div>
-                          <div className="flex gap-2"><span>LNG:</span> <span className="text-white">{pinLng.toFixed(6)}</span></div>
-                          <div className="flex gap-2"><span>ZONE FEE:</span> <span className="text-accent-amber font-bold">{customDeliveryFee} EGP</span></div>
-                        </div>
-                      </div>
-                    )}
+                    <LazyDeliveryMap
+                      initialLat={pinLat}
+                      initialLng={pinLng}
+                      onLocationChange={handleLocationChange}
+                      selectedBranchLat={branchLat}
+                      selectedBranchLng={branchLng}
+                      locale={locale}
+                      height="300px"
+                    />
                   </div>
                 </div>
               )}

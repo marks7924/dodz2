@@ -56,6 +56,8 @@ export interface Order {
   total: number;
   deliveryFee: number;
   address: string;
+  lat?: number | null;
+  lng?: number | null;
   couponCode?: string;
   discount: number;
   paymentMethod: 'COD' | 'FAWRY' | 'CARD';
@@ -362,6 +364,8 @@ function mapOrder(o: any): Order {
     total: Number(o.total),
     deliveryFee: Number(o.delivery_fee),
     address: o.address,
+    lat: o.lat !== undefined ? Number(o.lat) : null,
+    lng: o.lng !== undefined ? Number(o.lng) : null,
     couponCode: o.coupon_code || undefined,
     discount: Number(o.discount),
     paymentMethod: o.payment_method,

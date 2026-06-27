@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, Order, User } from '@/lib/db';
 import { useAuth } from '@/context/AuthContext';
 import { createClient } from '@/lib/supabase/client';
-import { Truck, CheckCircle, Clock, MapPin, Phone, ShieldAlert, DollarSign, ListOrdered } from 'lucide-react';
+import { Truck, CheckCircle, Clock, MapPin, Phone, ShieldAlert, DollarSign, ListOrdered, Navigation, Wifi, WifiOff } from 'lucide-react';
 import Link from 'next/link';
 
 export default function DriverPortalPage() {
@@ -81,6 +81,87 @@ export default function DriverPortalPage() {
       supabase.removeChannel(channel);
     };
   }, [driverUser, isMock, queryClient]);
+
+  // ---------------------------------------------------------------
+  // GPS Live Location Tracking — pushes to Supabase driver_locations
+  // ---------------------------------------------------------------
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'active' | 'error'>('idle');
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const watchIdRef = useRef<number | null>(null);
+  const supabaseRef = useRef(createClient());
+
+  const pushLocation = useCallback(async (
+    lat: number,
+    lng: number,
+    accuracy: number,
+    speed: number | null,
+    heading: number | null,
+    driverId: string,
+    activeOrderId?: string
+  ) => {
+    const { error } = await supabaseRef.current
+      .from('driver_locations')
+      .upsert({
+        driver_id: driverId,
+        lat,
+        lng,
+        accuracy,
+        speed: speed ? Math.round(speed * 3.6) : null, // m/s → km/h
+        heading,
+        is_online: true,
+        order_id: activeOrderId || null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'driver_id' });
+    if (error) console.warn('Failed to push driver location:', error.message);
+  }, []);
+
+  const setOffline = useCallback(async (driverId: string) => {
+    await supabaseRef.current
+      .from('driver_locations')
+      .upsert({ driver_id: driverId, is_online: false, updated_at: new Date().toISOString() }, { onConflict: 'driver_id' });
+  }, []);
+
+  useEffect(() => {
+    if (!driverUser || !driverUser.id || isMock) return;
+    if (!navigator.geolocation) {
+      setGpsStatus('error');
+      return;
+    }
+
+    // Get active order to attach to location
+    const getActiveOrderId = () => {
+      const active = (allOrders || []).find(
+        (o: any) => o.driverId === driverUser.id && o.status === 'ON_THE_WAY'
+      );
+      return active?.id;
+    };
+
+    watchIdRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const { latitude, longitude, accuracy, speed, heading } = pos.coords;
+        setGpsStatus('active');
+        setGpsCoords({ lat: latitude, lng: longitude });
+        pushLocation(latitude, longitude, accuracy, speed, heading, driverUser.id, getActiveOrderId());
+      },
+      (err) => {
+        console.warn('GPS error:', err.message);
+        setGpsStatus('error');
+        setOffline(driverUser.id);
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    );
+
+    const handleOffline = () => setOffline(driverUser.id);
+    window.addEventListener('beforeunload', handleOffline);
+
+    return () => {
+      if (watchIdRef.current !== null) {
+        navigator.geolocation.clearWatch(watchIdRef.current);
+      }
+      window.removeEventListener('beforeunload', handleOffline);
+      setOffline(driverUser.id);
+    };
+  }, [driverUser, isMock, pushLocation, setOffline]);
 
   // Mutator to update order status via route handler
   const updateStatusMutation = useMutation({
@@ -202,6 +283,36 @@ export default function DriverPortalPage() {
 
       <main className="flex-grow max-w-5xl mx-auto w-full px-4 sm:px-6 py-8 space-y-8">
         
+        {/* GPS Live Status Banner */}
+        {!isMock && (
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-2xl border text-xs font-bold ${
+            gpsStatus === 'active'
+              ? 'bg-green-500/5 border-green-500/20 text-green-400'
+              : gpsStatus === 'error'
+              ? 'bg-red-500/5 border-red-500/20 text-red-400'
+              : 'bg-card-border/40 border-card-border text-text-muted'
+          }`}>
+            {gpsStatus === 'active' ? (
+              <><Navigation className="h-4 w-4 animate-pulse" />
+                <span>{locale === 'en' ? 'GPS Active — Broadcasting Location' : 'GPS نشط — يتم بث موقعك'}</span>
+                {gpsCoords && (
+                  <span className="ml-auto text-[10px] font-mono opacity-70">
+                    {gpsCoords.lat.toFixed(4)}, {gpsCoords.lng.toFixed(4)}
+                  </span>
+                )}
+              </>
+            ) : gpsStatus === 'error' ? (
+              <><WifiOff className="h-4 w-4" />
+                <span>{locale === 'en' ? 'GPS Error — Customers cannot track you' : 'خطأ GPS — لا يمكن للعملاء تتبعك'}</span>
+              </>
+            ) : (
+              <><Wifi className="h-4 w-4" />
+                <span>{locale === 'en' ? 'Connecting to GPS…' : 'جارٍ الاتصال بـ GPS…'}</span>
+              </>
+            )}
+          </div>
+        )}
+
         {/* Driver Hero Analytics Dashboard */}
         <div className="bg-card border border-card-border rounded-3xl p-6 grid grid-cols-1 sm:grid-cols-3 gap-6">
           <div className="space-y-1">

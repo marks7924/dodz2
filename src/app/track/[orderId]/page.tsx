@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useLanguage } from '@/context/LanguageContext';
 import Header from '@/components/layout/Header';
@@ -8,7 +8,22 @@ import Footer from '@/components/layout/Footer';
 import CartSidebar from '@/components/cart/CartSidebar';
 import { useQuery } from '@tanstack/react-query';
 import { db, Order } from '@/lib/db';
+import { createClient } from '@/lib/supabase/client';
 import { Clock, CheckCircle2, Truck, Check, ChevronRight, ShoppingBag, MapPin, User, Phone, Play } from 'lucide-react';
+import dynamic from 'next/dynamic';
+
+// Lazy-load LiveTrackingMap (Leaflet is browser-only)
+const LiveTrackingMap = dynamic(() => import('@/components/map/LiveTrackingMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[300px] w-full rounded-2xl bg-[#18181B] border border-card-border flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500" />
+        <p className="text-[10px] text-text-muted">Loading live map…</p>
+      </div>
+    </div>
+  ),
+});
 
 export default function OrderTrackingPage() {
   const { t, locale } = useLanguage();
@@ -18,11 +33,17 @@ export default function OrderTrackingPage() {
   const [lastStatus, setLastStatus] = useState<Order['status'] | null>(null);
   const [branches, setBranches] = useState<any[]>([]);
 
+  // Driver live location state
+  const [driverLat, setDriverLat] = useState<number | null>(null);
+  const [driverLng, setDriverLng] = useState<number | null>(null);
+
+  const supabase = createClient();
+
   useEffect(() => {
     db.getBranches().then(setBranches);
   }, []);
 
-  // Poll order status every 2 seconds to simulate real-time updates!
+  // Poll order status every 2 seconds
   const { data: order, isLoading } = useQuery<Order | undefined>({
     queryKey: ['order', orderId],
     queryFn: () => db.getOrderById(orderId),
@@ -31,22 +52,64 @@ export default function OrderTrackingPage() {
 
   const selectedBranch = order ? branches.find((b) => b.id === order.branchId) : null;
 
-  // Play audio alert when status changes!
+  // ---------------------------------------------------------------
+  // Subscribe to driver_locations in real-time via Supabase Realtime
+  // ---------------------------------------------------------------
+  useEffect(() => {
+    if (!order?.driverId || order.status !== 'ON_THE_WAY') return;
+
+    // Fetch current location first
+    const fetchLocation = async () => {
+      const { data, error } = await supabase
+        .from('driver_locations')
+        .select('lat, lng')
+        .eq('driver_id', order.driverId)
+        .single();
+      if (!error && data) {
+        setDriverLat(data.lat);
+        setDriverLng(data.lng);
+      }
+    };
+    fetchLocation();
+
+    // Subscribe to changes
+    const channel = supabase
+      .channel(`driver-location-${order.driverId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'driver_locations',
+          filter: `driver_id=eq.${order.driverId}`,
+        },
+        (payload: any) => {
+          if (payload.new) {
+            setDriverLat(payload.new.lat);
+            setDriverLng(payload.new.lng);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [order?.driverId, order?.status]);
+
+  // Audio alert on status change
   useEffect(() => {
     if (order) {
       if (lastStatus && lastStatus !== order.status) {
-        // Trigger a beep/sound notification
         try {
           const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
           const oscillator = audioContext.createOscillator();
           const gainNode = audioContext.createGain();
           oscillator.connect(gainNode);
           gainNode.connect(audioContext.destination);
-          
           oscillator.type = 'sine';
-          oscillator.frequency.setValueAtTime(587.33, audioContext.currentTime); // D5 note
+          oscillator.frequency.setValueAtTime(587.33, audioContext.currentTime);
           gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-          
           oscillator.start();
           oscillator.stop(audioContext.currentTime + 0.35);
         } catch (e) {
@@ -85,11 +148,6 @@ export default function OrderTrackingPage() {
     );
   }
 
-  // Map status to progress step index:
-  // 0: PENDING
-  // 1: PREPARING
-  // 2: ON_THE_WAY
-  // 3: DELIVERED
   const getStatusIndex = (status: Order['status']) => {
     switch (status) {
       case 'PENDING': return 0;
@@ -108,6 +166,13 @@ export default function OrderTrackingPage() {
     { label: t('statusShipped'), desc: locale === 'en' ? 'Driver is delivering your warm meal' : 'الطلب مع السائق في طريقه إليك', icon: Truck },
     { label: t('statusDelivered'), desc: locale === 'en' ? 'Enjoy your Dodz Fried Chicken!' : 'بالهناء والشفاء! نتمنى لك وجبة شهية', icon: Check },
   ];
+
+  // Show the live map when order is in delivery and has customer lat/lng
+  const showLiveMap =
+    order.type === 'DELIVERY' &&
+    order.lat !== undefined && order.lat !== null &&
+    order.lng !== undefined && order.lng !== null &&
+    (order.status === 'ON_THE_WAY' || order.status === 'PREPARING');
 
   return (
     <>
@@ -155,11 +220,9 @@ export default function OrderTrackingPage() {
               const Icon = step.icon;
               const isCompleted = idx < currentStep;
               const isActive = idx === currentStep;
-              const isPending = idx > currentStep;
 
               return (
                 <div key={idx} className="flex md:flex-col items-center gap-4 md:text-center md:flex-1 relative z-10 w-full">
-                  {/* Circle Pin Icon */}
                   <div
                     className={`h-12 w-12 rounded-full border-2 flex items-center justify-center transition-all ${
                       isCompleted
@@ -172,7 +235,6 @@ export default function OrderTrackingPage() {
                     <Icon className="h-5 w-5" />
                   </div>
 
-                  {/* Stage Titles */}
                   <div className="text-left md:text-center space-y-0.5">
                     <h3 className={`text-xs font-bold ${isActive ? 'text-primary-red' : isCompleted ? 'text-white' : 'text-text-muted'}`}>
                       {step.label}
@@ -187,10 +249,43 @@ export default function OrderTrackingPage() {
           </div>
         </div>
 
+        {/* ═══════════════════════════════════════════════════════
+            LIVE DRIVER TRACKING MAP  
+            Shows when order is on the way and has delivery coords
+        ═══════════════════════════════════════════════════════ */}
+        {showLiveMap && (
+          <div className="bg-card border border-card-border rounded-3xl p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase tracking-wider text-accent-amber flex items-center gap-2">
+                <Truck className="h-4 w-4" />
+                {locale === 'en' ? 'Live Driver Tracking' : 'تتبع السائق مباشرة'}
+              </h2>
+              {order.status === 'ON_THE_WAY' && (
+                <span className="flex items-center gap-1.5 text-[10px] text-green-400 font-bold bg-green-500/10 px-2 py-0.5 rounded-full border border-green-500/20">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+                  {locale === 'en' ? 'LIVE' : 'مباشر'}
+                </span>
+              )}
+            </div>
+            <LiveTrackingMap
+              customerLat={order.lat as number}
+              customerLng={order.lng as number}
+              branchLat={selectedBranch?.lat}
+              branchLng={selectedBranch?.lng}
+              branchName={locale === 'en' ? selectedBranch?.nameEn : selectedBranch?.nameAr}
+              driverLat={driverLat}
+              driverLng={driverLng}
+              driverName={order.driverName}
+              orderStatus={order.status}
+              locale={locale}
+            />
+          </div>
+        )}
+
         {/* Split grid for Details and Driver Profile Info */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           
-          {/* Driver details card (visible if delivery + driver assigned) */}
+          {/* Driver details card */}
           <div className="bg-card border border-card-border rounded-3xl p-6 space-y-4">
             <h2 className="text-sm font-bold uppercase tracking-wider text-accent-amber">{t('driverDetails')}</h2>
             
@@ -200,17 +295,19 @@ export default function OrderTrackingPage() {
                 <h3 className="text-xs font-bold text-white">{t('pickup')}</h3>
                 <p className="text-[10px] text-text-muted">
                   {locale === 'en'
-                    ? `Please visit our ${selectedBranch ? selectedBranch.nameEn : 'Tagamoa Branch'} to pick up your order once it is ready.`
-                    : `يرجى زيارة ${selectedBranch ? selectedBranch.nameAr : 'فرع التجمع'} لاستلام طلبك عندما يكون جاهزاً.`}
+                    ? `Please visit our ${selectedBranch ? selectedBranch.nameEn : 'Branch'} to pick up your order once it is ready.`
+                    : `يرجى زيارة ${selectedBranch ? selectedBranch.nameAr : 'الفرع'} لاستلام طلبك عندما يكون جاهزاً.`}
                 </p>
-                {selectedBranch && (
+                {selectedBranch && selectedBranch.mapUrl && (
                   <a
-                    href={selectedBranch.mapUrl}
+                    href={`https://www.openstreetmap.org/search?query=${encodeURIComponent(
+                      (locale === 'en' ? selectedBranch.nameEn : selectedBranch.nameAr) + ' Cairo'
+                    )}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-block mt-2 px-4 py-1.5 bg-accent-amber hover:bg-accent-amber-hover text-black text-[10px] font-black rounded-lg transition-all"
                   >
-                    📍 {locale === 'en' ? 'Get Directions on Google Maps' : 'اتجاهات خرائط جوجل'}
+                    📍 {locale === 'en' ? 'Get Directions on OpenStreetMap' : 'اتجاهات الخريطة'}
                   </a>
                 )}
               </div>
@@ -230,7 +327,7 @@ export default function OrderTrackingPage() {
               </div>
             ) : (
               <div className="p-4 rounded-2xl bg-card-border/20 text-center text-xs text-text-muted italic border border-dashed border-card-border">
-                {locale === 'en' ? 'Assigning a delivery driver to your order...' : 'جاري تعيين سائق لتوصيل طلبك...'}
+                {locale === 'en' ? 'Assigning a delivery driver to your order…' : 'جاري تعيين سائق لتوصيل طلبك...'}
               </div>
             )}
           </div>
