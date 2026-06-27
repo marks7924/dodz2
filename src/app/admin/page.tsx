@@ -2193,13 +2193,49 @@ export default function AdminDashboardPage() {
                   <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">{t('productCategory')}</label>
                   <select
                     value={editingProduct.categoryId || 'cat-1'}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, categoryId: e.target.value })}
+                    onChange={(e) => {
+                      const newCatId = e.target.value;
+                      const currentIds = editingProduct.categoryIds || [];
+                      const filteredIds = currentIds.filter((id) => id !== newCatId);
+                      setEditingProduct({ ...editingProduct, categoryId: newCatId, categoryIds: filteredIds });
+                    }}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>{locale === 'en' ? c.nameEn : c.nameAr}</option>
                     ))}
                   </select>
+                </div>
+
+                {/* Secondary Categories checkmarks */}
+                <div className="space-y-2 sm:col-span-2">
+                  <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                    {locale === 'en' ? 'Secondary Categories (Optional)' : 'تصنيفات إضافية (اختياري)'}
+                  </label>
+                  <div className="flex flex-wrap gap-3 bg-[#18181B] p-3 rounded-xl border border-card-border">
+                    {categories
+                      .filter((c) => c.id !== (editingProduct.categoryId || categories[0]?.id))
+                      .map((c) => {
+                        const isChecked = (editingProduct.categoryIds || []).includes(c.id);
+                        return (
+                          <label key={c.id} className="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                const currentIds = editingProduct.categoryIds || [];
+                                const newIds = e.target.checked
+                                  ? [...currentIds, c.id]
+                                  : currentIds.filter((id) => id !== c.id);
+                                setEditingProduct({ ...editingProduct, categoryIds: newIds });
+                              }}
+                              className="rounded border-card-border bg-card-border text-primary-red focus:ring-primary-red/50 focus:ring-offset-background"
+                            />
+                            <span>{locale === 'en' ? c.nameEn : c.nameAr}</span>
+                          </label>
+                        );
+                      })}
+                  </div>
                 </div>
 
                 {/* Branch Scope select */}

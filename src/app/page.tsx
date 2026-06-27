@@ -393,7 +393,9 @@ export default function Home() {
     });
   };
 
-  const activeProducts = activeCategory === 'all' ? products : products.filter((p) => p.categoryId === activeCategory);
+  const activeProducts = activeCategory === 'all'
+    ? products
+    : products.filter((p) => p.categoryId === activeCategory || p.categoryIds?.includes(activeCategory));
 
   return (
     <>

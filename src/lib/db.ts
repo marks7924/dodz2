@@ -41,6 +41,7 @@ export interface Product {
   priceDouble?: number;
   imageUrl: string;
   categoryId: string;
+  categoryIds?: string[];
   isAvailable: boolean;
   branchId?: string | null;
   customizationGroups?: CustomizationGroup[];
@@ -387,6 +388,7 @@ function mapProduct(p: any, branchId?: string | null): Product {
   return {
     id: p.id,
     categoryId: p.category_id,
+    categoryIds: p.category_ids || [],
     nameEn: p.name_en,
     nameAr: p.name_ar,
     descEn: p.desc_en,
@@ -599,7 +601,7 @@ export const db = {
       try {
         let query = getSupabase().from('menu_items').select('*, branch_menu_items(*), menu_item_customization_groups(*, customization_groups(*, customization_options(*)))');
         if (categoryId && isValidUuid(categoryId)) {
-          query = query.eq('category_id', categoryId);
+          query = query.or(`category_id.eq.${categoryId},category_ids.cs.{"${categoryId}"}`);
         }
         if (branchId && isValidUuid(branchId)) {
           query = query.or(`branch_id.is.null,branch_id.eq.${branchId}`);
@@ -613,7 +615,7 @@ export const db = {
       }
     }
     if (categoryId) {
-      return mockProducts.filter((p) => p.categoryId === categoryId);
+      return mockProducts.filter((p) => p.categoryId === categoryId || p.categoryIds?.includes(categoryId));
     }
     return mockProducts;
   },
@@ -642,6 +644,7 @@ export const db = {
           .from('menu_items')
           .insert({
             category_id: data.categoryId,
+            category_ids: data.categoryIds || [],
             name_en: data.nameEn,
             name_ar: data.nameAr,
             desc_en: data.descEn,
@@ -670,6 +673,7 @@ export const db = {
       try {
         const updateData: any = {};
         if (data.categoryId !== undefined) updateData.category_id = data.categoryId;
+        if (data.categoryIds !== undefined) updateData.category_ids = data.categoryIds;
         if (data.nameEn !== undefined) updateData.name_en = data.nameEn;
         if (data.nameAr !== undefined) updateData.name_ar = data.nameAr;
         if (data.descEn !== undefined) updateData.desc_en = data.descEn;
