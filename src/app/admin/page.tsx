@@ -413,15 +413,15 @@ export default function AdminDashboardPage() {
       }
 
       if (filterBranchId && filterBranchId !== 'ALL') {
-        if (isCustomPricing) {
-          await db.updateProductBranchOverride(prod.id, filterBranchId, {
-            priceSingle: prod.priceSingle,
-            priceDouble: prod.priceDouble !== undefined ? prod.priceDouble : null,
-            isAvailable: prod.isAvailable,
-          });
-        } else {
-          await db.deleteProductBranchOverride(prod.id, filterBranchId);
-        }
+        // Save global details first (so name/description/etc. are updated)
+        await db.updateProduct(prod.id, prod);
+        
+        // Save branch override
+        await db.updateProductBranchOverride(prod.id, filterBranchId, {
+          priceSingle: prod.priceSingle,
+          priceDouble: prod.priceDouble !== undefined ? prod.priceDouble : null,
+          isAvailable: prod.isAvailable !== undefined ? prod.isAvailable : true,
+        });
         return prod as Product;
       } else {
         return db.updateProduct(prod.id, prod);
@@ -1618,7 +1618,6 @@ export default function AdminDashboardPage() {
                     value={editingProduct.nameEn || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, nameEn: e.target.value })}
                     required
-                    disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   />
                 </div>
@@ -1629,7 +1628,6 @@ export default function AdminDashboardPage() {
                     value={editingProduct.nameAr || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, nameAr: e.target.value })}
                     required
-                    disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   />
                 </div>
@@ -1640,7 +1638,6 @@ export default function AdminDashboardPage() {
                   <select
                     value={editingProduct.categoryId || 'cat-1'}
                     onChange={(e) => setEditingProduct({ ...editingProduct, categoryId: e.target.value })}
-                    disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   >
                     {categories.map((c) => (
@@ -1657,7 +1654,6 @@ export default function AdminDashboardPage() {
                   <select
                     value={editingProduct.branchId || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, branchId: e.target.value || null })}
-                    disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   >
                     <option value="">{locale === 'en' ? 'All Branches (Global)' : 'جميع الفروع (عام)'}</option>
@@ -1675,7 +1671,6 @@ export default function AdminDashboardPage() {
                     onChange={(e) => setEditingProduct({ ...editingProduct, descEn: e.target.value })}
                     required
                     rows={2}
-                    disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors resize-none disabled:opacity-50"
                   />
                 </div>
@@ -1686,33 +1681,9 @@ export default function AdminDashboardPage() {
                     onChange={(e) => setEditingProduct({ ...editingProduct, descAr: e.target.value })}
                     required
                     rows={2}
-                    disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors resize-none disabled:opacity-50"
                   />
                 </div>
-
-                {/* Custom Branch Pricing Toggle */}
-                {filterBranchId !== 'ALL' && (
-                  <div className="sm:col-span-2 bg-[#18181B] border border-card-border p-4 rounded-2xl flex items-center justify-between">
-                    <div>
-                      <h4 className="text-xs font-bold text-white">
-                        {locale === 'en' ? 'Custom Pricing for this Branch' : 'سعر مخصص لهذا الفرع'}
-                      </h4>
-                      <p className="text-[10px] text-text-muted mt-0.5">
-                        {locale === 'en' ? 'Override global product pricing for this branch only.' : 'تعديل السعر العالمي لهذا الفرع فقط.'}
-                      </p>
-                    </div>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={isCustomPricing}
-                        onChange={(e) => setIsCustomPricing(e.target.checked)}
-                        className="sr-only peer"
-                      />
-                      <div className="w-9 h-5 bg-card-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-red"></div>
-                    </label>
-                  </div>
-                )}
 
                 {/* Prices */}
                 <div className="space-y-1">
@@ -1722,7 +1693,6 @@ export default function AdminDashboardPage() {
                     value={editingProduct.priceSingle || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, priceSingle: Number(e.target.value) })}
                     required
-                    disabled={filterBranchId !== 'ALL' && !isCustomPricing}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   />
                 </div>
@@ -1732,7 +1702,6 @@ export default function AdminDashboardPage() {
                     type="number"
                     value={editingProduct.priceDouble || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, priceDouble: e.target.value ? Number(e.target.value) : undefined })}
-                    disabled={filterBranchId !== 'ALL' && !isCustomPricing}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   />
                 </div>
@@ -1748,7 +1717,6 @@ export default function AdminDashboardPage() {
                       value={editingProduct.imageUrl || ''}
                       onChange={(e) => setEditingProduct({ ...editingProduct, imageUrl: e.target.value })}
                       placeholder="https://..."
-                      disabled={filterBranchId !== 'ALL' && !!editingProduct.id}
                       className="flex-1 text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                     />
                     <div className="relative">
@@ -1756,12 +1724,12 @@ export default function AdminDashboardPage() {
                         type="file"
                         accept="image/*"
                         onChange={handleImageUpload}
-                        disabled={isUploadingImage || (filterBranchId !== 'ALL' && !!editingProduct.id)}
+                        disabled={isUploadingImage}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                       />
                       <button
                         type="button"
-                        disabled={isUploadingImage || (filterBranchId !== 'ALL' && !!editingProduct.id)}
+                        disabled={isUploadingImage}
                         className="px-4 py-2.5 bg-card border border-card-border text-white text-xs font-bold rounded-xl whitespace-nowrap hover:bg-card-border transition-colors disabled:opacity-50"
                       >
                         {isUploadingImage ? '...' : (locale === 'en' ? 'Upload' : 'رفع ملف')}
