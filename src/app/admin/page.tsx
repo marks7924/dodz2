@@ -298,6 +298,46 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const [dragOverCatId, setDragOverCatId] = useState<string | null>(null);
+  const [dragOverProdId, setDragOverProdId] = useState<string | null>(null);
+
+  const handleReorderCategories = async (draggedId: string, targetId: string) => {
+    const dragIdx = adminCategories.findIndex((c: any) => c.id === draggedId);
+    const targetIdx = adminCategories.findIndex((c: any) => c.id === targetId);
+    if (dragIdx === -1 || targetIdx === -1 || dragIdx === targetIdx) return;
+
+    const updatedList = [...adminCategories];
+    const [removed] = updatedList.splice(dragIdx, 1);
+    updatedList.splice(targetIdx, 0, removed);
+
+    for (let i = 0; i < updatedList.length; i++) {
+      await supabase
+        .from('categories')
+        .update({ sort_order: i })
+        .eq('id', updatedList[i].id);
+    }
+    refetchCategories();
+    queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+  };
+
+  const handleReorderProducts = async (draggedId: string, targetId: string) => {
+    const dragIdx = products.findIndex((p) => p.id === draggedId);
+    const targetIdx = products.findIndex((p) => p.id === targetId);
+    if (dragIdx === -1 || targetIdx === -1 || dragIdx === targetIdx) return;
+
+    const updatedList = [...products];
+    const [removed] = updatedList.splice(dragIdx, 1);
+    updatedList.splice(targetIdx, 0, removed);
+
+    for (let i = 0; i < updatedList.length; i++) {
+      await supabase
+        .from('menu_items')
+        .update({ sort_order: i })
+        .eq('id', updatedList[i].id);
+    }
+    queryClient.invalidateQueries({ queryKey: ['admin-products'] });
+  };
+
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
 
   const { data: adminCategories = [], refetch: refetchCategories } = useQuery({
@@ -1534,8 +1574,38 @@ export default function AdminDashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-card-border/30">
                   {products.map((product) => (
-                    <tr key={product.id} className="hover:bg-card-border/20 transition-all">
+                    <tr 
+                      key={product.id} 
+                      draggable={true}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', product.id);
+                        e.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (dragOverProdId !== product.id) {
+                          setDragOverProdId(product.id);
+                        }
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverProdId === product.id) {
+                          setDragOverProdId(null);
+                        }
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverProdId(null);
+                        const draggedId = e.dataTransfer.getData('text/plain');
+                        handleReorderProducts(draggedId, product.id);
+                      }}
+                      className={`hover:bg-card-border/20 transition-all cursor-grab active:cursor-grabbing ${
+                        dragOverProdId === product.id 
+                          ? 'border-t-2 border-primary-red bg-primary-red/5' 
+                          : ''
+                      }`}
+                    >
                       <td className="p-4 flex items-center gap-3">
+                        <span className="text-text-muted select-none text-xs">☰</span>
                         <img src={product.imageUrl} alt={product.nameEn} className="h-10 w-10 rounded-lg object-cover bg-card-border flex-shrink-0" />
                         <div>
                           <span className="font-bold text-white block">{locale === 'en' ? product.nameEn : product.nameAr}</span>
@@ -1572,20 +1642,6 @@ export default function AdminDashboardPage() {
                             className="p-1.5 rounded bg-card border border-card-border text-text-muted hover:text-accent-amber transition-colors cursor-pointer"
                           >
                             <MapPin className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleMoveProduct(product.id, 'UP')}
-                            title={locale === 'en' ? 'Move Up' : 'نقل لأعلى'}
-                            className="p-1.5 rounded bg-card border border-card-border text-text-muted hover:text-white transition-colors cursor-pointer"
-                          >
-                            <ChevronUp className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            onClick={() => handleMoveProduct(product.id, 'DOWN')}
-                            title={locale === 'en' ? 'Move Down' : 'نقل لأسفل'}
-                            className="p-1.5 rounded bg-card border border-card-border text-text-muted hover:text-white transition-colors cursor-pointer"
-                          >
-                            <ChevronDown className="h-3.5 w-3.5" />
                           </button>
                           <button
                             onClick={() => handleOpenCustomizationMapping(product)}
@@ -1639,33 +1695,50 @@ export default function AdminDashboardPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {adminCategories.map((cat: any) => (
-                    <div key={cat.id} className="flex items-center justify-between bg-[#18181B] border border-card-border rounded-xl px-4 py-3">
+                    <div 
+                      key={cat.id} 
+                      draggable={true}
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', cat.id);
+                        e.dataTransfer.effectAllowed = 'move';
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (dragOverCatId !== cat.id) {
+                          setDragOverCatId(cat.id);
+                        }
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverCatId === cat.id) {
+                          setDragOverCatId(null);
+                        }
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverCatId(null);
+                        const draggedId = e.dataTransfer.getData('text/plain');
+                        handleReorderCategories(draggedId, cat.id);
+                      }}
+                      className={`flex items-center justify-between bg-[#18181B] border rounded-xl px-4 py-3 cursor-grab active:cursor-grabbing transition-all ${
+                        dragOverCatId === cat.id 
+                          ? 'border-primary-red bg-primary-red/5 scale-[1.02] shadow-lg shadow-primary-red/10' 
+                          : 'border-card-border hover:border-white/20'
+                      }`}
+                    >
                       <div>
-                        <p className="text-xs font-bold text-white">
-                          {cat.name_en} {cat.is_default && <span className="text-[8px] bg-green-500/10 border border-green-500/20 text-green-400 font-bold px-1.5 py-0.5 rounded ml-1.5 uppercase">Default</span>}
+                        <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <span className="text-text-muted select-none">☰</span>
+                          <span>{cat.name_en}</span>
+                          {cat.is_default && <span className="text-[8px] bg-green-500/10 border border-green-500/20 text-green-400 font-bold px-1.5 py-0.5 rounded uppercase">Default</span>}
                         </p>
-                        <p className="text-[10px] text-text-muted">{cat.name_ar}</p>
+                        <p className="text-[10px] text-text-muted pl-4">{cat.name_ar}</p>
                         {(cat.desc_en || cat.desc_ar) && (
-                          <p className="text-[9px] text-[#A1A1AA] italic mt-0.5 line-clamp-1">
+                          <p className="text-[9px] text-[#A1A1AA] italic mt-0.5 line-clamp-1 pl-4">
                             {locale === 'en' ? cat.desc_en : cat.desc_ar}
                           </p>
                         )}
                       </div>
                       <div className="flex gap-1.5">
-                        <button
-                          onClick={() => handleMoveCategory(cat.id, 'UP')}
-                          className="p-1.5 rounded-lg bg-card border border-card-border text-text-muted hover:text-white transition-colors cursor-pointer"
-                          title={locale === 'en' ? 'Move Up' : 'نقل لأعلى'}
-                        >
-                          <ChevronUp className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          onClick={() => handleMoveCategory(cat.id, 'DOWN')}
-                          className="p-1.5 rounded-lg bg-card border border-card-border text-text-muted hover:text-white transition-colors cursor-pointer"
-                          title={locale === 'en' ? 'Move Down' : 'نقل لأسفل'}
-                        >
-                          <ChevronDown className="h-3.5 w-3.5" />
-                        </button>
                         <button
                           onClick={() => setEditingCategory({
                             id: cat.id,
