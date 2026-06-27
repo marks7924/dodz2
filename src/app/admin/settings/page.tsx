@@ -23,7 +23,7 @@ export default function SettingsPage() {
       if (error) throw error;
       return data;
     },
-    enabled: isAuthenticated && ['OWNER', 'DEVELOPER'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role || ''),
   });
 
   const saveSettingMutation = useMutation({
@@ -53,7 +53,7 @@ export default function SettingsPage() {
     );
   }
 
-  const isAuthorized = isAuthenticated && ['OWNER', 'DEVELOPER'].includes(role || '');
+  const isAuthorized = isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role || '');
 
   if (!isAuthorized) {
     return (
@@ -67,8 +67,8 @@ export default function SettingsPage() {
             <h1 className="text-xl font-bold text-white">{locale === 'en' ? 'Access Denied' : 'غير مسموح بالدخول'}</h1>
             <p className="text-xs text-text-muted">
               {locale === 'en'
-                ? 'Only Restaurant Owners and Developers can configure system settings.'
-                : 'يسمح فقط لمالكي المطعم والمطورين بتهيئة إعدادات النظام.'}
+                ? 'Only Restaurant Owners, Head Admins, and Developers can configure system settings.'
+                : 'يسمح فقط لمالكي المطعم، المشرفين العامين، والمطورين بتهيئة إعدادات النظام.'}
             </p>
           </div>
         </main>
@@ -174,6 +174,29 @@ export default function SettingsPage() {
                         <option value="OPEN">OPEN / يعمل</option>
                         <option value="CLOSED">CLOSED / مغلق</option>
                       </select>
+                    </div>
+                  );
+                })()}
+
+                {/* Setting 4: Combo Discount Percentage */}
+                {(() => {
+                  const comboDiscountSetting = settings.find((s: any) => s.key === 'combo_discount_percentage') || { value: '25' };
+                  return (
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                        {locale === 'en' ? 'Combo Offer Discount (%)' : 'نسبة خصم عرض الكومبو (%)'}
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          id="setting-combo-discount"
+                          type="number"
+                          min="0"
+                          max="100"
+                          defaultValue={comboDiscountSetting.value}
+                          className="flex-grow text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                          onBlur={(e) => handleSave('combo_discount_percentage', e.target.value)}
+                        />
+                      </div>
                     </div>
                   );
                 })()}

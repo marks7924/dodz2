@@ -34,6 +34,7 @@ export default function AdminDashboardPage() {
   const [isEditingProduct, setIsEditingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isCustomPricing, setIsCustomPricing] = useState(false);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -98,8 +99,11 @@ export default function AdminDashboardPage() {
   });
 
   const { data: products = [] } = useQuery<Product[]>({
-    queryKey: ['admin-products'],
-    queryFn: () => db.getProducts(),
+    queryKey: ['admin-products', filterBranchId],
+    queryFn: () => db.getProducts(
+      undefined,
+      filterBranchId && filterBranchId !== 'ALL' ? filterBranchId : undefined
+    ),
     refetchInterval: 2000,
     enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
@@ -175,6 +179,15 @@ export default function AdminDashboardPage() {
   const [newCouponExpiry, setNewCouponExpiry] = useState('');
   const [newCouponBranchId, setNewCouponBranchId] = useState('');
 
+  const handleOpenAddCoupon = () => {
+    if (!hasGlobalAccess && userBranches.length > 0) {
+      setNewCouponBranchId(userBranches[0].id);
+    } else {
+      setNewCouponBranchId('');
+    }
+    setIsAddingCoupon(true);
+  };
+
   const { data: coupons = [] } = useQuery({
     queryKey: ['admin-coupons'],
     queryFn: () => db.getCoupons(),
@@ -202,6 +215,15 @@ export default function AdminDashboardPage() {
   const [newDiscountValue, setNewDiscountValue] = useState(0);
   const [newDiscountAppliesTo, setNewDiscountAppliesTo] = useState('ALL');
   const [newDiscountBranchId, setNewDiscountBranchId] = useState('');
+
+  const handleOpenAddDiscount = () => {
+    if (!hasGlobalAccess && userBranches.length > 0) {
+      setNewDiscountBranchId(userBranches[0].id);
+    } else {
+      setNewDiscountBranchId('');
+    }
+    setIsAddingDiscount(true);
+  };
 
   const { data: discounts = [] } = useQuery({
     queryKey: ['admin-discounts'],
@@ -247,8 +269,14 @@ export default function AdminDashboardPage() {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
 
   const { data: activeChats = [] } = useQuery({
-    queryKey: ['active-chats'],
-    queryFn: () => db.getActiveChats(['OWNER', 'HEAD_ADMIN', 'DEVELOPER', 'ADMIN'].includes(role || '')),
+    queryKey: ['active-chats', filterBranchId],
+    queryFn: async () => {
+      const chats = await db.getActiveChats(['OWNER', 'HEAD_ADMIN', 'DEVELOPER', 'ADMIN'].includes(role || ''));
+      if (filterBranchId && filterBranchId !== 'ALL') {
+        return chats.filter((c: any) => !c.branchId || c.branchId === filterBranchId);
+      }
+      return chats;
+    },
     refetchInterval: 2000,
     enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
   });
@@ -366,17 +394,37 @@ export default function AdminDashboardPage() {
   });
 
   const toggleAvailabilityMutation = useMutation({
-    mutationFn: (data: { productId: string; isAvailable: boolean }) =>
-      db.updateProduct(data.productId, { isAvailable: data.isAvailable }),
+    mutationFn: async (data: { productId: string; isAvailable: boolean }) => {
+      if (filterBranchId && filterBranchId !== 'ALL') {
+        return db.updateProductBranchOverride(data.productId, filterBranchId, {
+          isAvailable: data.isAvailable,
+        });
+      } else {
+        return db.updateProduct(data.productId, { isAvailable: data.isAvailable });
+      }
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin-products'] }),
   });
 
   const saveProductMutation = useMutation({
-    mutationFn: (prod: Partial<Product>) => {
-      if (prod.id) {
-        return db.updateProduct(prod.id, prod);
-      } else {
+    mutationFn: async (prod: Partial<Product>) => {
+      if (!prod.id) {
         return db.createProduct(prod as any);
+      }
+
+      if (filterBranchId && filterBranchId !== 'ALL') {
+        if (isCustomPricing) {
+          await db.updateProductBranchOverride(prod.id, filterBranchId, {
+            priceSingle: prod.priceSingle,
+            priceDouble: prod.priceDouble !== undefined ? prod.priceDouble : null,
+            isAvailable: prod.isAvailable,
+          });
+        } else {
+          await db.deleteProductBranchOverride(prod.id, filterBranchId);
+        }
+        return prod as Product;
+      } else {
+        return db.updateProduct(prod.id, prod);
       }
     },
     onSuccess: (_, variables) => {
@@ -441,6 +489,7 @@ export default function AdminDashboardPage() {
   const totalOrdersCount = filteredOrders.length;
 
   const handleOpenAddProduct = () => {
+    setIsCustomPricing(false);
     setEditingProduct({
       nameEn: '',
       nameAr: '',
@@ -454,8 +503,35 @@ export default function AdminDashboardPage() {
     setIsEditingProduct(true);
   };
 
-  const handleOpenEditProduct = (product: Product) => {
+  const handleOpenEditProduct = async (product: Product) => {
+    setIsCustomPricing(false);
     setEditingProduct({ ...product });
+
+    if (filterBranchId && filterBranchId !== 'ALL') {
+      try {
+        const { data, error } = await supabase
+          .from('menu_items')
+          .select('*, branch_menu_items(*)')
+          .eq('id', product.id)
+          .single();
+
+        if (!error && data) {
+          const override = data.branch_menu_items?.find((bmi: any) => bmi.branch_id === filterBranchId);
+          if (override) {
+            setIsCustomPricing(true);
+            setEditingProduct({
+              ...product,
+              priceSingle: override.price_single !== null && override.price_single !== undefined ? Number(override.price_single) : Number(data.price_single),
+              priceDouble: override.price_double !== null && override.price_double !== undefined ? Number(override.price_double) : (data.price_double ? Number(data.price_double) : undefined),
+              isAvailable: override.is_available !== null && override.is_available !== undefined ? override.is_available : data.is_available,
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching product overrides:', err);
+      }
+    }
+
     setIsEditingProduct(true);
   };
 
@@ -994,7 +1070,7 @@ export default function AdminDashboardPage() {
                 {locale === 'en' ? 'Coupons & Promotional Offers' : 'إدارة الكوبونات والعروض الترويجية'}
               </h2>
               <button
-                onClick={() => setIsAddingCoupon(true)}
+                onClick={handleOpenAddCoupon}
                 className="px-4 py-2 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="h-4.5 w-4.5" />
@@ -1073,14 +1149,17 @@ export default function AdminDashboardPage() {
                       <select
                         value={newCouponBranchId}
                         onChange={(e) => setNewCouponBranchId(e.target.value)}
-                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                        disabled={!hasGlobalAccess}
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 disabled:opacity-75"
                       >
-                        <option value="">All Branches (Global)</option>
-                        {branches.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {locale === 'en' ? b.nameEn : b.nameAr}
-                          </option>
-                        ))}
+                        {hasGlobalAccess && <option value="">All Branches (Global)</option>}
+                        {branches
+                          .filter((b) => hasGlobalAccess || userBranches.some((ub) => ub.id === b.id))
+                          .map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {locale === 'en' ? b.nameEn : b.nameAr}
+                            </option>
+                          ))}
                       </select>
                     </div>
 
@@ -1164,7 +1243,7 @@ export default function AdminDashboardPage() {
                 </p>
               </div>
               <button
-                onClick={() => setIsAddingDiscount(true)}
+                onClick={handleOpenAddDiscount}
                 className="px-4 py-2 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer"
               >
                 <Plus className="h-4.5 w-4.5" />
@@ -1248,14 +1327,17 @@ export default function AdminDashboardPage() {
                       <select
                         value={newDiscountBranchId}
                         onChange={(e) => setNewDiscountBranchId(e.target.value)}
-                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                        disabled={!hasGlobalAccess}
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 disabled:opacity-75"
                       >
-                        <option value="">All Branches (Global)</option>
-                        {branches.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {locale === 'en' ? b.nameEn : b.nameAr}
-                          </option>
-                        ))}
+                        {hasGlobalAccess && <option value="">All Branches (Global)</option>}
+                        {branches
+                          .filter((b) => hasGlobalAccess || userBranches.some((ub) => ub.id === b.id))
+                          .map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {locale === 'en' ? b.nameEn : b.nameAr}
+                            </option>
+                          ))}
                       </select>
                     </div>
                     <div className="space-y-1">
@@ -1536,7 +1618,8 @@ export default function AdminDashboardPage() {
                     value={editingProduct.nameEn || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, nameEn: e.target.value })}
                     required
-                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors"
+                    disabled={filterBranchId !== 'ALL'}
+                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   />
                 </div>
                 <div className="space-y-1">
@@ -1546,7 +1629,8 @@ export default function AdminDashboardPage() {
                     value={editingProduct.nameAr || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, nameAr: e.target.value })}
                     required
-                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors"
+                    disabled={filterBranchId !== 'ALL'}
+                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   />
                 </div>
 
@@ -1556,7 +1640,8 @@ export default function AdminDashboardPage() {
                   <select
                     value={editingProduct.categoryId || 'cat-1'}
                     onChange={(e) => setEditingProduct({ ...editingProduct, categoryId: e.target.value })}
-                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors"
+                    disabled={filterBranchId !== 'ALL'}
+                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   >
                     {categories.map((c) => (
                       <option key={c.id} value={c.id}>{locale === 'en' ? c.nameEn : c.nameAr}</option>
@@ -1572,7 +1657,8 @@ export default function AdminDashboardPage() {
                     onChange={(e) => setEditingProduct({ ...editingProduct, descEn: e.target.value })}
                     required
                     rows={2}
-                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors resize-none"
+                    disabled={filterBranchId !== 'ALL'}
+                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors resize-none disabled:opacity-50"
                   />
                 </div>
                 <div className="space-y-1 sm:col-span-2">
@@ -1582,9 +1668,33 @@ export default function AdminDashboardPage() {
                     onChange={(e) => setEditingProduct({ ...editingProduct, descAr: e.target.value })}
                     required
                     rows={2}
-                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors resize-none"
+                    disabled={filterBranchId !== 'ALL'}
+                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors resize-none disabled:opacity-50"
                   />
                 </div>
+
+                {/* Custom Branch Pricing Toggle */}
+                {filterBranchId !== 'ALL' && (
+                  <div className="sm:col-span-2 bg-[#18181B] border border-card-border p-4 rounded-2xl flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold text-white">
+                        {locale === 'en' ? 'Custom Pricing for this Branch' : 'سعر مخصص لهذا الفرع'}
+                      </h4>
+                      <p className="text-[10px] text-text-muted mt-0.5">
+                        {locale === 'en' ? 'Override global product pricing for this branch only.' : 'تعديل السعر العالمي لهذا الفرع فقط.'}
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isCustomPricing}
+                        onChange={(e) => setIsCustomPricing(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-9 h-5 bg-card-border peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary-red"></div>
+                    </label>
+                  </div>
+                )}
 
                 {/* Prices */}
                 <div className="space-y-1">
@@ -1594,7 +1704,8 @@ export default function AdminDashboardPage() {
                     value={editingProduct.priceSingle || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, priceSingle: Number(e.target.value) })}
                     required
-                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors"
+                    disabled={filterBranchId !== 'ALL' && !isCustomPricing}
+                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   />
                 </div>
                 <div className="space-y-1">
@@ -1603,7 +1714,8 @@ export default function AdminDashboardPage() {
                     type="number"
                     value={editingProduct.priceDouble || ''}
                     onChange={(e) => setEditingProduct({ ...editingProduct, priceDouble: e.target.value ? Number(e.target.value) : undefined })}
-                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors"
+                    disabled={filterBranchId !== 'ALL' && !isCustomPricing}
+                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                   />
                 </div>
 
@@ -1618,20 +1730,21 @@ export default function AdminDashboardPage() {
                       value={editingProduct.imageUrl || ''}
                       onChange={(e) => setEditingProduct({ ...editingProduct, imageUrl: e.target.value })}
                       placeholder="https://..."
-                      className="flex-1 text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors"
+                      disabled={filterBranchId !== 'ALL'}
+                      className="flex-1 text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                     />
                     <div className="relative">
                       <input
                         type="file"
                         accept="image/*"
                         onChange={handleImageUpload}
-                        disabled={isUploadingImage}
+                        disabled={isUploadingImage || filterBranchId !== 'ALL'}
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
                       />
                       <button
                         type="button"
-                        disabled={isUploadingImage}
-                        className="px-4 py-2.5 bg-card border border-card-border text-white text-xs font-bold rounded-xl whitespace-nowrap hover:bg-card-border transition-colors"
+                        disabled={isUploadingImage || filterBranchId !== 'ALL'}
+                        className="px-4 py-2.5 bg-card border border-card-border text-white text-xs font-bold rounded-xl whitespace-nowrap hover:bg-card-border transition-colors disabled:opacity-50"
                       >
                         {isUploadingImage ? '...' : (locale === 'en' ? 'Upload' : 'رفع ملف')}
                       </button>

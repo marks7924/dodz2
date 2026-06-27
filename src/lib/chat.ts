@@ -26,7 +26,7 @@ const supabase = createClient();
 /**
  * Gets the current open support chat session for a customer, or creates one if none exists.
  */
-export async function getOrCreateChatSession(customerId: string): Promise<string> {
+export async function getOrCreateChatSession(customerId: string, branchId?: string | null): Promise<string> {
   const { data: existingChat, error: findError } = await supabase
     .from('support_chats')
     .select('id, updated_at, status')
@@ -47,6 +47,7 @@ export async function getOrCreateChatSession(customerId: string): Promise<string
     .insert({
       customer_id: customerId,
       status: 'OPEN',
+      branch_id: branchId || null,
     })
     .select('id')
     .single();

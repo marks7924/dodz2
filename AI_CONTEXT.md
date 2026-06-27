@@ -101,7 +101,9 @@ supabase/
     ├── 001_schema.sql          # ✅ Core tables + indexes + enums
     ├── 002_rls.sql             # ✅ Row Level Security policies
     ├── 003_functions.sql       # ✅ DB triggers + functions
-    └── 004_seed.sql            # ✅ Initial data seed
+    ├── 004_seed.sql            # ✅ Initial data seed
+    ├── 013_fix_orders_rls_leak.sql # ✅ Fix legacy orders RLS leak
+    └── 014_branch_customizations.sql # ✅ Branch menu customization and chat isolation RLS
 middleware.ts                   # ✅ Route protection + session refresh
 AI_CONTEXT.md                   # ✅ This file
 ```
@@ -406,6 +408,8 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 | 2026-06-26 | 12 | New: 'All' category default selected on menu page | ✅ |
 | 2026-06-26 | 12 | New: ComboOfferModal.tsx — upsell combo when burger/chicken added | ✅ |
 | 2026-06-26 | 12 | New: Hero inline edit modal (OWNER/ADMIN) — pick product, edit prices, save | ✅ |
-| 2026-06-26 | 12 | Pending: HEAD_ADMIN SQL role + admin_branch_assignments table | ⏳ |
-| 2026-06-26 | 12 | Pending: Branch-separated order filtering in db.ts getOrders() | ⏳ |
-| 2026-06-26 | 12 | Pending: Discounts system (discounts table + UI in admin panel) | ⏳ |
+| 2026-06-27 | 12 | Fix: Created SQL migration 013 to drop legacy orders_select_staff RLS leak | ✅ |
+| 2026-06-27 | 14 | New: Branch menu item custom overrides junction table + UI form integration | ✅ |
+| 2026-06-27 | 14 | New: Isolated support chats by branch association | ✅ |
+| 2026-06-27 | 14 | New: Scoped coupon and discount creation restricted to assigned branch for branch admins | ✅ |
+| 2026-06-27 | 14 | New: Configurable combo offer discount percentage in settings | ✅ |

@@ -158,6 +158,22 @@ export default function Home() {
   const [pendingBranchId, setPendingBranchId] = useState<string | null>(null);
   const { items: cartItems } = useCartStore();
 
+  const supabase = createClient();
+
+  const { data: settings = [] } = useQuery<any[]>({
+    queryKey: ['restaurant-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('restaurant_settings')
+        .select('key, value');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const comboDiscountSetting = settings.find((s) => s.key === 'combo_discount_percentage');
+  const comboDiscount = comboDiscountSetting ? Number(comboDiscountSetting.value) : 25;
+
   useEffect(() => {
     if (profile) {
       setIsAdmin(['STAFF', 'OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(profile.role));
@@ -181,12 +197,12 @@ export default function Home() {
   useEffect(() => {
     if (chatOpen && isAuthenticated && user) {
       import('@/lib/chat').then(({ getOrCreateChatSession }) => {
-        getOrCreateChatSession(user.id)
+        getOrCreateChatSession(user.id, selectedBranchId)
           .then((sid) => setChatSessionId(sid))
           .catch((err) => console.error('Error fetching chat session:', err));
       });
     }
-  }, [chatOpen, isAuthenticated, user]);
+  }, [chatOpen, isAuthenticated, user, selectedBranchId]);
 
   // Query message history
   const { data: chatMessages = [] } = useQuery<any[]>({
@@ -257,8 +273,8 @@ export default function Home() {
   });
 
   const { data: products = [] } = useQuery<Product[]>({
-    queryKey: ['products'],
-    queryFn: () => db.getProducts(),
+    queryKey: ['products', selectedBranchId],
+    queryFn: () => db.getProducts(undefined, selectedBranchId || undefined),
   });
 
   const { data: activeDiscounts = [] } = useQuery({
@@ -660,7 +676,7 @@ export default function Home() {
                       <div className="flex items-center justify-between gap-4 pt-4">
                         <div className="text-right">
                           {hasDiscount && <div className="text-[10px] line-through opacity-50">{product.priceSingle} {t('egp')}</div>}
-                          <span className={`font-black text-sm ${hasDiscount ? 'text-pink-400' : 'text-accent-amber'}`}>
+                          <span className={`font-black text-sm ${hasDiscount ? 'text-primary-red' : 'text-accent-amber'}`}>
                             {displayPriceSingle} {t('egp')}
                           </span>
                         </div>
@@ -977,7 +993,7 @@ export default function Home() {
         const comboItems = [fries, drink].filter(Boolean) as typeof products;
         if (comboItems.length === 0) { setComboModal(null); return null; }
         const originalPrice = comboItems.reduce((s, i) => s + i.priceSingle, 0);
-        const comboPrice = Math.round(originalPrice * 0.75);
+        const comboPrice = Math.round(originalPrice * ((100 - comboDiscount) / 100));
         return (
           <ComboOfferModal
             triggerItemName={locale === 'en' ? comboModal.product.nameEn : comboModal.product.nameAr}

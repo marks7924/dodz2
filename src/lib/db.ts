@@ -308,7 +308,28 @@ function mapCategory(c: any): Category {
   return { id: c.id, nameEn: c.name_en, nameAr: c.name_ar };
 }
 
-function mapProduct(p: any): Product {
+function mapProduct(p: any, branchId?: string | null): Product {
+  let priceSingle = Number(p.price_single);
+  let priceDouble = p.price_double ? Number(p.price_double) : undefined;
+  let isAvailable = p.is_available;
+
+  if (branchId && Array.isArray(p.branch_menu_items)) {
+    const override = p.branch_menu_items.find((bmi: any) => bmi.branch_id === branchId);
+    if (override) {
+      if (override.price_single !== null && override.price_single !== undefined) {
+        priceSingle = Number(override.price_single);
+      }
+      if (override.price_double !== null && override.price_double !== undefined) {
+        priceDouble = Number(override.price_double);
+      } else if (override.price_double === null) {
+        priceDouble = undefined;
+      }
+      if (override.is_available !== null && override.is_available !== undefined) {
+        isAvailable = override.is_available;
+      }
+    }
+  }
+
   return {
     id: p.id,
     categoryId: p.category_id,
@@ -316,10 +337,10 @@ function mapProduct(p: any): Product {
     nameAr: p.name_ar,
     descEn: p.desc_en,
     descAr: p.desc_ar,
-    priceSingle: Number(p.price_single),
-    priceDouble: p.price_double ? Number(p.price_double) : undefined,
+    priceSingle,
+    priceDouble,
     imageUrl: p.image_url,
-    isAvailable: p.is_available,
+    isAvailable,
   };
 }
 
@@ -503,15 +524,17 @@ export const db = {
   },
 
   // PRODUCTS (MENU ITEMS)
-  async getProducts(categoryId?: string): Promise<Product[]> {
+  async getProducts(categoryId?: string, branchId?: string): Promise<Product[]> {
     if (isSupabaseConfigured()) {
       try {
-        let query = getSupabase().from('menu_items').select('*').eq('is_available', true);
+        let query = getSupabase().from('menu_items').select('*, branch_menu_items(*)');
         if (categoryId && isValidUuid(categoryId)) {
           query = query.eq('category_id', categoryId);
         }
         const { data, error } = await query;
-        if (!error && data) return data.map(mapProduct);
+        if (!error && data) {
+          return data.map((p: any) => mapProduct(p, branchId));
+        }
       } catch (err) {
         console.error('getProducts Supabase error, falling back to mock:', err);
       }
@@ -522,16 +545,16 @@ export const db = {
     return mockProducts;
   },
 
-  async getProductById(id: string): Promise<Product | undefined> {
+  async getProductById(id: string, branchId?: string): Promise<Product | undefined> {
     if (isSupabaseConfigured() && isValidUuid(id)) {
       try {
         const { data, error } = await getSupabase()
           .from('menu_items')
-          .select('*')
+          .select('*, branch_menu_items(*)')
           .eq('id', id)
           .single();
 
-        if (!error && data) return mapProduct(data);
+        if (!error && data) return mapProduct(data, branchId);
       } catch (err) {
         console.error('getProductById Supabase error:', err);
       }
@@ -598,6 +621,53 @@ export const db = {
     if (idx === -1) throw new Error('Product not found');
     mockProducts[idx] = { ...mockProducts[idx], ...data };
     return mockProducts[idx];
+  },
+
+  async updateProductBranchOverride(
+    productId: string,
+    branchId: string,
+    data: {
+      priceSingle?: number;
+      priceDouble?: number | null;
+      isAvailable?: boolean;
+    }
+  ): Promise<void> {
+    if (isSupabaseConfigured() && isValidUuid(productId) && isValidUuid(branchId)) {
+      try {
+        const { error } = await getSupabase()
+          .from('branch_menu_items')
+          .upsert({
+            branch_id: branchId,
+            menu_item_id: productId,
+            price_single: data.priceSingle !== undefined ? data.priceSingle : null,
+            price_double: data.priceDouble !== undefined ? data.priceDouble : null,
+            is_available: data.isAvailable !== undefined ? data.isAvailable : null,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: 'branch_id,menu_item_id' });
+
+        if (error) throw error;
+      } catch (err) {
+        console.error('updateProductBranchOverride error:', err);
+        throw err;
+      }
+    }
+  },
+
+  async deleteProductBranchOverride(productId: string, branchId: string): Promise<void> {
+    if (isSupabaseConfigured() && isValidUuid(productId) && isValidUuid(branchId)) {
+      try {
+        const { error } = await getSupabase()
+          .from('branch_menu_items')
+          .delete()
+          .eq('branch_id', branchId)
+          .eq('menu_item_id', productId);
+
+        if (error) throw error;
+      } catch (err) {
+        console.error('deleteProductBranchOverride error:', err);
+        throw err;
+      }
+    }
   },
 
   async deleteProduct(id: string): Promise<boolean> {
@@ -1133,7 +1203,7 @@ export const db = {
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   },
 
-  async getActiveChats(includeClosed: boolean = false): Promise<{ chatId?: string; status?: string; userId: string; userName: string; lastMessage: string; updatedAt: string }[]> {
+  async getActiveChats(includeClosed: boolean = false): Promise<{ chatId?: string; status?: string; userId: string; userName: string; lastMessage: string; updatedAt: string; branchId?: string }[]> {
     if (isSupabaseConfigured()) {
       try {
         let query = getSupabase()
@@ -1143,6 +1213,7 @@ export const db = {
             status,
             customer_id,
             updated_at,
+            branch_id,
             profiles!support_chats_customer_id_fkey(full_name),
             support_messages(content, created_at)
           `);
@@ -1165,6 +1236,7 @@ export const db = {
               userName: chat.profiles?.full_name || 'Customer',
               lastMessage: lastMsg,
               updatedAt: chat.updated_at,
+              branchId: chat.branch_id || undefined,
             };
           });
         }
