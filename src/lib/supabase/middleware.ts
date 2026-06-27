@@ -75,13 +75,6 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  if (url.pathname.startsWith('/checkout')) {
-    if (!user) {
-      url.pathname = '/auth/login';
-      url.searchParams.set('next', '/checkout');
-      return NextResponse.redirect(url);
-    }
-  }
 
   return supabaseResponse;
 }

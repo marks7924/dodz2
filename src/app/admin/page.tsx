@@ -7,7 +7,7 @@ import Footer from '@/components/layout/Footer';
 import CartSidebar from '@/components/cart/CartSidebar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, Order, Product, Category } from '@/lib/db';
-import { Plus, Edit2, Trash2, ShieldAlert, Bell, DollarSign, ListOrdered, Check, AlertTriangle, EyeOff, RotateCcw, Tag, X, Activity } from 'lucide-react';
+import { Plus, Edit2, Trash2, ShieldAlert, Bell, DollarSign, ListOrdered, Check, AlertTriangle, EyeOff, RotateCcw, Tag, X, Activity, MapPin, Sliders } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useBranch } from '@/context/BranchContext';
 import Link from 'next/link';
@@ -37,6 +37,25 @@ export default function AdminDashboardPage() {
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isCustomPricing, setIsCustomPricing] = useState(false);
+
+  // Branch Overrides Modal state
+  const [branchOverrideProduct, setBranchOverrideProduct] = useState<Product | null>(null);
+  const [branchOverrides, setBranchOverrides] = useState<{ branch_id: string; price_single: string; price_double: string; is_available: boolean }[]>([]);
+  const [isSavingOverrides, setIsSavingOverrides] = useState(false);
+
+  // Customizations Mapping Modal state
+  const [customizationMappingProduct, setCustomizationMappingProduct] = useState<Product | null>(null);
+  const [customizationGroupsList, setCustomizationGroupsList] = useState<any[]>([]);
+  const [assignedCustomizationGroupIds, setAssignedCustomizationGroupIds] = useState<string[]>([]);
+  const [isSavingCustomizations, setIsSavingCustomizations] = useState(false);
+
+  // Customization group management inside the customization modal
+  const [showAddGroupForm, setShowAddGroupForm] = useState(false);
+  const [newGroupNameEn, setNewGroupNameEn] = useState('');
+  const [newGroupNameAr, setNewGroupNameAr] = useState('');
+  const [newGroupMin, setNewGroupMin] = useState('0');
+  const [newGroupMax, setNewGroupMax] = useState('1');
+  const [newGroupOptionsText, setNewGroupOptionsText] = useState(''); // e.g. "Add Cheese: 15 / إضافة جبنة: 15"
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -569,6 +588,204 @@ export default function AdminDashboardPage() {
   const totalRevenue = filteredOrders.filter((o) => o.status === 'DELIVERED').reduce((acc, o) => acc + o.total, 0);
   const totalOrdersCount = filteredOrders.length;
 
+  const handleOpenBranchOverrides = async (product: Product) => {
+    setBranchOverrideProduct(product);
+    setBranchOverrides([]);
+    try {
+      const { data, error } = await supabase
+        .from('branch_menu_items')
+        .select('*')
+        .eq('menu_item_id', product.id);
+      if (!error && data) {
+        setBranchOverrides(
+          allBranches.map((branch) => {
+            const match = data.find((bmi: any) => bmi.branch_id === branch.id);
+            return {
+              branch_id: branch.id,
+              price_single: match && match.price_single !== null ? String(match.price_single) : '',
+              price_double: match && match.price_double !== null ? String(match.price_double) : '',
+              is_available: match && match.is_available !== null ? match.is_available : true,
+            };
+          })
+        );
+      } else {
+        setBranchOverrides(
+          allBranches.map((branch) => ({
+            branch_id: branch.id,
+            price_single: '',
+            price_double: '',
+            is_available: true,
+          }))
+        );
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSaveBranchOverrides = async () => {
+    if (!branchOverrideProduct) return;
+    setIsSavingOverrides(true);
+    try {
+      for (const override of branchOverrides) {
+        if (override.price_single.trim()) {
+          const { error } = await supabase.from('branch_menu_items').upsert({
+            branch_id: override.branch_id,
+            menu_item_id: branchOverrideProduct.id,
+            price_single: parseFloat(override.price_single),
+            price_double: override.price_double.trim() ? parseFloat(override.price_double) : null,
+            is_available: override.is_available,
+          });
+          if (error) throw error;
+        } else {
+          await supabase
+            .from('branch_menu_items')
+            .delete()
+            .eq('branch_id', override.branch_id)
+            .eq('menu_item_id', branchOverrideProduct.id);
+        }
+      }
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      setBranchOverrideProduct(null);
+    } catch (e: any) {
+      alert('Save overrides failed: ' + e.message);
+    } finally {
+      setIsSavingOverrides(false);
+    }
+  };
+
+  const handleOpenCustomizationMapping = async (product: Product) => {
+    setCustomizationMappingProduct(product);
+    setIsSavingCustomizations(false);
+    setShowAddGroupForm(false);
+    setNewGroupNameEn('');
+    setNewGroupNameAr('');
+    setNewGroupMin('0');
+    setNewGroupMax('1');
+    setNewGroupOptionsText('');
+    await fetchCustomizationsData(product.id);
+  };
+
+  const fetchCustomizationsData = async (productId: string) => {
+    try {
+      const { data: groups, error: err1 } = await supabase
+        .from('customization_groups')
+        .select('*, customization_options(*)');
+      if (grpErrCheck(err1)) throw err1;
+      setCustomizationGroupsList(groups || []);
+
+      const { data: mappings, error: err2 } = await supabase
+        .from('menu_item_customization_groups')
+        .select('group_id')
+        .eq('menu_item_id', productId);
+      if (err2) throw err2;
+      setAssignedCustomizationGroupIds(mappings ? mappings.map((m: any) => m.group_id) : []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const grpErrCheck = (err: any) => {
+    return !!err;
+  };
+
+  const handleSaveCustomizationsMapping = async () => {
+    if (!customizationMappingProduct) return;
+    setIsSavingCustomizations(true);
+    try {
+      const { error: delErr } = await supabase
+        .from('menu_item_customization_groups')
+        .delete()
+        .eq('menu_item_id', customizationMappingProduct.id);
+      if (delErr) throw delErr;
+
+      if (assignedCustomizationGroupIds.length > 0) {
+        const rows = assignedCustomizationGroupIds.map((groupId) => ({
+          menu_item_id: customizationMappingProduct.id,
+          group_id: groupId,
+        }));
+        const { error: insErr } = await supabase
+          .from('menu_item_customization_groups')
+          .insert(rows);
+        if (insErr) throw insErr;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      setCustomizationMappingProduct(null);
+    } catch (e: any) {
+      alert('Save failed: ' + e.message);
+    } finally {
+      setIsSavingCustomizations(false);
+    }
+  };
+
+  const handleCreateCustomizationGroup = async () => {
+    if (!newGroupNameEn.trim() || !newGroupNameAr.trim()) {
+      alert('Please fill out name in English and Arabic');
+      return;
+    }
+    try {
+      const { data: group, error: grpErr } = await supabase
+        .from('customization_groups')
+        .insert({
+          name_en: newGroupNameEn.trim(),
+          name_ar: newGroupNameAr.trim(),
+          min_selected: parseInt(newGroupMin) || 0,
+          max_selected: parseInt(newGroupMax) || 1,
+        })
+        .select()
+        .single();
+      if (grpErr) throw grpErr;
+
+      const optBlocks = newGroupOptionsText.split(',');
+      const rows = [];
+      for (const block of optBlocks) {
+        if (!block.trim()) continue;
+        const parts = block.split('/');
+        const partEn = parts[0] || '';
+        const partAr = parts[1] || parts[0] || '';
+
+        const getParts = (str: string) => {
+          const colonIdx = str.lastIndexOf(':');
+          if (colonIdx === -1) return { name: str.trim(), price: 0 };
+          const name = str.substring(0, colonIdx).trim();
+          const price = parseFloat(str.substring(colonIdx + 1).trim()) || 0;
+          return { name, price };
+        };
+
+        const detailsEn = getParts(partEn);
+        const detailsAr = getParts(partAr);
+
+        rows.push({
+          group_id: group.id,
+          name_en: detailsEn.name || 'Option',
+          name_ar: detailsAr.name || 'خيار',
+          price: detailsEn.price,
+        });
+      }
+
+      if (rows.length > 0) {
+        const { error: optErr } = await supabase
+          .from('customization_options')
+          .insert(rows);
+        if (optErr) throw optErr;
+      }
+
+      if (customizationMappingProduct) {
+        await fetchCustomizationsData(customizationMappingProduct.id);
+      }
+
+      setShowAddGroupForm(false);
+      setNewGroupNameEn('');
+      setNewGroupNameAr('');
+      setNewGroupMin('0');
+      setNewGroupMax('1');
+      setNewGroupOptionsText('');
+    } catch (e: any) {
+      alert('Create customization group failed: ' + e.message);
+    }
+  };
+
   const handleOpenAddProduct = () => {
     setIsCustomPricing(false);
     setEditingProduct({
@@ -1090,10 +1307,11 @@ export default function AdminDashboardPage() {
                         </div>
                       </td>
                       <td className="p-4 font-medium text-text-muted">
-                        {product.categoryId === 'cat-1' && t('beefBurgers')}
-                        {product.categoryId === 'cat-2' && t('friedChicken')}
-                        {product.categoryId === 'cat-3' && t('sidesAppetizers')}
-                        {product.categoryId === 'cat-4' && t('drinks')}
+                        {categories.find((c: any) => c.id === product.categoryId)
+                          ? (locale === 'en'
+                              ? categories.find((c: any) => c.id === product.categoryId)?.nameEn
+                              : categories.find((c: any) => c.id === product.categoryId)?.nameAr)
+                          : '—'}
                       </td>
                       <td className="p-4 font-mono font-bold text-accent-amber">
                         {product.priceSingle} EGP {product.priceDouble ? `/ ${product.priceDouble} EGP` : ''}
@@ -1112,6 +1330,20 @@ export default function AdminDashboardPage() {
                       </td>
                       <td className="p-4">
                         <div className="flex items-center justify-center gap-2">
+                          <button
+                            onClick={() => handleOpenBranchOverrides(product)}
+                            title={locale === 'en' ? 'Branch Pricing Overrides' : 'أسعار الفروع'}
+                            className="p-1.5 rounded bg-card border border-card-border text-text-muted hover:text-accent-amber transition-colors cursor-pointer"
+                          >
+                            <MapPin className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleOpenCustomizationMapping(product)}
+                            title={locale === 'en' ? 'Customization Options' : 'خيارات التخصيص'}
+                            className="p-1.5 rounded bg-card border border-card-border text-text-muted hover:text-indigo-400 transition-colors cursor-pointer"
+                          >
+                            <Sliders className="h-3.5 w-3.5" />
+                          </button>
                           <button
                             onClick={() => handleOpenEditProduct(product)}
                             className="p-1.5 rounded bg-card border border-card-border text-text-muted hover:text-white transition-colors"
@@ -2009,6 +2241,260 @@ export default function AdminDashboardPage() {
           )}
         </div>
       </nav>
+
+        {branchOverrideProduct && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onClick={() => setBranchOverrideProduct(null)} />
+            <div className="relative w-full max-w-lg bg-card border border-card-border rounded-3xl p-6 shadow-2xl z-10 max-h-[85vh] overflow-y-auto animate-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between pb-2 border-b border-card-border/50">
+                <div>
+                  <h3 className="text-base font-extrabold text-white">
+                    {locale === 'en' ? 'Branch Pricing Overrides' : 'تعديل أسعار الفروع'}
+                  </h3>
+                  <p className="text-[11px] text-text-muted mt-0.5">
+                    {locale === 'en' ? `Product: ${branchOverrideProduct.nameEn}` : `المنتج: ${branchOverrideProduct.nameAr}`}
+                  </p>
+                </div>
+                <button onClick={() => setBranchOverrideProduct(null)} className="p-1.5 rounded-lg hover:bg-card-border text-text-muted hover:text-white cursor-pointer"><X className="h-4 w-4" /></button>
+              </div>
+
+              <div className="space-y-4">
+                {branchOverrides.map((override, index) => {
+                  const branchObj = allBranches.find(b => b.id === override.branch_id);
+                  const branchName = branchObj ? (locale === 'en' ? branchObj.nameEn : branchObj.nameAr) : 'Branch';
+
+                  return (
+                    <div key={override.branch_id} className="p-4 bg-[#18181B] border border-card-border rounded-2xl space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-accent-amber">{branchName}</span>
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] text-text-muted font-bold uppercase tracking-wider">{locale === 'en' ? 'Available' : 'متاح'}</label>
+                          <input
+                            type="checkbox"
+                            checked={override.is_available}
+                            onChange={(e) => {
+                              const updated = [...branchOverrides];
+                              updated[index].is_available = e.target.checked;
+                              setBranchOverrides(updated);
+                            }}
+                            className="rounded bg-card border-card-border text-primary-red focus:ring-primary-red/50"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">
+                            {locale === 'en' ? 'Single Price Override (EGP)' : 'سعر السنجل'}
+                          </label>
+                          <input
+                            type="number"
+                            placeholder={`Base: ${branchOverrideProduct.priceSingle}`}
+                            value={override.price_single}
+                            onChange={(e) => {
+                              const updated = [...branchOverrides];
+                              updated[index].price_single = e.target.value;
+                              setBranchOverrides(updated);
+                            }}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-primary-red/50"
+                          />
+                        </div>
+                        {branchOverrideProduct.priceDouble !== undefined && (
+                          <div className="space-y-1">
+                            <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">
+                              {locale === 'en' ? 'Double Price Override (EGP)' : 'سعر الدبل'}
+                            </label>
+                            <input
+                              type="number"
+                              placeholder={`Base: ${branchOverrideProduct.priceDouble}`}
+                              value={override.price_double}
+                              onChange={(e) => {
+                                const updated = [...branchOverrides];
+                                updated[index].price_double = e.target.value;
+                                setBranchOverrides(updated);
+                              }}
+                              className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-primary-red/50"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setBranchOverrideProduct(null)}
+                  className="flex-1 py-3 bg-card border border-card-border hover:bg-white/5 text-white text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
+                >
+                  {locale === 'en' ? 'Cancel' : 'إلغاء'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingOverrides}
+                  onClick={handleSaveBranchOverrides}
+                  className="flex-1 py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isSavingOverrides ? '...' : (locale === 'en' ? 'Save Overrides' : 'حفظ التغييرات')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {customizationMappingProduct && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onClick={() => setCustomizationMappingProduct(null)} />
+            <div className="relative w-full max-w-lg bg-card border border-card-border rounded-3xl p-6 shadow-2xl z-10 max-h-[85vh] flex flex-col animate-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between pb-2 border-b border-card-border/50">
+                <div>
+                  <h3 className="text-base font-extrabold text-white">
+                    {locale === 'en' ? 'Configure Customizations' : 'تهيئة خيارات التخصيص'}
+                  </h3>
+                  <p className="text-[11px] text-text-muted mt-0.5">
+                    {locale === 'en' ? `Product: ${customizationMappingProduct.nameEn}` : `المنتج: ${customizationMappingProduct.nameAr}`}
+                  </p>
+                </div>
+                <button onClick={() => setCustomizationMappingProduct(null)} className="p-1.5 rounded-lg hover:bg-card-border text-text-muted hover:text-white cursor-pointer"><X className="h-4 w-4" /></button>
+              </div>
+
+              {/* Scrollable list area */}
+              <div className="flex-1 overflow-y-auto py-2 space-y-4 pr-1 scrollbar-thin">
+                {/* Add New Customization Group Button/Form */}
+                <div className="bg-[#18181B] border border-card-border rounded-2xl p-4 space-y-3">
+                  {!showAddGroupForm ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddGroupForm(true)}
+                      className="w-full py-2 bg-[#131316] hover:bg-card-border text-indigo-400 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 border border-indigo-500/20"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>{locale === 'en' ? 'Create Customization Group' : 'إنشاء مجموعة خيارات جديدة'}</span>
+                    </button>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs font-bold text-indigo-400">{locale === 'en' ? 'New Customization Group' : 'مجموعة خيارات جديدة'}</span>
+                        <button type="button" onClick={() => setShowAddGroupForm(false)} className="text-[10px] text-text-muted hover:text-white">{locale === 'en' ? 'Cancel' : 'إلغاء'}</button>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Group Name (En)</label>
+                          <input type="text" placeholder="e.g. Cheese Options" value={newGroupNameEn} onChange={(e) => setNewGroupNameEn(e.target.value)}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500/50" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Group Name (Ar)</label>
+                          <input type="text" placeholder="مثال: خيارات الجبن" value={newGroupNameAr} onChange={(e) => setNewGroupNameAr(e.target.value)}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500/50" />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Min Selections</label>
+                          <input type="number" min="0" value={newGroupMin} onChange={(e) => setNewGroupMin(e.target.value)}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500/50" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Max Selections</label>
+                          <input type="number" min="1" value={newGroupMax} onChange={(e) => setNewGroupMax(e.target.value)}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500/50" />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Options list (Comma-separated)</label>
+                        <textarea
+                          placeholder="e.g. Add Cheese: 15 / إضافة جبنة: 15, Remove Cheese: 0 / إزالة جبنة: 0"
+                          value={newGroupOptionsText}
+                          onChange={(e) => setNewGroupOptionsText(e.target.value)}
+                          rows={2}
+                          className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500/50 placeholder:text-text-muted"
+                        />
+                        <span className="text-[8px] text-text-muted leading-tight block">Format: Option En: Price / Option Ar: Price, ...</span>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleCreateCustomizationGroup}
+                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+                      >
+                        {locale === 'en' ? 'Add Group' : 'إضافة المجموعة'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* List of groups to assign */}
+                <div className="space-y-2">
+                  <h4 className="text-[10px] text-text-muted font-bold uppercase tracking-wider">{locale === 'en' ? 'Available Groups' : 'مجموعات الخيارات المتاحة'}</h4>
+                  {customizationGroupsList.length === 0 ? (
+                    <p className="text-xs text-text-muted italic">{locale === 'en' ? 'No customization groups found.' : 'لا توجد مجموعات خيارات بعد.'}</p>
+                  ) : (
+                    customizationGroupsList.map((group) => {
+                      const isAssigned = assignedCustomizationGroupIds.includes(group.id);
+
+                      const handleCheckboxToggle = () => {
+                        if (isAssigned) {
+                          setAssignedCustomizationGroupIds(assignedCustomizationGroupIds.filter(id => id !== group.id));
+                        } else {
+                          setAssignedCustomizationGroupIds([...assignedCustomizationGroupIds, group.id]);
+                        }
+                      };
+
+                      return (
+                        <div
+                          key={group.id}
+                          onClick={handleCheckboxToggle}
+                          className={`flex items-center justify-between p-3.5 rounded-2xl border text-xs font-bold transition-all cursor-pointer ${
+                            isAssigned
+                              ? 'bg-indigo-500/10 border-indigo-500 text-white'
+                              : 'bg-card border-card-border hover:border-card-border-hover text-text-muted'
+                          }`}
+                        >
+                          <div className="space-y-0.5">
+                            <span className="text-white block">{locale === 'en' ? group.nameEn : group.nameAr}</span>
+                            <span className="text-[10px] text-text-muted block font-mono font-medium">
+                              {group.customization_options?.map((o: any) => locale === 'en' ? o.name_en : o.name_ar).join(' • ') || 'No options'}
+                            </span>
+                          </div>
+                          <div className={`h-4.5 w-4.5 rounded flex items-center justify-center border ${
+                            isAssigned ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-card-border bg-card-border'
+                          }`}>
+                            {isAssigned && <Check className="h-3 w-3 stroke-[3]" />}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Modal actions */}
+              <div className="flex gap-3 pt-4 border-t border-card-border/50">
+                <button
+                  type="button"
+                  onClick={() => setCustomizationMappingProduct(null)}
+                  className="flex-1 py-3 bg-card border border-card-border hover:bg-white/5 text-white text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
+                >
+                  {locale === 'en' ? 'Cancel' : 'إلغاء'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingCustomizations}
+                  onClick={handleSaveCustomizationsMapping}
+                  className="flex-1 py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isSavingCustomizations ? '...' : (locale === 'en' ? 'Save Customizations' : 'حفظ خيارات التخصيص')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
       <Footer />
     </>

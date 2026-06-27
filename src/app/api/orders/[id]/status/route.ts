@@ -149,13 +149,18 @@ export async function PATCH(
             : 'Your order has been cancelled.';
         }
 
-        await supabase.from('notifications').insert({
-          user_id: updatedOrder.userId,
-          type: 'order_status',
-          title,
-          body: bodyMsg,
-          metadata: { orderId, status, cancellationReason },
-        });
+        const isOwnCancellation = status === 'CANCELLED' && 
+                                   (cancellationReason === 'Cancelled by Customer' || cancellationReason === 'تم الإلغاء بواسطة العميل');
+        
+        if (!isOwnCancellation) {
+          await supabase.from('notifications').insert({
+            user_id: updatedOrder.userId,
+            type: 'order_status',
+            title,
+            body: bodyMsg,
+            metadata: { orderId, status, cancellationReason },
+          });
+        }
       } catch (notifyErr) {
         console.error('Failed to dispatch status notification:', notifyErr);
       }

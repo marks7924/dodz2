@@ -36,10 +36,12 @@ interface BranchContextType {
   // Whether the current role has global access (OWNER/DEV/HEAD_ADMIN)
   hasGlobalAccess: boolean;
   isLoading: boolean;
+  storeStatus: 'OPEN' | 'CLOSED';
   // Actions
   selectBranch: (branchId: string | null, alwaysRemember?: boolean) => void;
   clearBranch: () => void;
   refetchBranches: () => void;
+  fetchStoreStatus: () => Promise<void>;
 }
 
 const BranchContext = createContext<BranchContextType | undefined>(undefined);
@@ -73,6 +75,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
   const [userBranches, setUserBranches] = useState<BranchInfo[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [storeStatus, setStoreStatus] = useState<'OPEN' | 'CLOSED'>('OPEN');
 
   const hasGlobalAccess = role ? GLOBAL_ACCESS_ROLES.includes(role) : false;
 
@@ -117,11 +120,26 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isAuthenticated, hasGlobalAccess]);
 
+  const fetchStoreStatus = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('restaurant_settings')
+        .select('value')
+        .eq('key', 'restaurant_status');
+      
+      if (!error && data && data.length > 0) {
+        setStoreStatus(data[0].value as 'OPEN' | 'CLOSED');
+      }
+    } catch (e) {
+      console.error('Failed to fetch store status:', e);
+    }
+  }, [supabase]);
+
   const refetchBranches = useCallback(async () => {
     setIsLoading(true);
-    await Promise.all([fetchAllBranches(), fetchUserBranches()]);
+    await Promise.all([fetchAllBranches(), fetchUserBranches(), fetchStoreStatus()]);
     setIsLoading(false);
-  }, [fetchAllBranches, fetchUserBranches]);
+  }, [fetchAllBranches, fetchUserBranches, fetchStoreStatus]);
 
   // -------------------------------------------------------
   // On auth change, reload branches
@@ -266,9 +284,11 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
         isGlobalView,
         hasGlobalAccess,
         isLoading,
+        storeStatus,
         selectBranch,
         clearBranch,
         refetchBranches,
+        fetchStoreStatus,
       }}
     >
       {children}

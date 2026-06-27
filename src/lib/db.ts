@@ -14,6 +14,23 @@ export interface Category {
   nameAr: string;
 }
 
+export interface CustomizationOption {
+  id: string;
+  groupId: string;
+  nameEn: string;
+  nameAr: string;
+  price: number;
+}
+
+export interface CustomizationGroup {
+  id: string;
+  nameEn: string;
+  nameAr: string;
+  minSelected: number;
+  maxSelected: number;
+  options: CustomizationOption[];
+}
+
 export interface Product {
   id: string;
   nameEn: string;
@@ -26,6 +43,7 @@ export interface Product {
   categoryId: string;
   isAvailable: boolean;
   branchId?: string | null;
+  customizationGroups?: CustomizationGroup[];
 }
 
 export interface OrderItem {
@@ -36,6 +54,7 @@ export interface OrderItem {
   size: 'SINGLE' | 'DOUBLE' | 'NONE';
   quantity: number;
   price: number;
+  customizations?: { optionId: string; nameEn: string; nameAr: string; price: number }[];
 }
 
 export interface Branch {
@@ -340,6 +359,31 @@ function mapProduct(p: any, branchId?: string | null): Product {
     }
   }
 
+  let customizationGroups: CustomizationGroup[] = [];
+  if (Array.isArray(p.menu_item_customization_groups)) {
+    customizationGroups = p.menu_item_customization_groups
+      .filter((micg: any) => micg.customization_groups)
+      .map((micg: any) => {
+        const cg = micg.customization_groups;
+        return {
+          id: cg.id,
+          nameEn: cg.name_en,
+          nameAr: cg.name_ar,
+          minSelected: cg.min_selected || 0,
+          maxSelected: cg.max_selected || 1,
+          options: Array.isArray(cg.customization_options)
+            ? cg.customization_options.map((o: any) => ({
+                id: o.id,
+                groupId: o.group_id,
+                nameEn: o.name_en,
+                nameAr: o.name_ar,
+                price: Number(o.price),
+              }))
+            : [],
+        };
+      });
+  }
+
   return {
     id: p.id,
     categoryId: p.category_id,
@@ -352,6 +396,7 @@ function mapProduct(p: any, branchId?: string | null): Product {
     imageUrl: p.image_url,
     isAvailable,
     branchId: p.branch_id || null,
+    customizationGroups,
   };
 }
 
@@ -403,6 +448,7 @@ function mapOrderItem(oi: any): OrderItem {
     size: oi.size,
     quantity: oi.quantity,
     price: Number(oi.price),
+    customizations: Array.isArray(oi.customizations) ? oi.customizations : [],
   };
 }
 
@@ -551,7 +597,7 @@ export const db = {
   async getProducts(categoryId?: string, branchId?: string): Promise<Product[]> {
     if (isSupabaseConfigured()) {
       try {
-        let query = getSupabase().from('menu_items').select('*, branch_menu_items(*)');
+        let query = getSupabase().from('menu_items').select('*, branch_menu_items(*), menu_item_customization_groups(*, customization_groups(*, customization_options(*)))');
         if (categoryId && isValidUuid(categoryId)) {
           query = query.eq('category_id', categoryId);
         }
@@ -577,7 +623,7 @@ export const db = {
       try {
         const { data, error } = await getSupabase()
           .from('menu_items')
-          .select('*, branch_menu_items(*)')
+          .select('*, branch_menu_items(*), menu_item_customization_groups(*, customization_groups(*, customization_options(*)))')
           .eq('id', id)
           .single();
 
@@ -903,6 +949,7 @@ export const db = {
           size: it.size,
           quantity: it.quantity,
           price: it.price,
+          customizations: it.customizations || [],
         }));
 
         const { error: itemsError } = await supabase.from('order_items').insert(orderItems);

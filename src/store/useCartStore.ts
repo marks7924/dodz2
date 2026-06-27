@@ -11,6 +11,7 @@ export interface CartItem {
   quantity: number;
   size: SizeOption;
   imageUrl: string;
+  customizations?: { optionId: string; nameEn: string; nameAr: string; price: number }[];
 }
 
 export interface CouponState {
@@ -29,8 +30,8 @@ interface CartStore {
   
   // Actions
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
-  removeItem: (productId: String, size: SizeOption) => void;
-  deleteItem: (productId: String, size: SizeOption) => void;
+  removeItem: (productId: String, size: SizeOption, customizations?: any[]) => void;
+  deleteItem: (productId: String, size: SizeOption, customizations?: any[]) => void;
   applyCoupon: (coupon: CouponState) => void;
   removeCoupon: () => void;
   setDeliveryType: (type: 'DELIVERY' | 'PICKUP') => void;
@@ -56,8 +57,16 @@ export const useCartStore = create<CartStore>()(
 
       addItem: (item) => {
         set((state) => {
+          const getSortedCustomizationsJson = (custs?: any[]) => {
+            if (!custs || custs.length === 0) return '[]';
+            const sorted = [...custs].sort((a, b) => a.optionId.localeCompare(b.optionId));
+            return JSON.stringify(sorted);
+          };
+          const json = getSortedCustomizationsJson(item.customizations);
           const existingItemIndex = state.items.findIndex(
-            (i) => i.productId === item.productId && i.size === item.size
+            (i) => i.productId === item.productId && 
+                   i.size === item.size &&
+                   getSortedCustomizationsJson(i.customizations) === json
           );
 
           // Automatically open cart when item is added for better UX
@@ -73,10 +82,18 @@ export const useCartStore = create<CartStore>()(
         });
       },
 
-      removeItem: (productId, size) => {
+      removeItem: (productId, size, customizations) => {
         set((state) => {
+          const getSortedCustomizationsJson = (custs?: any[]) => {
+            if (!custs || custs.length === 0) return '[]';
+            const sorted = [...custs].sort((a, b) => a.optionId.localeCompare(b.optionId));
+            return JSON.stringify(sorted);
+          };
+          const json = getSortedCustomizationsJson(customizations);
           const existingItemIndex = state.items.findIndex(
-            (i) => i.productId === productId && i.size === size
+            (i) => i.productId === productId && 
+                   i.size === size &&
+                   getSortedCustomizationsJson(i.customizations) === json
           );
 
           if (existingItemIndex === -1) return {};
@@ -88,15 +105,29 @@ export const useCartStore = create<CartStore>()(
             item.quantity -= 1;
             return { items: updatedItems };
           } else {
-            return { items: state.items.filter((i) => !(i.productId === productId && i.size === size)) };
+            return { items: state.items.filter((_, idx) => idx !== existingItemIndex) };
           }
         });
       },
 
-      deleteItem: (productId, size) => {
-        set((state) => ({
-          items: state.items.filter((i) => !(i.productId === productId && i.size === size)),
-        }));
+      deleteItem: (productId, size, customizations) => {
+        set((state) => {
+          const getSortedCustomizationsJson = (custs?: any[]) => {
+            if (!custs || custs.length === 0) return '[]';
+            const sorted = [...custs].sort((a, b) => a.optionId.localeCompare(b.optionId));
+            return JSON.stringify(sorted);
+          };
+          const json = getSortedCustomizationsJson(customizations);
+          const existingItemIndex = state.items.findIndex(
+            (i) => i.productId === productId && 
+                   i.size === size &&
+                   getSortedCustomizationsJson(i.customizations) === json
+          );
+          if (existingItemIndex === -1) return {};
+          return {
+            items: state.items.filter((_, idx) => idx !== existingItemIndex),
+          };
+        });
       },
 
       applyCoupon: (coupon) => set({ coupon }),

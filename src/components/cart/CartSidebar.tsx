@@ -7,12 +7,16 @@ import { X, Plus, Minus, Trash2, Tag, ShoppingBag, ArrowRight, ArrowLeft } from 
 import { db } from '@/lib/db';
 import { useBranch } from '@/context/BranchContext';
 import { useAuth } from '@/context/AuthContext';
+import { useModal } from '@/context/ModalContext';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function CartSidebar() {
   const { t, locale, dir } = useLanguage();
   const { user } = useAuth();
+  const { alert } = useModal();
+  const router = useRouter();
   const {
     items,
     cartOpen,
@@ -29,7 +33,7 @@ export default function CartSidebar() {
     getTotal,
   } = useCartStore();
 
-  const { selectedBranchId } = useBranch();
+  const { selectedBranchId, storeStatus } = useBranch();
 
   const [couponInput, setCouponInput] = useState('');
   const [couponError, setCouponError] = useState('');
@@ -155,19 +159,42 @@ export default function CartSidebar() {
                         {item.size === 'SINGLE' ? t('single') : t('double')}
                       </span>
                     )}
+                    {item.customizations && item.customizations.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {item.customizations.map((cust, cIdx) => (
+                          <span
+                            key={cIdx}
+                            className="inline-block px-1.5 py-0.5 rounded bg-[#27272A] text-[9px] text-text-muted font-medium border border-card-border"
+                          >
+                            +{locale === 'en' ? cust.nameEn : cust.nameAr} ({cust.price} EGP)
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Quantity Actions */}
                   <div className="flex items-center gap-2 mt-2">
                     <button
-                      onClick={() => removeItem(item.productId, item.size)}
+                      onClick={() => removeItem(item.productId, item.size, item.customizations)}
                       className="p-1 rounded bg-card-border hover:bg-card hover:text-primary-red transition-colors"
                     >
                       <Minus className="h-3 w-3" />
                     </button>
                     <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
                     <button
-                      onClick={() => addItem({ ...item })}
+                      onClick={() => {
+                        if (storeStatus === 'CLOSED') {
+                          alert(
+                            locale === 'en'
+                              ? 'The store is currently closed. You can start ordering again during working hours.'
+                              : 'المطعم مغلق حالياً. يمكنك بدء الطلب مرة أخرى خلال ساعات العمل.',
+                            locale === 'en' ? 'Store Closed' : 'المطعم مغلق'
+                          );
+                          return;
+                        }
+                        addItem({ ...item });
+                      }}
                       className="p-1 rounded bg-card-border hover:bg-card hover:text-accent-amber transition-colors"
                     >
                       <Plus className="h-3 w-3" />
@@ -178,7 +205,7 @@ export default function CartSidebar() {
                 {/* Price and Delete */}
                 <div className="flex flex-col items-end justify-between">
                   <button
-                    onClick={() => deleteItem(item.productId, item.size)}
+                    onClick={() => deleteItem(item.productId, item.size, item.customizations)}
                     className="p-1 rounded text-text-muted hover:text-primary-red transition-colors"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -261,14 +288,25 @@ export default function CartSidebar() {
             </div>
 
             {/* Checkout CTA */}
-            <Link
-              href="/checkout"
-              onClick={() => setCartOpen(false)}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all pulse-glow-red"
+            <button
+              onClick={async () => {
+                if (storeStatus === 'CLOSED') {
+                  await alert(
+                    locale === 'en'
+                      ? 'The store is currently closed. You can start ordering again during working hours.'
+                      : 'المطعم مغلق حالياً. يمكنك بدء الطلب مرة أخرى خلال ساعات العمل.',
+                    locale === 'en' ? 'Store Closed' : 'المطعم مغلق'
+                  );
+                  return;
+                }
+                setCartOpen(false);
+                router.push('/checkout');
+              }}
+              className="w-full flex items-center justify-center gap-2 py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all pulse-glow-red cursor-pointer"
             >
               <span>{t('checkoutBtn')}</span>
               {dir === 'ltr' ? <ArrowRight className="h-4 w-4" /> : <ArrowLeft className="h-4 w-4" />}
-            </Link>
+            </button>
           </div>
         )}
       </div>

@@ -301,9 +301,16 @@ export default function OrderTrackingPage() {
                   {locale === 'en' ? '⚠️ ORDER CANCELLED' : '⚠️ تم إلغاء الطلب'}
                 </h2>
                 <p className="text-xs text-white font-semibold">
-                  {locale === 'en'
-                    ? 'We regret to inform you that your order has been cancelled.'
-                    : 'نأسف لإبلاغك بأنه قد تم إلغاء طلبك.'}
+                  {(() => {
+                    const isCancelledByCustomer = order.cancellationReason === 'Cancelled by Customer' || 
+                                                  order.cancellationReason === 'تم الإلغاء بواسطة العميل';
+                    if (isCancelledByCustomer) {
+                      return locale === 'en' ? 'You have cancelled this order.' : 'لقد قمت بإلغاء هذا الطلب.';
+                    }
+                    return locale === 'en'
+                      ? 'We regret to inform you that your order has been cancelled.'
+                      : 'نأسف لإبلاغك بأنه قد تم إلغاء طلبك.';
+                  })()}
                 </p>
                 {order.cancellationReason && (
                   <div className="bg-[#1C1917] border border-red-500/25 rounded-2xl p-4 mt-3">

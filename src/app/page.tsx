@@ -144,6 +144,8 @@ export default function Home() {
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedSize, setSelectedSize] = useState<'SINGLE' | 'DOUBLE'>('SINGLE');
+  const [customizationProduct, setCustomizationProduct] = useState<{ product: Product, size: 'SINGLE' | 'DOUBLE' | 'NONE' } | null>(null);
+  const [selectedCustomizations, setSelectedCustomizations] = useState<{ optionId: string, groupId: string, nameEn: string, nameAr: string, price: number }[]>([]);
   const [reviewName, setReviewName] = useState('');
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
@@ -154,7 +156,7 @@ export default function Home() {
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
   const { user, profile, isAuthenticated, role } = useAuth();
-  const { selectedBranch, selectedBranchId, selectBranch, allBranches, isGlobalView } = useBranch();
+  const { selectedBranch, selectedBranchId, selectBranch, allBranches, isGlobalView, storeStatus } = useBranch();
   const [chatSessionId, setChatSessionId] = useState<string | null>(null);
   const [showChangeBranchDialog, setShowChangeBranchDialog] = useState(false);
   const [pendingBranchId, setPendingBranchId] = useState<string | null>(null);
@@ -309,7 +311,11 @@ export default function Home() {
 
   const COMBO_CATEGORIES = ['burgers', 'burger', 'chicken', 'دجاج', 'برجر'];
 
-  const handleAddProductToCart = (product: Product, size: 'SINGLE' | 'DOUBLE' | 'NONE') => {
+  const handleAddProductToCart = (
+    product: Product,
+    size: 'SINGLE' | 'DOUBLE' | 'NONE',
+    customizations: { optionId: string; nameEn: string; nameAr: string; price: number }[] = []
+  ) => {
     // Apply discounts logic to the price before adding to cart
     const basePrice = size === 'DOUBLE' && product.priceDouble ? product.priceDouble : product.priceSingle;
     
@@ -322,6 +328,10 @@ export default function Home() {
       if (discount.discountType === 'PERCENT') finalPrice = Math.max(0, basePrice * (1 - discount.discountValue / 100));
     }
 
+    // Add sum of customizations price!
+    const customizationSum = customizations.reduce((sum, c) => sum + c.price, 0);
+    finalPrice += customizationSum;
+
     addItem({
       productId: product.id,
       nameEn: product.nameEn,
@@ -329,6 +339,7 @@ export default function Home() {
       price: finalPrice,
       size: size as any,
       imageUrl: product.imageUrl,
+      customizations,
     });
 
     setJustAddedId(`${product.id}-${size}`);
@@ -336,11 +347,32 @@ export default function Home() {
       setJustAddedId(null);
     }, 1500);
 
-    // Show combo offer for burger/chicken items
-    const cat = categories.find(c => c.id === product.categoryId);
-    const catName = (cat?.nameEn || '').toLowerCase();
-    if (COMBO_CATEGORIES.some(kw => catName.includes(kw) || product.nameEn.toLowerCase().includes(kw))) {
-      setComboModal({ product });
+    // Show combo offer for burger/chicken items ONLY if not customized
+    if (customizations.length === 0) {
+      const cat = categories.find(c => c.id === product.categoryId);
+      const catName = (cat?.nameEn || '').toLowerCase();
+      if (COMBO_CATEGORIES.some(kw => catName.includes(kw) || product.nameEn.toLowerCase().includes(kw))) {
+        setComboModal({ product });
+      }
+    }
+  };
+
+  const handleAddToCartClicked = (product: Product, size: 'SINGLE' | 'DOUBLE' | 'NONE') => {
+    if (storeStatus === 'CLOSED') {
+      alert(
+        locale === 'en'
+          ? 'The store is currently closed. You can start ordering again during working hours.'
+          : 'المطعم مغلق حالياً. يمكنك بدء الطلب مرة أخرى خلال ساعات العمل.',
+        locale === 'en' ? 'Store Closed' : 'المطعم مغلق'
+      );
+      return;
+    }
+
+    if (product.customizationGroups && product.customizationGroups.length > 0) {
+      setCustomizationProduct({ product, size });
+      setSelectedCustomizations([]);
+    } else {
+      handleAddProductToCart(product, size);
     }
   };
 
@@ -441,11 +473,11 @@ export default function Home() {
                         e.stopPropagation();
                         const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger'));
                         if (bestseller) {
-                          handleAddProductToCart(bestseller, 'SINGLE');
+                          handleAddToCartClicked(bestseller, 'SINGLE');
                           setCartOpen(true);
                         } else if (products.length > 0) {
                           // Fallback: add first product
-                          handleAddProductToCart(products[0], products[0].priceDouble ? 'SINGLE' : 'NONE');
+                          handleAddToCartClicked(products[0], products[0].priceDouble ? 'SINGLE' : 'NONE');
                           setCartOpen(true);
                         }
                       }}
@@ -642,7 +674,7 @@ export default function Home() {
                         <div className="flex gap-2">
                           <button
                             disabled={!product.isAvailable}
-                            onClick={() => handleAddProductToCart(product, 'SINGLE')}
+                            onClick={() => handleAddToCartClicked(product, 'SINGLE')}
                             className="flex-1 py-2 bg-card hover:bg-card-border border border-card-border hover:border-primary-red/35 text-[11px] font-bold rounded-xl text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                           >
                             {justAddedId === `${product.id}-SINGLE` ? (
@@ -659,7 +691,7 @@ export default function Home() {
                           </button>
                           <button
                             disabled={!product.isAvailable}
-                            onClick={() => handleAddProductToCart(product, 'DOUBLE')}
+                            onClick={() => handleAddToCartClicked(product, 'DOUBLE')}
                             className="flex-1 py-2 bg-primary-red hover:bg-primary-red-hover text-[11px] font-bold rounded-xl text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                           >
                             {justAddedId === `${product.id}-DOUBLE` ? (
@@ -686,7 +718,7 @@ export default function Home() {
                         </div>
                         <button
                           disabled={!product.isAvailable}
-                          onClick={() => handleAddProductToCart(product, 'NONE')}
+                          onClick={() => handleAddToCartClicked(product, 'NONE')}
                           className="px-4 py-2 bg-primary-red hover:bg-primary-red-hover text-xs font-bold rounded-xl text-white transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                         >
                           {justAddedId === `${product.id}-NONE` ? (
@@ -853,7 +885,7 @@ export default function Home() {
                   <button
                     disabled={!selectedProduct.isAvailable}
                     onClick={() => {
-                      handleAddProductToCart(
+                      handleAddToCartClicked(
                         selectedProduct,
                         selectedProduct.priceDouble ? selectedSize : 'NONE'
                       );
@@ -1088,6 +1120,144 @@ export default function Home() {
           </div>
         </div>
       )}
+      {customizationProduct && (() => {
+        const { product, size } = customizationProduct;
+        const basePrice = size === 'DOUBLE' && product.priceDouble ? product.priceDouble : product.priceSingle;
+        const customizationSum = selectedCustomizations.reduce((sum, c) => sum + c.price, 0);
+        const finalPrice = basePrice + customizationSum;
+
+        return (
+          <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={() => setCustomizationProduct(null)} />
+            <div className="relative w-full max-w-lg bg-[#131316] border border-card-border rounded-3xl p-6 shadow-2xl z-10 flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
+              <div className="flex items-center justify-between pb-4 border-b border-card-border/50">
+                <div>
+                  <span className="text-[10px] font-bold text-accent-amber uppercase tracking-wider block">
+                    {locale === 'en' ? 'Customize Item' : 'تخصيص الطلب'}
+                  </span>
+                  <h3 className="text-sm font-black text-white mt-0.5">
+                    {locale === 'en' ? product.nameEn : product.nameAr}
+                  </h3>
+                </div>
+                <button onClick={() => setCustomizationProduct(null)} className="p-1.5 rounded-lg hover:bg-card-border text-text-muted hover:text-white cursor-pointer">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Scrollable Customization Groups list */}
+              <div className="flex-1 overflow-y-auto py-4 space-y-6 pr-1 scrollbar-thin">
+                {product.customizationGroups?.map((group) => {
+                  const isSingleSelect = group.maxSelected === 1 && group.minSelected === 1;
+
+                  return (
+                    <div key={group.id} className="space-y-3">
+                      <div className="flex justify-between items-center bg-card-border/30 px-3 py-2 rounded-xl border border-card-border/20">
+                        <h4 className="text-xs font-extrabold text-white">
+                          {locale === 'en' ? group.nameEn : group.nameAr}
+                        </h4>
+                        <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded-full bg-primary-red/10 border border-primary-red/20 text-primary-red">
+                          {isSingleSelect
+                            ? (locale === 'en' ? 'Select 1 option' : 'اختر خياراً واحداً')
+                            : (locale === 'en' ? `Choose up to ${group.maxSelected}` : `اختر حتى ${group.maxSelected}`)}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {group.options.map((opt) => {
+                          const isSelected = selectedCustomizations.some(c => c.optionId === opt.id);
+
+                          const handleOptionToggle = () => {
+                            if (isSingleSelect) {
+                              const otherGroups = selectedCustomizations.filter(c => c.groupId !== group.id);
+                              setSelectedCustomizations([
+                                ...otherGroups,
+                                { optionId: opt.id, groupId: group.id, nameEn: opt.nameEn, nameAr: opt.nameAr, price: opt.price }
+                              ]);
+                            } else {
+                              if (isSelected) {
+                                setSelectedCustomizations(selectedCustomizations.filter(c => c.optionId !== opt.id));
+                              } else {
+                                const groupSelectedCount = selectedCustomizations.filter(c => c.groupId === group.id).length;
+                                if (groupSelectedCount < group.maxSelected) {
+                                  setSelectedCustomizations([
+                                    ...selectedCustomizations,
+                                    { optionId: opt.id, groupId: group.id, nameEn: opt.nameEn, nameAr: opt.nameAr, price: opt.price }
+                                  ]);
+                                }
+                              }
+                            }
+                          };
+
+                          return (
+                            <button
+                              key={opt.id}
+                              type="button"
+                              onClick={handleOptionToggle}
+                              className={`flex items-center justify-between p-3 rounded-2xl border text-xs font-bold transition-all text-left rtl:text-right cursor-pointer ${
+                                isSelected
+                                  ? 'bg-primary-red/10 border-primary-red text-white'
+                                  : 'bg-card border-card-border hover:border-card-border-hover text-text-muted hover:text-white'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <div className={`h-4 w-4 rounded flex items-center justify-center border ${
+                                  isSelected ? 'border-primary-red bg-primary-red text-white' : 'border-card-border bg-card-border'
+                                }`}>
+                                  {isSelected && <Check className="h-3 w-3 stroke-[3]" />}
+                                </div>
+                                <span>{locale === 'en' ? opt.nameEn : opt.nameAr}</span>
+                              </div>
+                              <span className="text-accent-amber font-extrabold font-mono">
+                                {opt.price > 0 ? `+${opt.price} EGP` : 'Free'}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Modal footer summary & CTA */}
+              <div className="pt-4 border-t border-card-border/50 flex items-center justify-between gap-4">
+                <div>
+                  <span className="text-[10px] text-text-muted uppercase tracking-wider block">
+                    {locale === 'en' ? 'Total Price' : 'السعر الإجمالي'}
+                  </span>
+                  <span className="text-lg font-black text-accent-amber font-mono">
+                    {finalPrice} EGP
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    let errorMsg = '';
+                    product.customizationGroups?.forEach(group => {
+                      const selectedCount = selectedCustomizations.filter(c => c.groupId === group.id).length;
+                      if (selectedCount < group.minSelected) {
+                        errorMsg = locale === 'en'
+                          ? `Please choose at least ${group.minSelected} option(s) for "${group.nameEn}"`
+                          : `يرجى اختيار خيار واحد على الأقل لـ "${group.nameAr}"`;
+                      }
+                    });
+                    if (errorMsg) {
+                      alert(errorMsg);
+                      return;
+                    }
+
+                    handleAddProductToCart(product, size, selectedCustomizations);
+                    setCustomizationProduct(null);
+                    setCartOpen(true);
+                  }}
+                  className="px-6 py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+                >
+                  {locale === 'en' ? 'Confirm & Add to Cart' : 'تأكيد وإضافة للسلة'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       <BranchWelcomePopup />
     </>
   );
