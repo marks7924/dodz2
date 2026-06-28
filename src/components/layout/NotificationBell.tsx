@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, BellRing, X, Check, CheckCheck, ShoppingBag, MessageCircle, Truck, CreditCard, Shield, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import {
   Notification,
   getNotifications,
@@ -37,6 +38,7 @@ function timeAgo(dateStr: string): string {
 
 export default function NotificationBell() {
   const { user, isAuthenticated } = useAuth();
+  const { locale } = useLanguage();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [open, setOpen] = useState(false);
   const [hasNew, setHasNew] = useState(false);
