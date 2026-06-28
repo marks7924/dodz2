@@ -10,18 +10,33 @@
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+  _role user_role := 'CUSTOMER';
 BEGIN
-  INSERT INTO public.profiles (id, full_name, phone, role)
-  VALUES (
-    NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', split_part(NEW.email, '@', 1)),
-    NEW.raw_user_meta_data->>'phone',
-    COALESCE(NEW.raw_user_meta_data->>'role', 'CUSTOMER')::user_role
-  )
-  ON CONFLICT (id) DO NOTHING;
+  -- Safely resolve role — default to CUSTOMER if value is invalid or missing
+  BEGIN
+    _role := COALESCE(NEW.raw_user_meta_data->>'role', 'CUSTOMER')::user_role;
+  EXCEPTION WHEN invalid_text_representation OR others THEN
+    _role := 'CUSTOMER';
+  END;
+
+  -- Insert profile row — ignore if already exists
+  BEGIN
+    INSERT INTO public.profiles (id, full_name, phone, role)
+    VALUES (
+      NEW.id,
+      COALESCE(NULLIF(TRIM(NEW.raw_user_meta_data->>'full_name'), ''), split_part(NEW.email, '@', 1)),
+      NULLIF(TRIM(COALESCE(NEW.raw_user_meta_data->>'phone', '')), ''),
+      _role
+    )
+    ON CONFLICT (id) DO NOTHING;
+  EXCEPTION WHEN others THEN
+    RAISE WARNING 'handle_new_user: failed to create profile for user %: %', NEW.id, SQLERRM;
+  END;
+
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
