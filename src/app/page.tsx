@@ -370,7 +370,7 @@ export default function Home() {
     queryFn: () => db.getCategories(),
   });
 
-  const { data: recommendedProductIds = [] } = useQuery<string[]>({
+  const { data: recommendedProductIds = [], isFetched: isRecFetched } = useQuery<string[]>({
     queryKey: ['recommended-product-ids', user?.id, settings],
     queryFn: async () => {
       const ids = new Set<string>();
@@ -410,16 +410,18 @@ export default function Home() {
 
   const hasInitializedDefaultCategoryRef = useRef(false);
   useEffect(() => {
-    if (categories && categories.length > 0 && !hasInitializedDefaultCategoryRef.current) {
+    if (categories && categories.length > 0 && isRecFetched && !hasInitializedDefaultCategoryRef.current) {
       hasInitializedDefaultCategoryRef.current = true;
       const defaultCat = categories.find((c) => c.isDefault);
       if (defaultCat) {
         setActiveCategory(defaultCat.id);
-      } else {
+      } else if (recommendedProductIds.length > 0) {
         setActiveCategory('recommended');
+      } else {
+        setActiveCategory(categories[0]?.id || 'all');
       }
     }
-  }, [categories]);
+  }, [categories, isRecFetched, recommendedProductIds]);
 
   const { data: products = [] } = useQuery<Product[]>({
     queryKey: ['products', selectedBranchId],
@@ -780,16 +782,18 @@ export default function Home() {
               className="sticky top-[64px] md:top-[80px] z-30 w-full glass-panel border border-card-border p-2 rounded-2xl flex gap-2 overflow-x-auto no-scrollbar scroll-smooth px-12"
             >
               {/* Recommended category button */}
-              <button
-                onClick={() => setActiveCategory('recommended')}
-                className={`px-5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                  activeCategory === 'recommended'
-                    ? 'bg-primary-red text-white shadow-md'
-                    : 'text-foreground hover:bg-card-border'
-                }`}
-              >
-                {locale === 'en' ? `★ Recommended (${recommendedProductIds.length})` : `★ المقترحات (${recommendedProductIds.length})`}
-              </button>
+              {recommendedProductIds.length > 0 && (
+                <button
+                  onClick={() => setActiveCategory('recommended')}
+                  className={`px-5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    activeCategory === 'recommended'
+                      ? 'bg-primary-red text-white shadow-md'
+                      : 'text-foreground hover:bg-card-border'
+                  }`}
+                >
+                  {locale === 'en' ? `★ Recommended (${recommendedProductIds.length})` : `★ المقترحات (${recommendedProductIds.length})`}
+                </button>
+              )}
 
               {/* All category button */}
               <button

@@ -33,6 +33,12 @@ export default function SettingsPage() {
     enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role || ''),
   });
 
+  const { data: categories = [] } = useQuery({
+    queryKey: ['admin-settings-categories'],
+    queryFn: () => db.getCategories(),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role || ''),
+  });
+
   const saveSettingMutation = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
       const { data, error: selectErr } = await supabase
@@ -258,6 +264,23 @@ export default function SettingsPage() {
                   const comboItemsSetting = settings.find((s: any) => s.key === 'combo_items_list') || { value: '' };
                   const selectedIds = comboItemsSetting.value ? comboItemsSetting.value.split(',') : [];
                   
+                  const allowedCategories = categories.filter((cat: any) => {
+                    const nameEn = (cat.name_en || cat.nameEn || '').toLowerCase();
+                    const nameAr = (cat.name_ar || cat.nameAr || '').toLowerCase();
+                    return (
+                      nameEn.includes('side') ||
+                      nameEn.includes('appetizer') ||
+                      nameEn.includes('drink') ||
+                      nameEn.includes('beverage') ||
+                      nameEn.includes('addon') ||
+                      nameEn.includes('add-on') ||
+                      nameEn.includes('extra') ||
+                      nameAr.includes('جانب') ||
+                      nameAr.includes('مشروب') ||
+                      nameAr.includes('إضاف')
+                    );
+                  });
+
                   return (
                     <div className="space-y-2 pt-2 border-t border-card-border/30">
                       <label className="text-[10px] text-accent-amber block font-bold uppercase tracking-wider">
@@ -265,32 +288,50 @@ export default function SettingsPage() {
                       </label>
                       <p className="text-[10px] text-text-muted leading-tight mb-2">
                         {locale === 'en' 
-                          ? 'Choose which items will be added to the customer order when they accept the make-it-combo offer.' 
-                          : 'اختر العناصر التي سيتم إضافتها لطلب العميل عند قبوله لعرض الكومبو.'}
+                          ? 'Choose which items (from addons, appetizers, and drinks) will be added to the customer order when they accept the make-it-combo offer.' 
+                          : 'اختر العناصر (من الإضافات، المقبلات، والمشروبات) التي سيتم إضافتها لطلب العميل عند قبوله لعرض الكومبو.'}
                       </p>
-                      <div className="max-h-40 overflow-y-auto bg-[#18181B] border border-card-border rounded-xl p-3 space-y-1.5 scrollbar-thin">
-                        {products.map((p: any) => {
-                          const isChecked = selectedIds.includes(p.id);
+                      <div className="max-h-48 overflow-y-auto bg-[#18181B] border border-card-border rounded-xl p-3 space-y-3.5 scrollbar-thin">
+                        {allowedCategories.map((cat: any) => {
+                          const catProducts = products.filter((p: any) => p.categoryId === cat.id);
+                          if (catProducts.length === 0) return null;
                           return (
-                            <label key={p.id} className="flex items-center gap-2 text-xs font-bold text-white cursor-pointer hover:text-primary-red transition-colors">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  let newIds = [...selectedIds];
-                                  if (e.target.checked) {
-                                    newIds.push(p.id);
-                                  } else {
-                                    newIds = newIds.filter(id => id !== p.id);
-                                  }
-                                  handleSave('combo_items_list', newIds.join(','));
-                                }}
-                                className="accent-primary-red"
-                              />
-                              <span>{locale === 'en' ? p.nameEn : p.nameAr}</span>
-                            </label>
+                            <div key={cat.id} className="space-y-1.5">
+                              <p className="text-[10px] font-extrabold text-primary-red uppercase tracking-wider border-b border-card-border/20 pb-0.5 mb-1.5">
+                                {locale === 'en' ? cat.nameEn || cat.name_en : cat.nameAr || cat.name_ar}
+                              </p>
+                              <div className="space-y-1 pl-1">
+                                {catProducts.map((p: any) => {
+                                  const isChecked = selectedIds.includes(p.id);
+                                  return (
+                                    <label key={p.id} className="flex items-center gap-2 text-xs font-bold text-white cursor-pointer hover:text-primary-red transition-colors">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        onChange={(e) => {
+                                          let newIds = [...selectedIds];
+                                          if (e.target.checked) {
+                                            newIds.push(p.id);
+                                          } else {
+                                            newIds = newIds.filter(id => id !== p.id);
+                                          }
+                                          handleSave('combo_items_list', newIds.join(','));
+                                        }}
+                                        className="accent-primary-red"
+                                      />
+                                      <span>{locale === 'en' ? p.nameEn : p.nameAr}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
                           );
                         })}
+                        {allowedCategories.length === 0 && (
+                          <p className="text-text-muted text-[10px] text-center py-2">
+                            {locale === 'en' ? 'No addons/appetizers/drinks categories found.' : 'لم يتم العثور على فئات للإضافات/المقبلات/المشروبات.'}
+                          </p>
+                        )}
                       </div>
                     </div>
                   );

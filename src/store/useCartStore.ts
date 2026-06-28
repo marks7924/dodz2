@@ -171,7 +171,8 @@ export const useCartStore = create<CartStore>()(
       clearCart: () => set({ items: [], coupon: null, deliveryType: 'DELIVERY', deliveryFee: 40, cartOpen: false }),
 
       getSubtotal: () => {
-        return get().items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        const rawSubtotal = get().items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+        return Math.round(rawSubtotal);
       },
 
       getDiscountAmount: () => {
@@ -194,14 +195,14 @@ export const useCartStore = create<CartStore>()(
         } else {
           rawDiscount = Math.min(coupon.discountValue, discountableSubtotal);
         }
-        return Math.round(rawDiscount * 10) / 10;
+        return Math.round(rawDiscount);
       },
 
       getTotal: () => {
         const subtotal = get().getSubtotal();
         const discount = get().getDiscountAmount();
         const deliveryFee = get().deliveryFee;
-        return Math.max(0, subtotal - discount + deliveryFee);
+        return Math.round(Math.max(0, subtotal - discount + deliveryFee));
       },
     }),
     {

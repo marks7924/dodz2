@@ -75,7 +75,7 @@ export default function Header() {
     }, 200);
   };
 
-  const showAdminLink = role && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role);
+  const showAdminLink = role && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'CUSTOMER_SERVICE'].includes(role);
   const showDriverLink = role === 'DRIVER';
 
   // ── Branch Selector Dropdown ─────────────────────────────────────────────────
@@ -319,7 +319,7 @@ export default function Header() {
             {showAdminLink && (
               <Link href="/admin" onClick={() => setMobileMenuOpen(false)}
                 style={{ display: 'block', padding: '0.7rem 0', fontSize: '0.9rem', fontWeight: 600, color: '#fff', borderBottom: '1px solid #27272A', textDecoration: 'none' }}>
-                {t('adminPanel')}
+                {role === 'CUSTOMER_SERVICE' ? (locale === 'en' ? 'Support Chats' : 'محادثات الدعم') : t('adminPanel')}
               </Link>
             )}
           </nav>
@@ -372,7 +372,7 @@ export default function Header() {
               )}
               {mounted && showAdminLink && (
                 <Link href="/admin" className="text-sm font-medium text-text-muted hover:text-foreground px-3 py-2 rounded-md transition-colors">
-                  {t('adminPanel')}
+                  {role === 'CUSTOMER_SERVICE' ? (locale === 'en' ? 'Support Chats' : 'محادثات الدعم') : t('adminPanel')}
                 </Link>
               )}
             </nav>
@@ -439,8 +439,8 @@ export default function Header() {
                         )}
                         {showAdminLink && (
                           <Link href="/admin" onClick={() => setShowUserDropdown(false)}
-                            className="w-full text-left rtl:text-right px-3 py-2 text-xs rounded-lg hover:bg-card-border text-foreground block md:hidden">
-                            {t('adminPanel')}
+                            className="w-full text-left rtl:text-right px-3 py-2 text-xs rounded-lg hover:bg-card-border text-foreground block">
+                            {role === 'CUSTOMER_SERVICE' ? (locale === 'en' ? 'Support Chats' : 'محادثات الدعم') : t('adminPanel')}
                           </Link>
                         )}
                         <button

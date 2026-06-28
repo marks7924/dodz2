@@ -46,6 +46,7 @@ export default function AdminDashboardPage() {
 
   // Customizations Mapping Modal state
   const [customizationMappingProduct, setCustomizationMappingProduct] = useState<Product | null>(null);
+  const [selectedMappingProductIds, setSelectedMappingProductIds] = useState<string[]>([]);
   const [customizationGroupsList, setCustomizationGroupsList] = useState<any[]>([]);
   const [assignedCustomizationGroupIds, setAssignedCustomizationGroupIds] = useState<string[]>([]);
   const [isSavingCustomizations, setIsSavingCustomizations] = useState(false);
@@ -1027,6 +1028,7 @@ export default function AdminDashboardPage() {
 
   const handleOpenCustomizationMapping = async (product: Product) => {
     setCustomizationMappingProduct(product);
+    setSelectedMappingProductIds([product.id]);
     setIsSavingCustomizations(false);
     setShowAddGroupForm(false);
     setNewGroupNameEn('');
@@ -1061,20 +1063,28 @@ export default function AdminDashboardPage() {
   };
 
   const handleSaveCustomizationsMapping = async () => {
-    if (!customizationMappingProduct) return;
+    if (selectedMappingProductIds.length === 0) {
+      alert('Please select at least one product.');
+      return;
+    }
     setIsSavingCustomizations(true);
     try {
       const { error: delErr } = await supabase
         .from('menu_item_customization_groups')
         .delete()
-        .eq('menu_item_id', customizationMappingProduct.id);
+        .in('menu_item_id', selectedMappingProductIds);
       if (delErr) throw delErr;
 
       if (assignedCustomizationGroupIds.length > 0) {
-        const rows = assignedCustomizationGroupIds.map((groupId) => ({
-          menu_item_id: customizationMappingProduct.id,
-          group_id: groupId,
-        }));
+        const rows: any[] = [];
+        selectedMappingProductIds.forEach((prodId) => {
+          assignedCustomizationGroupIds.forEach((groupId) => {
+            rows.push({
+              menu_item_id: prodId,
+              group_id: groupId,
+            });
+          });
+        });
         const { error: insErr } = await supabase
           .from('menu_item_customization_groups')
           .insert(rows);
@@ -4193,6 +4203,53 @@ export default function AdminDashboardPage() {
                         </div>
                       </div>
 
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto scrollbar-thin">
+                             {newGroupOptionsList.map((opt, idx) => (
+                               <div key={idx} className="flex gap-2 items-center bg-[#18181B] border border-card-border p-2 rounded-xl">
+                                 <input
+                                   type="text"
+                                   value={opt.name_en}
+                                   onChange={(e) => {
+                                     const val = e.target.value;
+                                     setNewGroupOptionsList(prev => prev.map((o, i) => i === idx ? { ...o, name_en: val } : o));
+                                   }}
+                                   placeholder="Name (EN)"
+                                   className="w-1/3 text-[10px] bg-black border border-card-border rounded-lg px-2 py-1 text-white focus:outline-none focus:border-primary-red/50"
+                                 />
+                                 <input
+                                   type="text"
+                                   value={opt.name_ar}
+                                   onChange={(e) => {
+                                     const val = e.target.value;
+                                     setNewGroupOptionsList(prev => prev.map((o, i) => i === idx ? { ...o, name_ar: val } : o));
+                                   }}
+                                   placeholder="الاسم (عربي)"
+                                   className="w-1/3 text-[10px] bg-black border border-card-border rounded-lg px-2 py-1 text-white text-right focus:outline-none focus:border-primary-red/50"
+                                 />
+                                 <div className="w-1/4 flex items-center gap-1">
+                                   <input
+                                     type="number"
+                                     value={opt.price}
+                                     onChange={(e) => {
+                                       const val = parseFloat(e.target.value) || 0;
+                                       setNewGroupOptionsList(prev => prev.map((o, i) => i === idx ? { ...o, price: val } : o));
+                                     }}
+                                     placeholder="Price"
+                                     className="w-full text-[10px] bg-black border border-card-border rounded-lg px-2 py-1 text-white focus:outline-none focus:border-primary-red/50"
+                                   />
+                                   <span className="text-[9px] text-text-muted shrink-0">EGP</span>
+                                 </div>
+                                 <button
+                                   type="button"
+                                   onClick={() => setNewGroupOptionsList(newGroupOptionsList.filter((_, i) => i !== idx))}
+                                   className="text-red-500 hover:text-red-400 font-bold ml-1 text-xs cursor-pointer focus:outline-none"
+                                 >
+                                   &times;
+                                 </button>
+                               </div>
+                             ))}
+                           </div>
+
                       <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-1">
                           <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Min Selections</label>
@@ -4483,6 +4540,48 @@ export default function AdminDashboardPage() {
                       );
                     })
                   )}
+                </div>
+              </div>
+
+              {/* Product Multi-Selector */}
+              <div className="border-t border-card-border/50 pt-4 mt-2">
+                <label className="text-[10px] text-accent-amber block font-bold uppercase tracking-wider mb-2">
+                  {locale === 'en' ? 'Apply to Products (Multi-select)' : 'تطبيق على المنتجات (تحديد متعدد)'}
+                </label>
+                <div className="max-h-40 overflow-y-auto bg-[#18181B] border border-card-border rounded-xl p-3 space-y-3 scrollbar-thin">
+                  {adminCategories.map((cat: any) => {
+                    const catProducts = products.filter((p: any) => p.categoryId === cat.id);
+                    if (catProducts.length === 0) return null;
+                    return (
+                      <div key={cat.id} className="space-y-1.5">
+                        <p className="text-[9px] font-extrabold text-primary-red uppercase tracking-wider border-b border-card-border/20 pb-0.5 mb-1">
+                          {locale === 'en' ? cat.name_en || cat.nameEn : cat.name_ar || cat.nameAr}
+                        </p>
+                        <div className="grid grid-cols-2 gap-1.5 pl-1">
+                          {catProducts.map((p: any) => {
+                            const isChecked = selectedMappingProductIds.includes(p.id);
+                            return (
+                              <label key={p.id} className="flex items-center gap-1.5 text-[10px] font-bold text-white cursor-pointer hover:text-primary-red transition-colors">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedMappingProductIds(prev => [...prev, p.id]);
+                                    } else {
+                                      setSelectedMappingProductIds(prev => prev.filter(id => id !== p.id));
+                                    }
+                                  }}
+                                  className="accent-primary-red shrink-0"
+                                />
+                                <span className="truncate">{locale === 'en' ? p.nameEn : p.nameAr}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
