@@ -71,6 +71,7 @@ export default function AdminDashboardPage() {
   const [manualOptPrice, setManualOptPrice] = useState('');
   const [manualOptFree, setManualOptFree] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [selectedImportProductIds, setSelectedImportProductIds] = useState<string[]>([]);
   const [quickAddSelectedId, setQuickAddSelectedId] = useState<string>('');
   const [quickAddPrice, setQuickAddPrice] = useState<string>('');
   const [quickAddFree, setQuickAddFree] = useState<boolean>(false);
@@ -763,7 +764,27 @@ export default function AdminDashboardPage() {
     }
   }, [orders, role, alertAudioEnabled]);
 
-  const [acknowledgedCancellations, setAcknowledgedCancellations] = useState<string[]>([]);
+  const [acknowledgedCancellations, setAcknowledgedCancellations] = useState<string[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('acknowledged-cancellations');
+        return stored ? JSON.parse(stored) : [];
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const handleAcknowledgeCancellation = (orderId: string) => {
+    setAcknowledgedCancellations((prev) => {
+      const next = [...prev, orderId];
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('acknowledged-cancellations', JSON.stringify(next));
+      }
+      return next;
+    });
+  };
 
   const customerCancelledOrders = (orders || []).filter((o) => {
     const isCancelledByCust = o.status === 'CANCELLED' && 
@@ -1515,7 +1536,7 @@ export default function AdminDashboardPage() {
                         <span className="block font-medium">{o.userName} ({o.userPhone})</span>
                       </div>
                       <button
-                        onClick={() => setAcknowledgedCancellations(prev => [...prev, o.id])}
+                        onClick={() => handleAcknowledgeCancellation(o.id)}
                         className="px-3.5 py-2 bg-red-600 hover:bg-red-700 text-white text-[10px] font-extrabold rounded-xl transition-all cursor-pointer shadow-md shadow-red-600/15"
                       >
                         {locale === 'en' ? 'Acknowledge' : 'تأكيد'}
@@ -2321,6 +2342,84 @@ export default function AdminDashboardPage() {
                       );
                     })()}
                   </div>
+
+                  {/* Select Combo Items Checklist */}
+                  {(() => {
+                    const comboItemsSetting = settings.find((s: any) => s.key === 'combo_items_list') || { value: '' };
+                    const selectedIds = comboItemsSetting.value ? comboItemsSetting.value.split(',') : [];
+                    
+                    const allowedCategories = adminCategories.filter((cat: any) => {
+                      const nameEn = (cat.name_en || cat.nameEn || '').toLowerCase();
+                      const nameAr = (cat.name_ar || cat.nameAr || '').toLowerCase();
+                      return (
+                        nameEn.includes('side') ||
+                        nameEn.includes('appetizer') ||
+                        nameEn.includes('drink') ||
+                        nameEn.includes('beverage') ||
+                        nameEn.includes('addon') ||
+                        nameEn.includes('add-on') ||
+                        nameEn.includes('extra') ||
+                        nameAr.includes('جانب') ||
+                        nameAr.includes('مشروب') ||
+                        nameAr.includes('إضاف')
+                      );
+                    });
+
+                    return (
+                      <div className="space-y-2 pt-4 border-t border-[#27272A]">
+                        <label className="text-[10px] text-accent-amber block font-bold uppercase tracking-wider">
+                          {locale === 'en' ? 'Select Combo Items' : 'تحديد عناصر عرض الكومبو'}
+                        </label>
+                        <p className="text-[9px] text-text-muted leading-tight">
+                          {locale === 'en' 
+                            ? 'Choose which items (from addons, appetizers, and drinks) will be added to the customer order when they accept the make-it-combo offer.' 
+                            : 'اختر العناصر (من الإضافات، المقبلات، والمشروبات) التي سيتم إضافتها لطلب العميل عند قبوله لعرض الكومبو.'}
+                        </p>
+                        <div className="max-h-48 overflow-y-auto bg-card border border-card-border rounded-xl p-3 space-y-3.5 scrollbar-thin">
+                          {allowedCategories.map((cat: any) => {
+                            const catProducts = products.filter((p: any) => p.categoryId === cat.id);
+                            if (catProducts.length === 0) return null;
+                            return (
+                              <div key={cat.id} className="space-y-1.5">
+                                <p className="text-[10px] font-extrabold text-primary-red uppercase tracking-wider border-b border-card-border/20 pb-0.5 mb-1.5">
+                                  {locale === 'en' ? cat.name_en || cat.nameEn : cat.name_ar || cat.nameAr}
+                                </p>
+                                <div className="space-y-1 pl-1">
+                                  {catProducts.map((p: any) => {
+                                    const isChecked = selectedIds.includes(p.id);
+                                    return (
+                                      <label key={p.id} className="flex items-center gap-2 text-xs font-bold text-white cursor-pointer hover:text-primary-red transition-colors">
+                                        <input
+                                          type="checkbox"
+                                          checked={isChecked}
+                                          onChange={(e) => {
+                                            let newIds = [...selectedIds];
+                                            if (e.target.checked) {
+                                              newIds.push(p.id);
+                                            } else {
+                                              newIds = newIds.filter(id => id !== p.id);
+                                            }
+                                            saveSettingMutation.mutate({ key: 'combo_items_list', value: newIds.join(',') });
+                                          }}
+                                          className="accent-primary-red"
+                                        />
+                                        <span>{locale === 'en' ? p.nameEn : p.nameAr}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {allowedCategories.length === 0 && (
+                            <p className="text-text-muted text-[10px] text-center py-2">
+                              {locale === 'en' ? 'No addons/appetizers/drinks categories found.' : 'لم يتم العثور على فئات للإضافات/المقبلات/المشروبات.'}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {editingCategory && (
@@ -4293,83 +4392,77 @@ export default function AdminDashboardPage() {
                       {/* Select & Import from Menu Items */}
                       <div className="p-3 bg-[#131316] border border-card-border rounded-xl space-y-2">
                         <label className="text-[10px] text-[#fbbf24] block font-black uppercase tracking-wider">
-                          {locale === 'en' ? 'Option A: Add from Menu Items' : 'الخيار أ: إضافة من عناصر المنيو'}
+                          {locale === 'en' ? 'Option A: Add from Menu Items (Multi-select)' : 'الخيار أ: إضافة من عناصر المنيو (تحديد متعدد)'}
                         </label>
                         
                         <div className="space-y-2">
-                          <select
-                            value={quickAddSelectedId}
-                            onChange={(e) => {
-                              const prodId = e.target.value;
-                              setQuickAddSelectedId(prodId);
-                              const prod = products.find(p => p.id === prodId);
-                              if (prod) {
-                                setQuickAddPrice(prod.priceSingle.toString());
-                              } else {
-                                setQuickAddPrice('');
-                              }
-                            }}
-                            className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500/50"
-                          >
-                            <option value="">-- {locale === 'en' ? 'Select Menu Item' : 'اختر عنصر من المنيو'} --</option>
+                          <div className="max-h-40 overflow-y-auto bg-[#18181B] border border-card-border rounded-xl p-3 space-y-3 scrollbar-thin">
                             {categories.map((cat) => {
                               const catProducts = products.filter(p => p.categoryId === cat.id);
                               if (catProducts.length === 0) return null;
                               return (
-                                <optgroup key={cat.id} label={locale === 'en' ? cat.nameEn : cat.nameAr} className="bg-[#18181B] text-indigo-400 font-bold">
-                                  {catProducts.map((p) => (
-                                    <option key={p.id} value={p.id} className="text-white bg-[#131316]">
-                                      {locale === 'en' ? `${p.nameEn} (${p.priceSingle} EGP)` : `${p.nameAr} (${p.priceSingle} ج.م)`}
-                                    </option>
-                                  ))}
-                                </optgroup>
+                                <div key={cat.id} className="space-y-1">
+                                  <p className="text-[9px] font-extrabold text-indigo-400 uppercase tracking-wider border-b border-card-border/20 pb-0.5 mb-1">
+                                    {locale === 'en' ? cat.nameEn : cat.nameAr}
+                                  </p>
+                                  <div className="grid grid-cols-2 gap-1.5 pl-1.5">
+                                    {catProducts.map((p) => {
+                                      const isChecked = selectedImportProductIds.includes(p.id);
+                                      return (
+                                        <label key={p.id} className="flex items-center gap-1.5 text-[10px] font-bold text-white cursor-pointer hover:text-primary-red transition-colors">
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={(e) => {
+                                              if (e.target.checked) {
+                                                setSelectedImportProductIds(prev => [...prev, p.id]);
+                                              } else {
+                                                setSelectedImportProductIds(prev => prev.filter(id => id !== p.id));
+                                              }
+                                            }}
+                                            className="accent-primary-red shrink-0"
+                                          />
+                                          <span className="truncate" title={locale === 'en' ? p.nameEn : p.nameAr}>
+                                            {locale === 'en' ? `${p.nameEn} (${p.priceSingle} EGP)` : `${p.nameAr} (${p.priceSingle} ج.م)`}
+                                          </span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                               );
                             })}
-                          </select>
+                          </div>
 
-                          {quickAddSelectedId && (
-                            <div className="flex gap-3 items-center pt-1 animate-in fade-in duration-200">
-                              <div className="flex-1 space-y-1">
-                                <label className="text-[9px] text-text-muted block font-bold uppercase">{locale === 'en' ? 'Price' : 'السعر'}</label>
-                                <input
-                                  type="number"
-                                  disabled={quickAddFree}
-                                  value={quickAddFree ? '0' : quickAddPrice}
-                                  onChange={(e) => setQuickAddPrice(e.target.value)}
-                                  className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-2 py-1.5 text-white focus:outline-none disabled:opacity-50"
-                                />
-                              </div>
-                              <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer pt-4 font-bold select-none">
-                                <input
-                                  type="checkbox"
-                                  checked={quickAddFree}
-                                  onChange={(e) => setQuickAddFree(e.target.checked)}
-                                  className="accent-primary-red"
-                                />
-                                <span>{locale === 'en' ? 'Free Option' : 'خيار مجاني'}</span>
-                              </label>
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const prod = products.find(p => p.id === quickAddSelectedId);
-                                  if (!prod) return;
-                                  const finalPrice = quickAddFree ? 0 : parseFloat(quickAddPrice) || 0;
-                                  setNewGroupOptionsList([
-                                    ...newGroupOptionsList,
-                                    { name_en: prod.nameEn, name_ar: prod.nameAr, price: finalPrice }
-                                  ]);
-                                  
-                                  setQuickAddSelectedId('');
-                                  setQuickAddPrice('');
-                                  setQuickAddFree(false);
-                                }}
-                                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase rounded-lg transition-colors mt-4"
-                              >
-                                {locale === 'en' ? 'Add' : 'إضافة'}
-                              </button>
-                            </div>
-                          )}
+                          <div className="flex justify-between items-center gap-4 pt-1">
+                            <span className="text-[9px] text-text-muted">
+                              {locale === 'en' 
+                                ? `${selectedImportProductIds.length} items selected` 
+                                : `تم تحديد ${selectedImportProductIds.length} عنصر`}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={selectedImportProductIds.length === 0}
+                              onClick={() => {
+                                const newOpts = [...newGroupOptionsList];
+                                selectedImportProductIds.forEach((pid) => {
+                                  const prod = products.find(p => p.id === pid);
+                                  if (prod) {
+                                    newOpts.push({
+                                      name_en: prod.nameEn,
+                                      name_ar: prod.nameAr,
+                                      price: prod.priceSingle || 0,
+                                    });
+                                  }
+                                });
+                                setNewGroupOptionsList(newOpts);
+                                setSelectedImportProductIds([]);
+                              }}
+                              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-[10px] font-black uppercase rounded-lg transition-colors cursor-pointer"
+                            >
+                              {locale === 'en' ? 'Add Selected' : 'إضافة المحددة'}
+                            </button>
+                          </div>
                         </div>
                       </div>
 

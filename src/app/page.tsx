@@ -517,6 +517,7 @@ export default function Home() {
     if (discount) {
       if (discount.discountType === 'FIXED') finalPrice = Math.max(0, basePrice - discount.discountValue);
       if (discount.discountType === 'PERCENT') finalPrice = Math.max(0, basePrice * (1 - discount.discountValue / 100));
+      finalPrice = Math.round(finalPrice);
     }
 
     const customizationSum = customizations.reduce((sum, c) => sum + c.price, 0);
@@ -860,9 +861,10 @@ export default function Home() {
 
               const getDiscountedPrice = (price: number) => {
                 if (!discount) return price;
-                if (discount.discountType === 'FIXED') return Math.max(0, price - discount.discountValue);
-                if (discount.discountType === 'PERCENT') return Math.max(0, price * (1 - discount.discountValue / 100));
-                return price;
+                let discounted = price;
+                if (discount.discountType === 'FIXED') discounted = Math.max(0, price - discount.discountValue);
+                if (discount.discountType === 'PERCENT') discounted = Math.max(0, price * (1 - discount.discountValue / 100));
+                return Math.round(discounted);
               };
 
               const displayPrice = getDiscountedPrice(basePrice);
