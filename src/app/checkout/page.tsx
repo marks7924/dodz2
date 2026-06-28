@@ -57,16 +57,26 @@ export default function CheckoutPage() {
   const [isOrdering, setIsOrdering] = useState(false);
   const { user, profile, isLoading } = useAuth();
   const [mounted, setMounted] = useState(false);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    const unsub = useCartStore.persist.onFinishHydration(() => {
+      setHydrated(true);
+    });
+    if (useCartStore.persist.hasHydrated()) {
+      setHydrated(true);
+    }
+    return () => {
+      if (unsub) unsub();
+    };
   }, []);
 
   useEffect(() => {
-    if (mounted && !isLoading && !user) {
+    if (mounted && hydrated && !isLoading && !user) {
       router.push('/auth/login?next=/checkout');
     }
-  }, [mounted, isLoading, user, router]);
+  }, [mounted, hydrated, isLoading, user, router]);
 
   useEffect(() => {
     let initialName = '';
@@ -98,7 +108,7 @@ export default function CheckoutPage() {
     setAddress(initialAddress);
   }, [profile]);
 
-  if (!mounted || isLoading || !user) {
+  if (!mounted || !hydrated || isLoading || !user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-red" />
