@@ -3241,26 +3241,111 @@ export default function AdminDashboardPage() {
                   />
                 </div>
 
-                {/* Prices */}
-                <div className="space-y-1">
-                  <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">{t('productPriceSingle')}</label>
-                  <input
-                    type="number"
-                    value={editingProduct.priceSingle || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, priceSingle: Number(e.target.value) })}
-                    required
+                {/* Size Type & Pricing System */}
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                    {locale === 'en' ? 'Size Option System' : 'نظام خيارات الحجم'}
+                  </label>
+                  <select
+                    value={editingProduct.sizeType || 'NUMERIC'}
+                    onChange={(e) => setEditingProduct({ 
+                      ...editingProduct, 
+                      sizeType: e.target.value as 'NUMERIC' | 'SIZE' 
+                    })}
                     className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
-                  />
+                  >
+                    <option value="NUMERIC">{locale === 'en' ? 'Numeric (Single / Double / Triple)' : 'رقمي (سنجل / دبل / تربل)'}</option>
+                    <option value="SIZE">{locale === 'en' ? 'Standard Sizes (Small / Medium / Large / Family)' : 'الأحجام القياسية (صغير / وسط / كبير / عائلي)'}</option>
+                  </select>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">{t('productPriceDouble')}</label>
-                  <input
-                    type="number"
-                    value={editingProduct.priceDouble || ''}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, priceDouble: e.target.value ? Number(e.target.value) : undefined })}
-                    className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
-                  />
-                </div>
+
+                {/* Prices based on sizeType */}
+                {(editingProduct.sizeType === 'SIZE') ? (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                        {locale === 'en' ? 'Price (Small)' : 'السعر (صغير)'}
+                      </label>
+                      <input
+                        type="number"
+                        value={editingProduct.priceSingle || ''}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, priceSingle: Number(e.target.value) })}
+                        required
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                        {locale === 'en' ? 'Price (Medium)' : 'السعر (وسط)'}
+                      </label>
+                      <input
+                        type="number"
+                        value={editingProduct.priceDouble || ''}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, priceDouble: e.target.value ? Number(e.target.value) : undefined })}
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                        {locale === 'en' ? 'Price (Large)' : 'السعر (كبير)'}
+                      </label>
+                      <input
+                        type="number"
+                        value={editingProduct.priceTriple || ''}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, priceTriple: e.target.value ? Number(e.target.value) : undefined })}
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                        {locale === 'en' ? 'Price (Family)' : 'السعر (عائلي)'}
+                      </label>
+                      <input
+                        type="number"
+                        value={editingProduct.priceFamily || ''}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, priceFamily: e.target.value ? Number(e.target.value) : undefined })}
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                        {locale === 'en' ? 'Price (Single)' : 'السعر (سنجل)'}
+                      </label>
+                      <input
+                        type="number"
+                        value={editingProduct.priceSingle || ''}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, priceSingle: Number(e.target.value) })}
+                        required
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                        {locale === 'en' ? 'Price (Double)' : 'السعر (دبل)'}
+                      </label>
+                      <input
+                        type="number"
+                        value={editingProduct.priceDouble || ''}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, priceDouble: e.target.value ? Number(e.target.value) : undefined })}
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                        {locale === 'en' ? 'Price (Triple)' : 'السعر (تربل)'}
+                      </label>
+                      <input
+                        type="number"
+                        value={editingProduct.priceTriple || ''}
+                        onChange={(e) => setEditingProduct({ ...editingProduct, priceTriple: e.target.value ? Number(e.target.value) : undefined })}
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
+                      />
+                    </div>
+                  </>
+                )}
 
                 {/* Image URL / Upload */}
                 <div className="space-y-1 sm:col-span-2">
