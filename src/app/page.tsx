@@ -1501,8 +1501,39 @@ export default function Home() {
         const sizeBaseComboPrice = isCombo ? comboPrices[comboSize] : 0;
         const selectedSide = allowedSides.find(s => s.id === selectedComboSideId);
         const selectedDrink = allowedDrinks.find(d => d.id === selectedComboDrinkId);
-        const sidePriceDiff = (isCombo && selectedSide && baseSide) ? Math.max(0, selectedSide.priceSingle - baseSide.priceSingle) : 0;
-        const drinkPriceDiff = (isCombo && selectedDrink && baseDrink) ? Math.max(0, selectedDrink.priceSingle - baseDrink.priceSingle) : 0;
+
+        // Determine free side based on comboSize
+        const freeSide = (() => {
+          if (comboSize === 'F') {
+            // Family fries
+            const famFries = allowedSides.find(s => s.nameEn.toLowerCase().includes('family') || s.nameAr.includes('عائلي'));
+            return famFries || baseSide;
+          }
+          // Small/Medium: Regular French Fries
+          const regFries = allowedSides.find(s => s.nameEn.toLowerCase().includes('regular french') || s.nameEn.toLowerCase().includes('french fries') || s.nameAr.includes('بطاطس مقلية') || s.nameAr.includes('بطاطس محمرة'));
+          return regFries || baseSide;
+        })();
+
+        // Determine if selected drink is free (water or soft drink/pepsi/cola/7up/mirinda)
+        const isFreeDrink = selectedDrink && (
+          selectedDrink.nameEn.toLowerCase().includes('water') ||
+          selectedDrink.nameEn.toLowerCase().includes('soft drink') ||
+          selectedDrink.nameEn.toLowerCase().includes('pepsi') ||
+          selectedDrink.nameEn.toLowerCase().includes('cola') ||
+          selectedDrink.nameEn.toLowerCase().includes('7up') ||
+          selectedDrink.nameEn.toLowerCase().includes('mirinda') ||
+          selectedDrink.nameAr.includes('مياه') ||
+          selectedDrink.nameAr.includes('مشروب غازي') ||
+          selectedDrink.nameAr.includes('بيبسي')
+        );
+
+        const sidePriceDiff = (isCombo && selectedSide && freeSide) 
+          ? Math.max(0, selectedSide.priceSingle - freeSide.priceSingle) 
+          : 0;
+
+        const drinkPriceDiff = (isCombo && selectedDrink)
+          ? (isFreeDrink ? 0 : Math.max(0, selectedDrink.priceSingle - 20))
+          : 0;
         
         const comboAddon = isCombo ? (sizeBaseComboPrice + sidePriceDiff + drinkPriceDiff) : 0;
         const originalFinalPrice = basePrice + customizationSum + extrasSum + comboAddon;
@@ -1676,7 +1707,15 @@ export default function Home() {
                             </label>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {allowedSides.map((side) => {
-                                const diff = baseSide ? Math.max(0, side.priceSingle - baseSide.priceSingle) : 0;
+                                const freeSideForSize = (() => {
+                                  if (comboSize === 'F') {
+                                    const famFries = allowedSides.find(s => s.nameEn.toLowerCase().includes('family') || s.nameAr.includes('عائلي'));
+                                    return famFries || baseSide;
+                                  }
+                                  const regFries = allowedSides.find(s => s.nameEn.toLowerCase().includes('regular french') || s.nameEn.toLowerCase().includes('french fries') || s.nameAr.includes('بطاطس مقلية') || s.nameAr.includes('بطاطس محمرة'));
+                                  return regFries || baseSide;
+                                })();
+                                const diff = freeSideForSize ? Math.max(0, side.priceSingle - freeSideForSize.priceSingle) : 0;
                                 const isSel = selectedComboSideId === side.id;
                                 return (
                                   <button
@@ -1708,7 +1747,16 @@ export default function Home() {
                             </label>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {allowedDrinks.map((drk) => {
-                                const diff = baseDrink ? Math.max(0, drk.priceSingle - baseDrink.priceSingle) : 0;
+                                const isFree = drk.nameEn.toLowerCase().includes('water') ||
+                                               drk.nameEn.toLowerCase().includes('soft drink') ||
+                                               drk.nameEn.toLowerCase().includes('pepsi') ||
+                                               drk.nameEn.toLowerCase().includes('cola') ||
+                                               drk.nameEn.toLowerCase().includes('7up') ||
+                                               drk.nameEn.toLowerCase().includes('mirinda') ||
+                                               drk.nameAr.includes('مياه') ||
+                                               drk.nameAr.includes('مشروب غازي') ||
+                                               drk.nameAr.includes('بيبسي');
+                                const diff = isFree ? 0 : Math.max(0, drk.priceSingle - 20);
                                 const isSel = selectedComboDrinkId === drk.id;
                                 return (
                                   <button
