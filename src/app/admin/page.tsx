@@ -65,6 +65,10 @@ export default function AdminDashboardPage() {
   const [newGroupMin, setNewGroupMin] = useState('0');
   const [newGroupMax, setNewGroupMax] = useState('1');
   const [newGroupOptionsText, setNewGroupOptionsText] = useState(''); // e.g. "Add Cheese: 15 / إضافة جبنة: 15"
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [quickAddSelectedId, setQuickAddSelectedId] = useState<string>('');
+  const [quickAddPrice, setQuickAddPrice] = useState<string>('');
+  const [quickAddFree, setQuickAddFree] = useState<boolean>(false);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1038,23 +1042,62 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const handleDeleteCustomizationGroup = async (groupId: string) => {
+    if (!confirm(locale === 'en' ? 'Are you sure you want to delete this customization group?' : 'هل أنت متأكد من حذف مجموعة الخيارات هذه؟')) return;
+    try {
+      const { error } = await supabase
+        .from('customization_groups')
+        .delete()
+        .eq('id', groupId);
+      if (error) throw error;
+      
+      if (customizationMappingProduct) {
+        await fetchCustomizationsData(customizationMappingProduct.id);
+      }
+    } catch (e: any) {
+      alert('Delete failed: ' + e.message);
+    }
+  };
+
   const handleCreateCustomizationGroup = async () => {
     if (!newGroupNameEn.trim() || !newGroupNameAr.trim()) {
       alert('Please fill out name in English and Arabic');
       return;
     }
     try {
-      const { data: group, error: grpErr } = await supabase
-        .from('customization_groups')
-        .insert({
-          name_en: newGroupNameEn.trim(),
-          name_ar: newGroupNameAr.trim(),
-          min_selected: parseInt(newGroupMin) || 0,
-          max_selected: parseInt(newGroupMax) || 1,
-        })
-        .select()
-        .single();
-      if (grpErr) throw grpErr;
+      let groupId = editingGroupId;
+
+      if (editingGroupId) {
+        const { error: grpErr } = await supabase
+          .from('customization_groups')
+          .update({
+            name_en: newGroupNameEn.trim(),
+            name_ar: newGroupNameAr.trim(),
+            min_selected: parseInt(newGroupMin) || 0,
+            max_selected: parseInt(newGroupMax) || 1,
+          })
+          .eq('id', editingGroupId);
+        if (grpErr) throw grpErr;
+
+        const { error: delErr } = await supabase
+          .from('customization_options')
+          .delete()
+          .eq('group_id', editingGroupId);
+        if (delErr) throw delErr;
+      } else {
+        const { data: group, error: grpErr } = await supabase
+          .from('customization_groups')
+          .insert({
+            name_en: newGroupNameEn.trim(),
+            name_ar: newGroupNameAr.trim(),
+            min_selected: parseInt(newGroupMin) || 0,
+            max_selected: parseInt(newGroupMax) || 1,
+          })
+          .select()
+          .single();
+        if (grpErr) throw grpErr;
+        groupId = group.id;
+      }
 
       const optBlocks = newGroupOptionsText.split(',');
       const rows = [];
@@ -1076,7 +1119,7 @@ export default function AdminDashboardPage() {
         const detailsAr = getParts(partAr);
 
         rows.push({
-          group_id: group.id,
+          group_id: groupId,
           name_en: detailsEn.name || 'Option',
           name_ar: detailsAr.name || 'خيار',
           price: detailsEn.price,
@@ -1095,6 +1138,7 @@ export default function AdminDashboardPage() {
       }
 
       setShowAddGroupForm(false);
+      setEditingGroupId(null);
       setNewGroupNameEn('');
       setNewGroupNameAr('');
       setNewGroupMin('0');
@@ -4140,43 +4184,78 @@ export default function AdminDashboardPage() {
                           className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500/50 placeholder:text-text-muted"
                         />
                         <span className="text-[8px] text-text-muted leading-tight block">Format: Option En: Price / Option Ar: Price, ...</span>
-                        {(() => {
-                          const sauceAndAddonProducts = products.filter((p) => {
-                            const cat = categories.find((c) => c.id === p.categoryId);
-                            if (!cat) return false;
-                            const catName = (cat.nameEn + ' ' + cat.nameAr).toLowerCase();
-                            return catName.includes('sauce') || catName.includes('add-on') || catName.includes('side') || catName.includes('appetizer') ||
-                                   catName.includes('صوص') || catName.includes('إضافات') || catName.includes('مقبلات') || catName.includes('جانبي');
-                          });
-                          if (sauceAndAddonProducts.length === 0) return null;
-                          return (
-                            <div className="mt-2 space-y-1">
-                              <label className="text-[9px] text-[#fbbf24] block font-bold uppercase tracking-wider">
-                                {locale === 'en' ? 'Quick Add from Sauces/Add-ons' : 'إضافة سريعة من الصوصات/الإضافات'}
+                      {/* Select & Import from Menu Items */}
+                      <div className="mt-4 p-3 bg-[#131316] border border-card-border rounded-xl space-y-3">
+                        <label className="text-[10px] text-[#fbbf24] block font-black uppercase tracking-wider">
+                          {locale === 'en' ? 'Quick Add option from Menu' : 'إضافة خيار سريع من المنيو'}
+                        </label>
+                        
+                        <div className="space-y-2">
+                          <select
+                            value={quickAddSelectedId}
+                            onChange={(e) => {
+                              const prodId = e.target.value;
+                              setQuickAddSelectedId(prodId);
+                              const prod = products.find(p => p.id === prodId);
+                              if (prod) {
+                                setQuickAddPrice(prod.priceSingle.toString());
+                              } else {
+                                setQuickAddPrice('');
+                              }
+                            }}
+                            className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500/50"
+                          >
+                            <option value="">-- {locale === 'en' ? 'Select Menu Item' : 'اختر عنصر من المنيو'} --</option>
+                            {products.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {locale === 'en' ? `${p.nameEn} (${p.priceSingle} EGP)` : `${p.nameAr} (${p.priceSingle} ج.م)`}
+                              </option>
+                            ))}
+                          </select>
+
+                          {quickAddSelectedId && (
+                            <div className="flex gap-3 items-center pt-1 animate-in fade-in duration-200">
+                              <div className="flex-1 space-y-1">
+                                <label className="text-[9px] text-text-muted block font-bold uppercase">{locale === 'en' ? 'Price' : 'السعر'}</label>
+                                <input
+                                  type="number"
+                                  disabled={quickAddFree}
+                                  value={quickAddFree ? '0' : quickAddPrice}
+                                  onChange={(e) => setQuickAddPrice(e.target.value)}
+                                  className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-2 py-1.5 text-white focus:outline-none disabled:opacity-50"
+                                />
+                              </div>
+                              <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer pt-4 font-bold select-none">
+                                <input
+                                  type="checkbox"
+                                  checked={quickAddFree}
+                                  onChange={(e) => setQuickAddFree(e.target.checked)}
+                                  className="accent-primary-red"
+                                />
+                                <span>{locale === 'en' ? 'Free Option' : 'خيار مجاني'}</span>
                               </label>
-                              <select
-                                onChange={(e) => {
-                                  const prodId = e.target.value;
-                                  if (!prodId) return;
-                                  const prod = sauceAndAddonProducts.find(p => p.id === prodId);
-                                  if (prod) {
-                                    const optionString = `${prod.nameEn}: ${prod.priceSingle} / ${prod.nameAr}: ${prod.priceSingle}`;
-                                    setNewGroupOptionsText(prev => prev ? `${prev}, ${optionString}` : optionString);
-                                  }
-                                  e.target.value = '';
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const prod = products.find(p => p.id === quickAddSelectedId);
+                                  if (!prod) return;
+                                  const finalPrice = quickAddFree ? 0 : parseFloat(quickAddPrice) || 0;
+                                  const optionString = `${prod.nameEn}: ${finalPrice} / ${prod.nameAr}: ${finalPrice}`;
+                                  setNewGroupOptionsText(prev => prev ? `${prev}, ${optionString}` : optionString);
+                                  
+                                  setQuickAddSelectedId('');
+                                  setQuickAddPrice('');
+                                  setQuickAddFree(false);
                                 }}
-                                className="w-full text-xs bg-[#131316] border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none"
+                                className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase rounded-lg transition-colors mt-4"
                               >
-                                <option value="">-- {locale === 'en' ? 'Select an item to import' : 'اختر عنصر للاستيراد'} --</option>
-                                {sauceAndAddonProducts.map((p) => (
-                                  <option key={p.id} value={p.id} className="bg-[#131316]">
-                                    {locale === 'en' ? `${p.nameEn} (${p.priceSingle} EGP)` : `${p.nameAr} (${p.priceSingle} ج.م)`}
-                                  </option>
-                                ))}
-                              </select>
+                                {locale === 'en' ? 'Add' : 'إضافة'}
+                              </button>
                             </div>
-                          );
-                        })()}
+                          )}
+                        </div>
+                      </div>
                       </div>
 
                       <button
@@ -4217,16 +4296,52 @@ export default function AdminDashboardPage() {
                               : 'bg-card border-card-border hover:border-card-border-hover text-text-muted'
                           }`}
                         >
-                          <div className="space-y-0.5">
-                            <span className="text-white block">{locale === 'en' ? group.nameEn : group.nameAr}</span>
-                            <span className="text-[10px] text-text-muted block font-mono font-medium">
+                          <div className="space-y-0.5 flex-grow pr-2 min-w-0">
+                            <span className="text-white block truncate">{locale === 'en' ? (group.name_en || group.nameEn) : (group.name_ar || group.nameAr)}</span>
+                            <span className="text-[10px] text-text-muted block font-mono font-medium truncate">
                               {group.customization_options?.map((o: any) => locale === 'en' ? o.name_en : o.name_ar).join(' • ') || 'No options'}
                             </span>
                           </div>
-                          <div className={`h-4.5 w-4.5 rounded flex items-center justify-center border ${
-                            isAssigned ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-card-border bg-card-border'
-                          }`}>
-                            {isAssigned && <Check className="h-3 w-3 stroke-[3]" />}
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            {/* Edit Group button */}
+                            <button
+                              type="button"
+                              title={locale === 'en' ? 'Edit Group' : 'تعديل المجموعة'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingGroupId(group.id);
+                                setNewGroupNameEn(group.name_en || group.nameEn || '');
+                                setNewGroupNameAr(group.name_ar || group.nameAr || '');
+                                setNewGroupMin((group.min_selected !== undefined ? group.min_selected : group.minSelected || 0).toString());
+                                setNewGroupMax((group.max_selected !== undefined ? group.max_selected : group.maxSelected || 1).toString());
+                                const optStr = group.customization_options?.map((o: any) => `${o.name_en || o.nameEn}: ${o.price} / ${o.name_ar || o.nameAr}: ${o.price}`).join(', ') || '';
+                                setNewGroupOptionsText(optStr);
+                                setShowAddGroupForm(true);
+                              }}
+                              className="p-1 rounded bg-[#1A1A1E] hover:bg-[#27272C] text-indigo-400 border border-card-border hover:text-white transition-colors"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+
+                            {/* Delete Group button */}
+                            <button
+                              type="button"
+                              title={locale === 'en' ? 'Delete Group' : 'حذف المجموعة'}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteCustomizationGroup(group.id);
+                              }}
+                              className="p-1 rounded bg-[#1A1A1E] hover:bg-red-500/10 text-red-500 border border-card-border hover:border-red-500 transition-colors"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+
+                            {/* Checkbox */}
+                            <div className={`h-4.5 w-4.5 rounded flex items-center justify-center border ${
+                              isAssigned ? 'border-indigo-500 bg-indigo-500 text-white' : 'border-card-border bg-card-border'
+                            }`}>
+                              {isAssigned && <Check className="h-3 w-3 stroke-[3]" />}
+                            </div>
                           </div>
                         </div>
                       );

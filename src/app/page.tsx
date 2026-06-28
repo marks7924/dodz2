@@ -1223,12 +1223,23 @@ export default function Home() {
       </div>
       {/* Combo Offer Modal */}
       {comboModal && (() => {
-        const fries = products.find(p => p.nameEn.toLowerCase().includes('fries') || p.nameAr.includes('بطاطس'));
-        const drink = products.find(p => {
-          const cat = categories.find(c => c.id === p.categoryId);
-          return (cat?.nameEn || '').toLowerCase().includes('drink') || p.nameEn.toLowerCase().includes('drink') || p.nameAr.includes('مشروب');
-        });
-        const comboItems = [fries, drink].filter(Boolean) as typeof products;
+        const comboItemsSetting = dbSettings.find((s: any) => s.key === 'combo_items_list');
+        let comboItems: typeof products = [];
+        
+        if (comboItemsSetting?.value) {
+          const selectedIds = comboItemsSetting.value.split(',');
+          comboItems = products.filter(p => selectedIds.includes(p.id));
+        }
+        
+        if (comboItems.length === 0) {
+          const fries = products.find(p => p.nameEn.toLowerCase().includes('fries') || p.nameAr.includes('بطاطس'));
+          const drink = products.find(p => {
+            const cat = categories.find(c => c.id === p.categoryId);
+            return (cat?.nameEn || '').toLowerCase().includes('drink') || p.nameEn.toLowerCase().includes('drink') || p.nameAr.includes('مشروب');
+          });
+          comboItems = [fries, drink].filter(Boolean) as typeof products;
+        }
+        
         if (comboItems.length === 0) { setComboModal(null); return null; }
         const originalPrice = comboItems.reduce((s, i) => s + i.priceSingle, 0);
         const comboPrice = comboFixedPrice !== null && comboFixedPrice !== undefined

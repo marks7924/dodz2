@@ -230,6 +230,49 @@ export default function SettingsPage() {
                     </div>
                   );
                 })()}
+
+                {/* Setting 6: Combo Items List */}
+                {(() => {
+                  const comboItemsSetting = settings.find((s: any) => s.key === 'combo_items_list') || { value: '' };
+                  const selectedIds = comboItemsSetting.value ? comboItemsSetting.value.split(',') : [];
+                  
+                  return (
+                    <div className="space-y-2 pt-2 border-t border-card-border/30">
+                      <label className="text-[10px] text-accent-amber block font-bold uppercase tracking-wider">
+                        {locale === 'en' ? 'Select Combo Items' : 'تحديد عناصر عرض الكومبو'}
+                      </label>
+                      <p className="text-[10px] text-text-muted leading-tight mb-2">
+                        {locale === 'en' 
+                          ? 'Choose which items will be added to the customer order when they accept the make-it-combo offer.' 
+                          : 'اختر العناصر التي سيتم إضافتها لطلب العميل عند قبوله لعرض الكومبو.'}
+                      </p>
+                      <div className="max-h-40 overflow-y-auto bg-[#18181B] border border-card-border rounded-xl p-3 space-y-1.5 scrollbar-thin">
+                        {products.map((p: any) => {
+                          const isChecked = selectedIds.includes(p.id);
+                          return (
+                            <label key={p.id} className="flex items-center gap-2 text-xs font-bold text-white cursor-pointer hover:text-primary-red transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  let newIds = [...selectedIds];
+                                  if (e.target.checked) {
+                                    newIds.push(p.id);
+                                  } else {
+                                    newIds = newIds.filter(id => id !== p.id);
+                                  }
+                                  handleSave('combo_items_list', newIds.join(','));
+                                }}
+                                className="accent-primary-red"
+                              />
+                              <span>{locale === 'en' ? p.nameEn : p.nameAr}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
