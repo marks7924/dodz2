@@ -69,7 +69,19 @@ export default function OrderTrackingPage() {
 
   const [isCancelling, setIsCancelling] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [dismissedCancellation, setDismissedCancellation] = useState(false);
+  const [dismissedCancellation, setDismissedCancellation] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(`dismissed-cancel-${orderId}`) === 'true';
+    }
+    return false;
+  });
+
+  const handleDismissCancellation = () => {
+    setDismissedCancellation(true);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(`dismissed-cancel-${orderId}`, 'true');
+    }
+  };
 
   const cancelOrder = async () => {
     setIsCancelling(true);
@@ -336,7 +348,7 @@ export default function OrderTrackingPage() {
             
             <div className="flex justify-end pt-2">
               <button
-                onClick={() => setDismissedCancellation(true)}
+                onClick={handleDismissCancellation}
                 className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-lg shadow-red-600/15"
               >
                 {locale === 'en' ? 'Dismiss' : 'إغلاق'}
