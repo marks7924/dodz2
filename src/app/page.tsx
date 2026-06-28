@@ -1223,7 +1223,7 @@ export default function Home() {
       </div>
       {/* Combo Offer Modal */}
       {comboModal && (() => {
-        const comboItemsSetting = dbSettings.find((s: any) => s.key === 'combo_items_list');
+        const comboItemsSetting = settings.find((s: any) => s.key === 'combo_items_list');
         let comboItems: typeof products = [];
         
         if (comboItemsSetting?.value) {
