@@ -51,6 +51,10 @@ export default function AdminDashboardPage() {
   const [assignedCustomizationGroupIds, setAssignedCustomizationGroupIds] = useState<string[]>([]);
   const [isSavingCustomizations, setIsSavingCustomizations] = useState(false);
   const [applyProductsExpanded, setApplyProductsExpanded] = useState(false);
+  const [menuStockExpanded, setMenuStockExpanded] = useState(true);
+  const [menuCategoriesExpanded, setMenuCategoriesExpanded] = useState(true);
+  const [comboCustomizationExpanded, setComboCustomizationExpanded] = useState(true);
+  const [oftenOrderedExpanded, setOftenOrderedExpanded] = useState(true);
   const [showStatsOverlay, setShowStatsOverlay] = useState(false);
   const [selectedStatsOrder, setSelectedStatsOrder] = useState<Order | null>(null);
   const [statsFilter, setStatsFilter] = useState<'DAY' | 'WEEK' | 'MONTH' | 'ALL'>('ALL');
@@ -1861,42 +1865,52 @@ export default function AdminDashboardPage() {
           <div className="bg-card border border-card-border rounded-3xl p-6 space-y-6">
             
             {/* Header CRUD */}
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full sm:w-auto">
-                <h2 className="text-sm font-bold uppercase tracking-wider text-accent-amber">{t('menuManagement')}</h2>
-                
-                {/* Category Selection Filter */}
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">{locale === 'en' ? 'Category Filter:' : 'تصفية بالقسم:'}</span>
-                  <select
-                    value={filterEditCategoryId}
-                    onChange={(e) => setFilterEditCategoryId(e.target.value)}
-                    className="bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-primary-red/50 cursor-pointer"
-                  >
-                    <option value="ALL">{locale === 'en' ? `ALL (${products.length})` : `الكل (${products.length})`}</option>
-                    {categories.map((c: any) => {
-                      const count = products.filter((p) => p.categoryId === c.id || p.categoryIds?.includes(c.id)).length;
-                      return (
-                        <option key={c.id} value={c.id}>
-                          {locale === 'en' ? c.nameEn : c.nameAr} ({count})
-                        </option>
-                      );
-                    })}
-                  </select>
-                </div>
-              </div>
-
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-card-border/20 pb-4">
               <button
-                onClick={handleOpenAddProduct}
-                className="px-4 py-2 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer w-full sm:w-auto justify-center"
+                type="button"
+                onClick={() => setMenuStockExpanded(!menuStockExpanded)}
+                className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-accent-amber cursor-pointer hover:opacity-85 transition-all"
               >
-                <Plus className="h-4.5 w-4.5" />
-                <span>{t('addNewProduct')}</span>
+                <span>{t('menuManagement')}</span>
+                {menuStockExpanded ? <ChevronUp className="h-4.5 w-4.5" /> : <ChevronDown className="h-4.5 w-4.5" />}
               </button>
+
+              {menuStockExpanded && (
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full sm:w-auto">
+                  {/* Category Selection Filter */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">{locale === 'en' ? 'Category Filter:' : 'تصفية بالقسم:'}</span>
+                    <select
+                      value={filterEditCategoryId}
+                      onChange={(e) => setFilterEditCategoryId(e.target.value)}
+                      className="bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-primary-red/50 cursor-pointer"
+                    >
+                      <option value="ALL">{locale === 'en' ? `ALL (${products.length})` : `الكل (${products.length})`}</option>
+                      {categories.map((c: any) => {
+                        const count = products.filter((p) => p.categoryId === c.id || p.categoryIds?.includes(c.id)).length;
+                        return (
+                          <option key={c.id} value={c.id}>
+                            {locale === 'en' ? c.nameEn : c.nameAr} ({count})
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={handleOpenAddProduct}
+                    className="px-4 py-2 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer w-full sm:w-auto justify-center"
+                  >
+                    <Plus className="h-4.5 w-4.5" />
+                    <span>{t('addNewProduct')}</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* List products grid */}
-            <div className="overflow-x-auto">
+            {menuStockExpanded && (
+              <div className="overflow-x-auto">
               <table className="w-full text-left rtl:text-right text-xs">
                 <thead className="bg-[#18181B] text-text-muted border-b border-card-border">
                   <tr>
@@ -2195,27 +2209,35 @@ export default function AdminDashboardPage() {
                 </tbody>
               </table>
             </div>
+            )}
 
             {/* ── Categories Management (OWNER / HEAD_ADMIN / DEVELOPER) ── */}
             {canManageCategories && (
               <div className="border-t border-card-border pt-6 space-y-4">
-                <div className="flex justify-between items-center">
-                  <div className="flex items-center gap-2">
-                    <Tag className="h-4 w-4 text-accent-amber" />
-                    <h3 className="text-sm font-bold uppercase tracking-wider text-accent-amber">
-                      {locale === 'en' ? 'Menu Categories' : 'أقسام المنيو'}
-                    </h3>
-                  </div>
+                <div className="flex justify-between items-center pb-2 border-b border-card-border/10">
                   <button
-                    onClick={() => setEditingCategory({ name_en: '', name_ar: '', desc_en: '', desc_ar: '', is_default: false })}
-                    className="px-3 py-1.5 bg-accent-amber/10 border border-accent-amber/30 text-accent-amber text-xs font-bold rounded-xl hover:bg-accent-amber hover:text-black transition-all flex items-center gap-1 cursor-pointer"
+                    type="button"
+                    onClick={() => setMenuCategoriesExpanded(!menuCategoriesExpanded)}
+                    className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-accent-amber cursor-pointer hover:opacity-85 transition-all"
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    {locale === 'en' ? 'Add Category' : 'إضافة قسم'}
+                    <Tag className="h-4 w-4 text-accent-amber" />
+                    <span>{locale === 'en' ? 'Menu Categories' : 'أقسام المنيو'}</span>
+                    {menuCategoriesExpanded ? <ChevronUp className="h-4.5 w-4.5" /> : <ChevronDown className="h-4.5 w-4.5" />}
                   </button>
+
+                  {menuCategoriesExpanded && (
+                    <button
+                      onClick={() => setEditingCategory({ name_en: '', name_ar: '', desc_en: '', desc_ar: '', is_default: false })}
+                      className="px-3 py-1.5 bg-accent-amber/10 border border-accent-amber/30 text-accent-amber text-xs font-bold rounded-xl hover:bg-accent-amber hover:text-black transition-all flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {locale === 'en' ? 'Add Category' : 'إضافة قسم'}
+                    </button>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {menuCategoriesExpanded && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {adminCategories.map((cat: any) => (
                     <div 
                       key={cat.id} 
@@ -2290,20 +2312,29 @@ export default function AdminDashboardPage() {
                     </div>
                   ))}
                 </div>
+                )}
 
                 {/* ── Combo Price Customizer ── */}
                 <div className="bg-[#18181B] border border-card-border rounded-2xl p-5 mt-4 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-accent-amber" />
-                    <h3 className="text-xs font-black uppercase tracking-wider text-white">
-                      {locale === 'en' ? 'Combo Price Customization' : 'تخصيص تسعير وجبات الكومبو'}
-                    </h3>
+                  <div className="flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={() => setComboCustomizationExpanded(!comboCustomizationExpanded)}
+                      className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-white hover:opacity-85 transition-all cursor-pointer"
+                    >
+                      <DollarSign className="h-4 w-4 text-accent-amber" />
+                      <span>{locale === 'en' ? 'Combo Price Customization' : 'تخصيص تسعير وجبات الكومبو'}</span>
+                      {comboCustomizationExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
                   </div>
-                  <p className="text-[10px] text-text-muted">
-                    {locale === 'en' 
-                      ? 'Configure discounts or fixed pricing for customers upgrading items to a combo meal.' 
-                      : 'تعديل الخصم أو السعر الموحد الذي يتم تطبيقه عند اختيار إضافة الكومبو للمنتجات.'}
-                  </p>
+
+                  {comboCustomizationExpanded && (
+                    <>
+                      <p className="text-[10px] text-text-muted mt-1">
+                        {locale === 'en' 
+                          ? 'Configure discounts or fixed pricing for customers upgrading items to a combo meal.' 
+                          : 'تعديل الخصم أو السعر الموحد الذي يتم تطبيقه عند اختيار إضافة الكومبو للمنتجات.'}
+                      </p>
                   
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {(() => {
@@ -2649,6 +2680,8 @@ export default function AdminDashboardPage() {
                       </div>
                     );
                   })()}
+                    </>
+                  )}
                 </div>
 
                 {/* ── Often Ordered With (Upsells) ── */}
@@ -2671,42 +2704,52 @@ export default function AdminDashboardPage() {
 
                   return (
                     <div className="bg-[#18181B] border border-card-border rounded-2xl p-5 mt-4 space-y-4">
-                      <div className="flex items-center gap-2">
-                        <Tag className="h-4 w-4 text-accent-amber" />
-                        <h3 className="text-xs font-black uppercase tracking-wider text-white">
-                          {locale === 'en' ? 'Often Ordered With (Upsells)' : 'المنتجات التي تُطلب غالباً معاً (توصيات)'}
-                        </h3>
+                      <div className="flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => setOftenOrderedExpanded(!oftenOrderedExpanded)}
+                          className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-white hover:opacity-85 transition-all cursor-pointer"
+                        >
+                          <Tag className="h-4 w-4 text-accent-amber" />
+                          <span>{locale === 'en' ? 'Often Ordered With (Upsells)' : 'المنتجات التي تُطلب غالباً معاً (توصيات)'}</span>
+                          {oftenOrderedExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </button>
                       </div>
-                      <p className="text-[10px] text-text-muted">
-                        {locale === 'en'
-                          ? 'Select which items will be offered in the "Often Ordered With" slider when customers add items to their cart.'
-                          : 'اختر العناصر التي سيتم عرضها في شريط "غالباً ما يُطلب مع" عند إضافة عناصر إلى السلة.'}
-                      </p>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-56 overflow-y-auto bg-card border border-card-border rounded-xl p-3 scrollbar-thin">
-                        {products.length === 0 ? (
-                          <p className="col-span-full text-xs text-text-muted italic py-4 text-center">
-                            {locale === 'en' ? 'No products available.' : 'لا توجد منتجات متاحة.'}
+                      {oftenOrderedExpanded && (
+                        <>
+                          <p className="text-[10px] text-text-muted mt-1">
+                            {locale === 'en'
+                              ? 'Select which items will be offered in the "Often Ordered With" slider when customers add items to their cart.'
+                              : 'اختر العناصر التي سيتم عرضها في شريط "غالباً ما يُطلب مع" عند إضافة عناصر إلى السلة.'}
                           </p>
-                        ) : (
-                          products.map((p: any) => {
-                            const isRec = currentRecommendedIds.includes(p.id);
-                            return (
-                              <label key={p.id} className="flex items-center justify-between p-2 rounded-lg bg-card-border/30 border border-card-border/50 hover:border-card-border cursor-pointer select-none">
-                                <span className="text-[11px] text-white pr-2 truncate" title={locale === 'en' ? p.nameEn : p.nameAr}>
-                                  {locale === 'en' ? p.nameEn : p.nameAr}
-                                </span>
-                                <input
-                                  type="checkbox"
-                                  checked={isRec}
-                                  onChange={(e) => handleRecommendToggle(p.id, e.target.checked)}
-                                  className="rounded bg-[#18181B] border-card-border text-primary-red focus:ring-primary-red/50 shrink-0"
-                                />
-                              </label>
-                            );
-                          })
-                        )}
-                      </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-56 overflow-y-auto bg-card border border-card-border rounded-xl p-3 scrollbar-thin">
+                            {products.length === 0 ? (
+                              <p className="col-span-full text-xs text-text-muted italic py-4 text-center">
+                                {locale === 'en' ? 'No products available.' : 'لا توجد منتجات متاحة.'}
+                              </p>
+                            ) : (
+                              products.map((p: any) => {
+                                const isRec = currentRecommendedIds.includes(p.id);
+                                return (
+                                  <label key={p.id} className="flex items-center justify-between p-2 rounded-lg bg-card-border/30 border border-card-border/50 hover:border-card-border cursor-pointer select-none">
+                                    <span className="text-[11px] text-white pr-2 truncate" title={locale === 'en' ? p.nameEn : p.nameAr}>
+                                      {locale === 'en' ? p.nameEn : p.nameAr}
+                                    </span>
+                                    <input
+                                      type="checkbox"
+                                      checked={isRec}
+                                      onChange={(e) => handleRecommendToggle(p.id, e.target.checked)}
+                                      className="rounded bg-[#18181B] border-card-border text-primary-red focus:ring-primary-red/50 shrink-0"
+                                    />
+                                  </label>
+                                );
+                              })
+                            )}
+                          </div>
+                        </>
+                      )}
                     </div>
                   );
                 })()}
