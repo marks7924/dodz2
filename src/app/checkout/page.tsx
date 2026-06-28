@@ -719,7 +719,7 @@ export default function CheckoutPage() {
                         <span>{locale === 'en' ? item.nameEn : item.nameAr}</span>
                         {item.size !== 'NONE' && (
                           <span className="block text-[9px] text-primary-red uppercase font-semibold">
-                            {item.size === 'SINGLE' ? t('single') : t('double')}
+                            {t(item.size.toLowerCase())}
                           </span>
                         )}
                       </div>

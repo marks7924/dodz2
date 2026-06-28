@@ -175,7 +175,7 @@ export default function CartSidebar() {
                     </h3>
                     {item.size !== 'NONE' && (
                       <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded bg-primary-red/10 text-[9px] uppercase font-bold text-primary-red border border-primary-red/20">
-                        {item.size === 'SINGLE' ? t('single') : t('double')}
+                        {t(item.size.toLowerCase())}
                       </span>
                     )}
                     {item.customizations && item.customizations.length > 0 && (

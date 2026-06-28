@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type SizeOption = 'SINGLE' | 'DOUBLE' | 'NONE';
+export type SizeOption = 'SINGLE' | 'DOUBLE' | 'TRIPLE' | 'SMALL' | 'MEDIUM' | 'LARGE' | 'FAMILY' | 'NONE';
 
 export interface CartItem {
   productId: String;

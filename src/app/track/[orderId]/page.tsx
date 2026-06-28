@@ -552,7 +552,7 @@ export default function OrderTrackingPage() {
                     <span className="text-foreground">{locale === 'en' ? item.productNameEn : item.productNameAr}</span>
                     {item.size !== 'NONE' && (
                       <span className="block text-[9px] text-primary-red font-bold uppercase">
-                        {item.size === 'SINGLE' ? t('single') : t('double')}
+                        {t(item.size.toLowerCase())}
                       </span>
                     )}
                   </div>

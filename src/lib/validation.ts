@@ -64,7 +64,7 @@ export function isValidOrderItem(item: any): boolean {
     typeof item.productId === 'string' &&
     typeof item.productNameEn === 'string' &&
     typeof item.productNameAr === 'string' &&
-    ['SINGLE', 'DOUBLE', 'NONE'].includes(item.size) &&
+    ['SINGLE', 'DOUBLE', 'TRIPLE', 'SMALL', 'MEDIUM', 'LARGE', 'FAMILY', 'NONE'].includes(item.size) &&
     typeof item.quantity === 'number' &&
     item.quantity > 0 &&
     typeof item.price === 'number' &&

@@ -202,6 +202,18 @@ export default function Home() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (selectedProduct) {
+      if (selectedProduct.sizeType === 'SIZE') {
+        setSelectedSize('SMALL');
+      } else if (selectedProduct.priceDouble || selectedProduct.priceTriple) {
+        setSelectedSize('SINGLE');
+      } else {
+        setSelectedSize('NONE');
+      }
+    }
+  }, [selectedProduct]);
   const categoriesNavRef = useRef<HTMLDivElement>(null);
   const scrollCategories = (direction: 'left' | 'right') => {
     if (categoriesNavRef.current) {
@@ -1130,46 +1142,61 @@ export default function Home() {
                 </div>
 
                 {/* Size choice and add button */}
-                <div className="border-t border-card-border/50 pt-4 mt-6 flex items-center justify-between gap-4">
-                  {selectedProduct.priceDouble ? (
-                    <div className="flex gap-2 bg-card-border p-1 rounded-xl">
+                {(() => {
+                  const availableSizes: { code: string; labelEn: string; labelAr: string; price: number }[] = [];
+                  if (selectedProduct.sizeType === 'SIZE') {
+                    if (selectedProduct.priceSingle) availableSizes.push({ code: 'SMALL', labelEn: 'Small', labelAr: 'صغير', price: selectedProduct.priceSingle });
+                    if (selectedProduct.priceDouble) availableSizes.push({ code: 'MEDIUM', labelEn: 'Medium', labelAr: 'وسط', price: selectedProduct.priceDouble });
+                    if (selectedProduct.priceTriple) availableSizes.push({ code: 'LARGE', labelEn: 'Large', labelAr: 'كبير', price: selectedProduct.priceTriple });
+                    if (selectedProduct.priceFamily) availableSizes.push({ code: 'FAMILY', labelEn: 'Family Size', labelAr: 'عائلي', price: selectedProduct.priceFamily });
+                  } else {
+                    if (selectedProduct.priceSingle) availableSizes.push({ code: 'SINGLE', labelEn: 'Single', labelAr: 'سنجل', price: selectedProduct.priceSingle });
+                    if (selectedProduct.priceDouble) availableSizes.push({ code: 'DOUBLE', labelEn: 'Double', labelAr: 'دبل', price: selectedProduct.priceDouble });
+                    if (selectedProduct.priceTriple) availableSizes.push({ code: 'TRIPLE', labelEn: 'Triple', labelAr: 'تربل', price: selectedProduct.priceTriple });
+                  }
+
+                  return (
+                    <div className="border-t border-card-border/50 pt-4 mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 w-full">
+                      {availableSizes.length > 1 ? (
+                        <div className="flex flex-wrap gap-1.5 bg-card-border/30 p-1 rounded-xl border border-card-border/20">
+                          {availableSizes.map((sz) => {
+                            const isSelected = selectedSize === sz.code;
+                            return (
+                              <button
+                                key={sz.code}
+                                type="button"
+                                onClick={() => setSelectedSize(sz.code)}
+                                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                                  isSelected ? 'bg-primary-red text-white' : 'text-text-muted hover:text-white'
+                                }`}
+                              >
+                                {locale === 'en' ? sz.labelEn : sz.labelAr} ({sz.price} EGP)
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <span className="text-lg font-extrabold text-accent-amber font-mono">
+                          {selectedProduct.priceSingle} {t('egp')}
+                        </span>
+                      )}
+
                       <button
-                        onClick={() => setSelectedSize('SINGLE')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                          selectedSize === 'SINGLE' ? 'bg-primary-red text-white' : 'text-text-muted hover:text-white'
-                        }`}
+                        disabled={!selectedProduct.isAvailable}
+                        onClick={() => {
+                          handleAddToCartClicked(
+                            selectedProduct,
+                            availableSizes.length > 1 ? selectedSize : 'NONE'
+                          );
+                          setSelectedProduct(null);
+                        }}
+                        className="px-5 py-2.5 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 flex-shrink-0"
                       >
-                        {t('single')} ({selectedProduct.priceSingle} EGP)
-                      </button>
-                      <button
-                        onClick={() => setSelectedSize('DOUBLE')}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                          selectedSize === 'DOUBLE' ? 'bg-primary-red text-white' : 'text-text-muted hover:text-white'
-                        }`}
-                      >
-                        {t('double')} ({selectedProduct.priceDouble} EGP)
+                        {t('addToCart')}
                       </button>
                     </div>
-                  ) : (
-                    <span className="text-lg font-extrabold text-accent-amber">
-                      {selectedProduct.priceSingle} {t('egp')}
-                    </span>
-                  )}
-
-                  <button
-                    disabled={!selectedProduct.isAvailable}
-                    onClick={() => {
-                      handleAddToCartClicked(
-                        selectedProduct,
-                        selectedProduct.priceDouble ? selectedSize : 'NONE'
-                      );
-                      setSelectedProduct(null);
-                    }}
-                    className="px-5 py-2.5 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
-                  >
-                    {t('addToCart')}
-                  </button>
-                </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -1379,7 +1406,12 @@ export default function Home() {
       )}
       {customizationProduct && (() => {
         const { product, size } = customizationProduct;
-        const basePrice = size === 'DOUBLE' && product.priceDouble ? product.priceDouble : product.priceSingle;
+        let basePrice = product.priceSingle;
+        if (size === 'DOUBLE' && product.priceDouble) basePrice = product.priceDouble;
+        else if (size === 'TRIPLE' && product.priceTriple) basePrice = product.priceTriple;
+        else if (size === 'MEDIUM' && product.priceDouble) basePrice = product.priceDouble;
+        else if (size === 'LARGE' && product.priceTriple) basePrice = product.priceTriple;
+        else if (size === 'FAMILY' && product.priceFamily) basePrice = product.priceFamily;
         const customizationSum = selectedCustomizations.reduce((sum, c) => sum + c.price, 0);
         const extrasSum = selectedExtras.reduce((sum, e) => sum + (e.isStandard ? 0 : e.price * e.quantity), 0);
 

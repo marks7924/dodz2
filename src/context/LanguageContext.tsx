@@ -49,6 +49,11 @@ const translations: Translations = {
   // Variations & Options
   single: { en: 'Single', ar: 'سينجل' },
   double: { en: 'Double', ar: 'دبل' },
+  triple: { en: 'Triple', ar: 'تربل' },
+  small: { en: 'Small', ar: 'صغير' },
+  medium: { en: 'Medium', ar: 'وسط' },
+  large: { en: 'Large', ar: 'كبير' },
+  family: { en: 'Family Size', ar: 'عائلي' },
   outOfStock: { en: 'Out of Stock', ar: 'غير متوفر حالياً' },
   addToCart: { en: 'Add to Cart', ar: 'إضافة للسلة' },
   added: { en: 'Added!', ar: 'تمت الإضافة!' },

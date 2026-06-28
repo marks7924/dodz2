@@ -50,6 +50,7 @@ export default function AdminDashboardPage() {
   const [customizationGroupsList, setCustomizationGroupsList] = useState<any[]>([]);
   const [assignedCustomizationGroupIds, setAssignedCustomizationGroupIds] = useState<string[]>([]);
   const [isSavingCustomizations, setIsSavingCustomizations] = useState(false);
+  const [applyProductsExpanded, setApplyProductsExpanded] = useState(false);
   const [showStatsOverlay, setShowStatsOverlay] = useState(false);
   const [selectedStatsOrder, setSelectedStatsOrder] = useState<Order | null>(null);
   const [statsFilter, setStatsFilter] = useState<'DAY' | 'WEEK' | 'MONTH' | 'ALL'>('ALL');
@@ -1051,6 +1052,7 @@ export default function AdminDashboardPage() {
     setCustomizationMappingProduct(product);
     setSelectedMappingProductIds([product.id]);
     setIsSavingCustomizations(false);
+    setApplyProductsExpanded(false);
     setShowAddGroupForm(false);
     setNewGroupNameEn('');
     setNewGroupNameAr('');
@@ -3757,9 +3759,10 @@ export default function AdminDashboardPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2.5 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+                  disabled={saveProductMutation.isPending}
+                  className="px-5 py-2.5 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
                 >
-                  {t('save')}
+                  {saveProductMutation.isPending ? '...' : t('save')}
                 </button>
               </div>
 
@@ -4638,44 +4641,56 @@ export default function AdminDashboardPage() {
 
               {/* Product Multi-Selector */}
               <div className="border-t border-card-border/50 pt-4 mt-2">
-                <label className="text-[10px] text-accent-amber block font-bold uppercase tracking-wider mb-2">
-                  {locale === 'en' ? 'Apply to Products (Multi-select)' : 'تطبيق على المنتجات (تحديد متعدد)'}
-                </label>
-                <div className="max-h-40 overflow-y-auto bg-[#18181B] border border-card-border rounded-xl p-3 space-y-3 scrollbar-thin">
-                  {adminCategories.map((cat: any) => {
-                    const catProducts = products.filter((p: any) => p.categoryId === cat.id);
-                    if (catProducts.length === 0) return null;
-                    return (
-                      <div key={cat.id} className="space-y-1.5">
-                        <p className="text-[9px] font-extrabold text-primary-red uppercase tracking-wider border-b border-card-border/20 pb-0.5 mb-1">
-                          {locale === 'en' ? cat.name_en || cat.nameEn : cat.name_ar || cat.nameAr}
-                        </p>
-                        <div className="grid grid-cols-2 gap-1.5 pl-1">
-                          {catProducts.map((p: any) => {
-                            const isChecked = selectedMappingProductIds.includes(p.id);
-                            return (
-                              <label key={p.id} className="flex items-center gap-1.5 text-[10px] font-bold text-white cursor-pointer hover:text-primary-red transition-colors">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedMappingProductIds(prev => [...prev, p.id]);
-                                    } else {
-                                      setSelectedMappingProductIds(prev => prev.filter(id => id !== p.id));
-                                    }
-                                  }}
-                                  className="accent-primary-red shrink-0"
-                                />
-                                <span className="truncate">{locale === 'en' ? p.nameEn : p.nameAr}</span>
-                              </label>
-                            );
-                          })}
+                <button
+                  type="button"
+                  onClick={() => setApplyProductsExpanded(!applyProductsExpanded)}
+                  className="w-full flex items-center justify-between text-[10px] text-accent-amber font-bold uppercase tracking-wider mb-2 hover:text-[#ffdf6d] transition-colors focus:outline-none bg-card-border/20 px-3 py-2.5 rounded-xl border border-card-border/30 cursor-pointer"
+                >
+                  <span>{locale === 'en' ? 'Apply to Products (Multi-select)' : 'تطبيق على المنتجات (تحديد متعدد)'}</span>
+                  {applyProductsExpanded ? (
+                    <ChevronUp className="h-3.5 w-3.5 text-accent-amber" />
+                  ) : (
+                    <ChevronDown className="h-3.5 w-3.5 text-accent-amber" />
+                  )}
+                </button>
+                
+                {applyProductsExpanded && (
+                  <div className="max-h-40 overflow-y-auto bg-[#18181B] border border-card-border rounded-xl p-3 space-y-3 scrollbar-thin animate-in fade-in slide-in-from-top-2 duration-200">
+                    {adminCategories.map((cat: any) => {
+                      const catProducts = products.filter((p: any) => p.categoryId === cat.id);
+                      if (catProducts.length === 0) return null;
+                      return (
+                        <div key={cat.id} className="space-y-1.5">
+                          <p className="text-[9px] font-extrabold text-primary-red uppercase tracking-wider border-b border-card-border/20 pb-0.5 mb-1">
+                            {locale === 'en' ? cat.name_en || cat.nameEn : cat.name_ar || cat.nameAr}
+                          </p>
+                          <div className="grid grid-cols-2 gap-1.5 pl-1">
+                            {catProducts.map((p: any) => {
+                              const isChecked = selectedMappingProductIds.includes(p.id);
+                              return (
+                                <label key={p.id} className="flex items-center gap-1.5 text-[10px] font-bold text-white cursor-pointer hover:text-primary-red transition-colors">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedMappingProductIds(prev => [...prev, p.id]);
+                                      } else {
+                                        setSelectedMappingProductIds(prev => prev.filter(id => id !== p.id));
+                                      }
+                                    }}
+                                    className="accent-primary-red shrink-0"
+                                  />
+                                  <span className="truncate">{locale === 'en' ? p.nameEn : p.nameAr}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Modal actions */}
