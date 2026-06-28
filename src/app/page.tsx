@@ -544,11 +544,14 @@ export default function Home() {
               <div className="absolute w-72 h-72 sm:w-96 sm:h-96 rounded-full bg-gradient-to-tr from-primary-red/20 to-accent-amber/20 blur-3xl -z-10" />
               <div className="relative w-80 h-80 sm:w-[450px] sm:h-[450px] overflow-hidden rounded-3xl border border-card-border/50 shadow-2xl rotate-2 hover:rotate-0 transition-all duration-500 flex flex-col justify-end group">
                 <img
-                  src="https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&auto=format&fit=crop&q=80"
+                  src={(() => {
+                    const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger')) || products[0];
+                    return bestseller?.imageUrl || "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&auto=format&fit=crop&q=80";
+                  })()}
                   alt="Dodz Charcoal Grilled Burger"
                   className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer"
                   onClick={() => {
-                    const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger'));
+                    const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger')) || products[0];
                     if (bestseller) setSelectedProduct(bestseller);
                   }}
                 />
@@ -557,23 +560,39 @@ export default function Home() {
                     <div
                       className="cursor-pointer flex-1"
                       onClick={() => {
-                        const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger'));
+                        const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger')) || products[0];
                         if (bestseller) setSelectedProduct(bestseller);
                       }}
                     >
-                      <h4 className="text-sm font-bold text-white">Dodz Burger (دودز برجر)</h4>
-                      <p className="text-[11px] text-accent-amber mt-0.5">Single: 120 EGP | Double: 170 EGP</p>
+                      {(() => {
+                        const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger')) || products[0];
+                        if (!bestseller) {
+                          return (
+                            <>
+                              <h4 className="text-sm font-bold text-white">Dodz Burger (دودز برجر)</h4>
+                              <p className="text-[11px] text-accent-amber mt-0.5">Single: 120 EGP | Double: 170 EGP</p>
+                            </>
+                          );
+                        }
+                        return (
+                          <>
+                            <h4 className="text-sm font-bold text-white">
+                              {locale === 'en' ? bestseller.nameEn : bestseller.nameAr}
+                            </h4>
+                            <p className="text-[11px] text-accent-amber mt-0.5 font-mono">
+                              {locale === 'en' ? 'Single' : 'مفرد'}: {bestseller.priceSingle} EGP
+                              {bestseller.priceDouble ? ` | ${locale === 'en' ? 'Double' : 'دبل'}: ${bestseller.priceDouble} EGP` : ''}
+                            </p>
+                          </>
+                        );
+                      })()}
                     </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger'));
+                        const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger')) || products[0];
                         if (bestseller) {
-                          handleAddToCartClicked(bestseller, 'SINGLE');
-                          setCartOpen(true);
-                        } else if (products.length > 0) {
-                          // Fallback: add first product
-                          handleAddToCartClicked(products[0], products[0].priceDouble ? 'SINGLE' : 'NONE');
+                          handleAddToCartClicked(bestseller, bestseller.priceDouble ? 'SINGLE' : 'NONE');
                           setCartOpen(true);
                         }
                       }}
