@@ -50,6 +50,7 @@ export default function AdminDashboardPage() {
   const [assignedCustomizationGroupIds, setAssignedCustomizationGroupIds] = useState<string[]>([]);
   const [isSavingCustomizations, setIsSavingCustomizations] = useState(false);
   const [showStatsOverlay, setShowStatsOverlay] = useState(false);
+  const [selectedStatsOrder, setSelectedStatsOrder] = useState<Order | null>(null);
   const [statsFilter, setStatsFilter] = useState<'DAY' | 'WEEK' | 'MONTH' | 'ALL'>('ALL');
 
   // Inline cell editing states
@@ -3673,11 +3674,7 @@ export default function AdminDashboardPage() {
                               <td className="p-3 text-center">
                                 <button
                                   onClick={() => {
-                                    setActiveTab('ORDERS');
-                                    // Scroll to the active kitchen/orders section if needed
-                                    const element = document.getElementById('menu-section');
-                                    if (element) element.scrollIntoView({ behavior: 'smooth' });
-                                    setShowStatsOverlay(false);
+                                    setSelectedStatsOrder(o);
                                   }}
                                   className="px-2 py-1 bg-primary-red hover:bg-primary-red-hover text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer"
                                 >
@@ -3691,6 +3688,166 @@ export default function AdminDashboardPage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* Statistics Order Details Modal */}
+        {selectedStatsOrder && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onClick={() => setSelectedStatsOrder(null)} />
+            <div className="relative w-full max-w-lg bg-card border border-card-border rounded-3xl p-6 shadow-2xl z-10 max-h-[85vh] overflow-y-auto animate-in zoom-in-95 duration-200 space-y-6">
+              
+              {/* Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-card-border/50">
+                <div>
+                  <h3 className="text-base font-extrabold text-white">
+                    {locale === 'en' ? 'Order Details' : 'تفاصيل الطلب'}
+                  </h3>
+                  <p className="text-xs font-mono text-accent-amber mt-0.5">#{selectedStatsOrder.id}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedStatsOrder(null)}
+                  className="p-1.5 rounded-lg hover:bg-card-border text-text-muted hover:text-white cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Status and Branch */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-[#18181B] p-3 rounded-2xl border border-card-border/50 text-xs">
+                <div>
+                  <span className="text-text-muted block text-[10px] uppercase font-bold tracking-wider mb-0.5">{locale === 'en' ? 'Branch' : 'الفرع'}</span>
+                  <span className="text-white font-bold">
+                    {(() => {
+                      const b = allBranches.find(br => br.id === selectedStatsOrder.branchId);
+                      return b ? (locale === 'en' ? b.nameEn : b.nameAr) : (locale === 'en' ? 'Global (All)' : 'عام');
+                    })()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-text-muted block text-[10px] uppercase font-bold tracking-wider mb-0.5">{locale === 'en' ? 'Status' : 'الحالة'}</span>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase inline-block ${
+                    selectedStatsOrder.status === 'DELIVERED' ? 'bg-green-500/10 text-green-500 border border-green-500/20' :
+                    selectedStatsOrder.status === 'CANCELLED' ? 'bg-red-500/10 text-red-500 border border-red-500/20' :
+                    'bg-accent-amber/10 text-accent-amber border border-accent-amber/20'
+                  }`}>
+                    {selectedStatsOrder.status}
+                  </span>
+                </div>
+              </div>
+
+              {/* Customer Info */}
+              <div className="space-y-2.5 text-xs text-text-muted">
+                <h4 className="text-[10px] text-accent-amber font-extrabold uppercase tracking-widest">{locale === 'en' ? 'Customer details' : 'تفاصيل العميل'}</h4>
+                <div className="bg-[#18181B] p-3.5 rounded-2xl border border-card-border/50 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="font-bold text-white">{selectedStatsOrder.userName}</span>
+                    <span className="font-mono">{selectedStatsOrder.userPhone}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-text-muted font-bold uppercase mb-0.5">{locale === 'en' ? 'Delivery Address' : 'عنوان التوصيل'}</span>
+                    <span className="text-white text-xs">{selectedStatsOrder.address || (locale === 'en' ? 'Pickup from Branch' : 'استلام من الفرع')}</span>
+                  </div>
+                  {selectedStatsOrder.notes && (
+                    <div className="bg-accent-amber/5 border border-accent-amber/20 text-accent-amber p-2.5 rounded-xl mt-1 text-[11px] font-medium italic">
+                      ⚠️ {selectedStatsOrder.notes}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-2.5 text-xs">
+                <h4 className="text-[10px] text-accent-amber font-extrabold uppercase tracking-widest">{locale === 'en' ? 'Items List' : 'قائمة المشتريات'}</h4>
+                <div className="bg-[#18181B] p-3 rounded-2xl border border-card-border/50 divide-y divide-card-border/30">
+                  {selectedStatsOrder.items?.map((it: any, idx: number) => (
+                    <div key={idx} className="py-2.5 space-y-1">
+                      <div className="flex justify-between items-center text-xs text-text-muted">
+                        <div>
+                          <span className="font-bold text-white">{it.quantity}x</span>{' '}
+                          <span className="text-foreground">{locale === 'en' ? it.productNameEn : it.productNameAr}</span>
+                          {it.size !== 'NONE' && (
+                            <span className="block text-[9px] text-primary-red font-bold uppercase mt-0.5">
+                              {it.size}
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-white font-bold font-mono">{it.price * it.quantity} EGP</span>
+                      </div>
+                      
+                      {/* Customizations */}
+                      {it.customizations && it.customizations.length > 0 && (
+                        <div className="pl-4 text-[9px] text-accent-amber font-semibold flex flex-wrap gap-1">
+                          {it.customizations.map((cust: any, cIdx: number) => (
+                            <span key={cIdx} className="bg-accent-amber/10 border border-accent-amber/25 px-1 py-0.2 rounded">
+                              + {locale === 'en' ? cust.nameEn : cust.nameAr}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Extras */}
+                      {it.extras && it.extras.length > 0 && (
+                        <div className="pl-4 text-[9px] font-semibold flex flex-wrap gap-1">
+                          {it.extras.map((extra: any, eIdx: number) => {
+                            if (extra.isStandard && extra.quantity === 0) {
+                              return (
+                                <span key={eIdx} className="bg-red-500/10 border border-red-500/25 px-1 py-0.2 rounded text-red-500">
+                                  NO {locale === 'en' ? extra.nameEn.toUpperCase() : extra.nameAr}
+                                </span>
+                              );
+                            }
+                            if (!extra.isStandard && extra.quantity > 0) {
+                              return (
+                                <span key={eIdx} className="bg-accent-amber/10 border border-accent-amber/20 px-1 py-0.2 rounded text-accent-amber">
+                                  + {locale === 'en' ? extra.nameEn : extra.nameAr} {extra.quantity > 1 ? `x${extra.quantity}` : ''}
+                                </span>
+                              );
+                            }
+                            return null;
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Financial summary */}
+              <div className="bg-[#18181B] p-4 rounded-2xl border border-card-border/50 space-y-2 text-xs text-text-muted">
+                <div className="flex justify-between">
+                  <span>{locale === 'en' ? 'Subtotal' : 'الإجمالي الفرعي'}:</span>
+                  <span className="text-white font-bold font-mono">{selectedStatsOrder.total - selectedStatsOrder.deliveryFee + selectedStatsOrder.discount} EGP</span>
+                </div>
+                {selectedStatsOrder.discount > 0 && (
+                  <div className="flex justify-between text-green-500">
+                    <span>{locale === 'en' ? 'Discount' : 'الخصم'}:</span>
+                    <span className="font-bold font-mono">-{selectedStatsOrder.discount} EGP</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span>{locale === 'en' ? 'Delivery Fee' : 'رسوم التوصيل'}:</span>
+                  <span className="text-white font-bold font-mono">{selectedStatsOrder.deliveryFee} EGP</span>
+                </div>
+                <div className="flex justify-between text-sm text-white font-black border-t border-card-border/50 pt-2">
+                  <span>{locale === 'en' ? 'Grand Total' : 'الإجمالي الكلي'}:</span>
+                  <span className="text-accent-amber font-mono">{selectedStatsOrder.total} EGP</span>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedStatsOrder(null)}
+                  className="px-6 py-2.5 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all cursor-pointer"
+                >
+                  {locale === 'en' ? 'Close' : 'إغلاق'}
+                </button>
               </div>
 
             </div>
