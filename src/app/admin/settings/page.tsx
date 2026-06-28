@@ -274,6 +274,7 @@ export default function SettingsPage() {
                       nameEn.includes('beverage') ||
                       nameEn.includes('addon') ||
                       nameEn.includes('add-on') ||
+                      nameEn.includes('add on') ||
                       nameEn.includes('extra') ||
                       nameAr.includes('جانب') ||
                       nameAr.includes('مشروب') ||

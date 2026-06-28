@@ -445,7 +445,9 @@ export default function Home() {
     if (!cat) return false;
     const catName = (cat.nameEn + ' ' + cat.nameAr).toLowerCase();
     return catName.includes('side') || catName.includes('appetizer') || catName.includes('add-on') ||
-           catName.includes('جانبي') || catName.includes('مقبلات') || catName.includes('إضافات');
+           catName.includes('add on') || catName.includes('addon') || catName.includes('extra') ||
+           catName.includes('جانبي') || catName.includes('مقبلات') || catName.includes('إضافات') ||
+           catName.includes('إضافة');
   });
 
   const allowedDrinks = products.filter((p) => {
@@ -1412,6 +1414,19 @@ export default function Home() {
         else if (size === 'MEDIUM' && product.priceDouble) basePrice = product.priceDouble;
         else if (size === 'LARGE' && product.priceTriple) basePrice = product.priceTriple;
         else if (size === 'FAMILY' && product.priceFamily) basePrice = product.priceFamily;
+
+        // Apply active discount to basePrice
+        let discount = activeDiscounts.find(d => d.appliesTo === product.id);
+        if (!discount) discount = activeDiscounts.find(d => d.appliesTo === `CAT:${product.categoryId}`);
+        if (!discount) discount = activeDiscounts.find(d => d.appliesTo === 'ALL');
+
+        let discountedBasePrice = basePrice;
+        if (discount) {
+          if (discount.discountType === 'FIXED') discountedBasePrice = Math.max(0, basePrice - discount.discountValue);
+          if (discount.discountType === 'PERCENT') discountedBasePrice = Math.max(0, basePrice * (1 - discount.discountValue / 100));
+          discountedBasePrice = Math.round(discountedBasePrice);
+        }
+
         const customizationSum = selectedCustomizations.reduce((sum, c) => sum + c.price, 0);
         const extrasSum = selectedExtras.reduce((sum, e) => sum + (e.isStandard ? 0 : e.price * e.quantity), 0);
 
@@ -1436,7 +1451,9 @@ export default function Home() {
         const drinkPriceDiff = (isCombo && selectedDrink && baseDrink) ? Math.max(0, selectedDrink.priceSingle - baseDrink.priceSingle) : 0;
         
         const comboAddon = isCombo ? (sizeBaseComboPrice + sidePriceDiff + drinkPriceDiff) : 0;
-        const finalPrice = basePrice + customizationSum + extrasSum + comboAddon;
+        const originalFinalPrice = basePrice + customizationSum + extrasSum + comboAddon;
+        const discountedFinalPrice = discountedBasePrice + customizationSum + extrasSum + comboAddon;
+        const hasDiscount = !!discount;
 
         return (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
@@ -1762,9 +1779,20 @@ export default function Home() {
                   <span className="text-[10px] text-text-muted uppercase tracking-wider block">
                     {locale === 'en' ? 'Total Price' : 'السعر الإجمالي'}
                   </span>
-                  <span className="text-lg font-black text-accent-amber font-mono">
-                    {finalPrice} EGP
-                  </span>
+                  {hasDiscount ? (
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="text-xs line-through text-text-muted font-bold font-mono">
+                        {originalFinalPrice} EGP
+                      </span>
+                      <span className="text-lg font-black text-primary-red font-mono">
+                        {discountedFinalPrice} EGP
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-lg font-black text-accent-amber font-mono">
+                      {originalFinalPrice} EGP
+                    </span>
+                  )}
                 </div>
                 <button
                   onClick={() => {
