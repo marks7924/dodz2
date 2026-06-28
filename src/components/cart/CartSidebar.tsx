@@ -303,7 +303,7 @@ export default function CartSidebar() {
               </div>
             </div>
 
-            <Link
+            <a
               href="/checkout"
               onClick={() => {
                 setCartOpen(false);
@@ -312,7 +312,7 @@ export default function CartSidebar() {
             >
               <span>{t('checkoutBtn')}</span>
               {dir === 'ltr' ? <ArrowRight className="h-4 w-4" /> : <ArrowLeft className="h-4 w-4" />}
-            </Link>
+            </a>
           </div>
         )}
       </div>
