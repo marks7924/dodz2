@@ -589,9 +589,16 @@ export default function Home() {
       return;
     }
 
-    const mainCat = categories.find(c => c.id === product.categoryId);
-    const mainCatName = (mainCat?.nameEn || '').toLowerCase();
-    const isComboAvailable = mainCatName.includes('burger') || mainCatName.includes('chicken') || mainCatName.includes('meal') || mainCatName.includes('sandwich');
+    const productCategoryIds = [...(product.categoryIds || [])];
+    if (product.categoryId && !productCategoryIds.includes(product.categoryId)) {
+      productCategoryIds.push(product.categoryId);
+    }
+    const isComboAvailable = productCategoryIds.some(catId => {
+      const cat = categories.find(c => c.id === catId);
+      if (!cat) return false;
+      const catName = (cat.nameEn || '').toLowerCase();
+      return catName.includes('burger') || catName.includes('chicken') || catName.includes('meal') || catName.includes('sandwich');
+    });
 
     const hasGroups = product.customizationGroups && product.customizationGroups.length > 0;
     const hasExtras = product.extrasConfig && product.extrasConfig.length > 0;
@@ -1470,9 +1477,16 @@ export default function Home() {
         const customizationSum = selectedCustomizations.reduce((sum, c) => sum + c.price, 0);
         const extrasSum = selectedExtras.reduce((sum, e) => sum + (e.isStandard ? 0 : e.price * e.quantity), 0);
 
-        const mainCat = categories.find(c => c.id === product.categoryId);
-        const mainCatName = (mainCat?.nameEn || '').toLowerCase();
-        const isComboAvailable = mainCatName.includes('burger') || mainCatName.includes('chicken') || mainCatName.includes('meal') || mainCatName.includes('sandwich');
+        const productCategoryIds = [...(product.categoryIds || [])];
+        if (product.categoryId && !productCategoryIds.includes(product.categoryId)) {
+          productCategoryIds.push(product.categoryId);
+        }
+        const isComboAvailable = productCategoryIds.some(catId => {
+          const cat = categories.find(c => c.id === catId);
+          if (!cat) return false;
+          const catName = (cat.nameEn || '').toLowerCase();
+          return catName.includes('burger') || catName.includes('chicken') || catName.includes('meal') || catName.includes('sandwich');
+        });
 
         const getSettingVal = (key: string, def: string) => {
           return settings.find((s) => s.key === key)?.value || def;
