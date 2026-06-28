@@ -25,7 +25,7 @@ BEGIN
     INSERT INTO public.profiles (id, full_name, phone, role)
     VALUES (
       NEW.id,
-      COALESCE(NULLIF(TRIM(NEW.raw_user_meta_data->>'full_name'), ''), split_part(NEW.email, '@', 1)),
+      COALESCE(NULLIF(TRIM(NEW.raw_user_meta_data->>'full_name'), ''), split_part(NEW.email, '@', 1), 'User'),
       NULLIF(TRIM(COALESCE(NEW.raw_user_meta_data->>'phone', '')), ''),
       _role
     )
