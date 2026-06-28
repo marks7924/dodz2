@@ -271,8 +271,18 @@ export default function SettingsPage() {
 
               {/* Footer Customization Settings */}
               {(() => {
-                const footerSetting = settings.find((s: any) => s.key === 'footer_settings') || { value: '{"phone":"19999","facebook":"","instagram":"","whatsapp":""}' };
-                let footerData = { phone: '19999', facebook: '', instagram: '', whatsapp: '' };
+                const footerSetting = settings.find((s: any) => s.key === 'footer_settings') || { value: '{"phone":"19999","facebook":"","instagram":"","whatsapp":"","tiktok":"","desc_en":"","desc_ar":"","hours_en":"","hours_ar":""}' };
+                let footerData = { 
+                  phone: '19999', 
+                  facebook: '', 
+                  instagram: '', 
+                  whatsapp: '', 
+                  tiktok: '',
+                  desc_en: '',
+                  desc_ar: '',
+                  hours_en: '',
+                  hours_ar: ''
+                };
                 try {
                   footerData = { ...footerData, ...JSON.parse(footerSetting.value) };
                 } catch {}
@@ -299,35 +309,88 @@ export default function SettingsPage() {
                           className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
                         />
                       </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Facebook Page Link</label>
+                          <input
+                            type="text"
+                            placeholder="https://facebook.com/..."
+                            defaultValue={footerData.facebook}
+                            onBlur={(e) => handleFooterChange('facebook', e.target.value)}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Instagram Page Link</label>
+                          <input
+                            type="text"
+                            placeholder="https://instagram.com/..."
+                            defaultValue={footerData.instagram}
+                            onBlur={(e) => handleFooterChange('instagram', e.target.value)}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">WhatsApp Contact Link</label>
+                          <input
+                            type="text"
+                            placeholder="https://wa.me/..."
+                            defaultValue={footerData.whatsapp}
+                            onBlur={(e) => handleFooterChange('whatsapp', e.target.value)}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">TikTok Page Link</label>
+                          <input
+                            type="text"
+                            placeholder="https://tiktok.com/@..."
+                            defaultValue={footerData.tiktok}
+                            onBlur={(e) => handleFooterChange('tiktok', e.target.value)}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                          />
+                        </div>
+                      </div>
+                      
                       <div className="space-y-1">
-                        <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Facebook Page Link</label>
-                        <input
-                          type="text"
-                          placeholder="https://facebook.com/..."
-                          defaultValue={footerData.facebook}
-                          onBlur={(e) => handleFooterChange('facebook', e.target.value)}
-                          className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                        <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Description text (English)</label>
+                        <textarea
+                          rows={2}
+                          defaultValue={footerData.desc_en}
+                          onBlur={(e) => handleFooterChange('desc_en', e.target.value)}
+                          className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-primary-red/50 resize-none"
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Instagram Page Link</label>
-                        <input
-                          type="text"
-                          placeholder="https://instagram.com/..."
-                          defaultValue={footerData.instagram}
-                          onBlur={(e) => handleFooterChange('instagram', e.target.value)}
-                          className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                        <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Description text (Arabic)</label>
+                        <textarea
+                          rows={2}
+                          defaultValue={footerData.desc_ar}
+                          onBlur={(e) => handleFooterChange('desc_ar', e.target.value)}
+                          className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-primary-red/50 resize-none"
                         />
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">WhatsApp Contact Link</label>
-                        <input
-                          type="text"
-                          placeholder="https://wa.me/..."
-                          defaultValue={footerData.whatsapp}
-                          onBlur={(e) => handleFooterChange('whatsapp', e.target.value)}
-                          className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
-                        />
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Working Hours (English)</label>
+                          <input
+                            type="text"
+                            defaultValue={footerData.hours_en}
+                            onBlur={(e) => handleFooterChange('hours_en', e.target.value)}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Working Hours (Arabic)</label>
+                          <input
+                            type="text"
+                            defaultValue={footerData.hours_ar}
+                            onBlur={(e) => handleFooterChange('hours_ar', e.target.value)}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

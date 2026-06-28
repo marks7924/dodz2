@@ -78,3 +78,14 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- 11. Support CUSTOMER_SERVICE role in internal staff database checks
+CREATE OR REPLACE FUNCTION public.is_internal_staff()
+RETURNS BOOLEAN AS $$
+  SELECT role IN ('STAFF', 'ADMIN', 'DEVELOPER', 'OWNER', 'CUSTOMER_SERVICE')
+  FROM public.profiles WHERE id = auth.uid();
+$$ LANGUAGE SQL SECURITY DEFINER STABLE;
+
+-- 12. Support notification deletion by owners
+DROP POLICY IF EXISTS "notifications_delete_own" ON public.notifications;
+CREATE POLICY "notifications_delete_own" ON public.notifications
+  FOR DELETE USING (auth.uid() = user_id);

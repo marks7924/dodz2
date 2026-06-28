@@ -9,6 +9,7 @@ import {
   markAsRead,
   markAllAsRead,
   subscribeToNotifications,
+  clearAllNotifications,
 } from '@/lib/notifications';
 
 // ── Icon per notification type ─────────────────────────────
@@ -92,6 +93,16 @@ export default function NotificationBell() {
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
   };
 
+  const handleClearAll = async () => {
+    if (!user) return;
+    try {
+      await clearAllNotifications(user.id);
+      setNotifications([]);
+    } catch (err) {
+      console.error('Error clearing notifications:', err);
+    }
+  };
+
   if (!isAuthenticated) return null;
 
   return (
@@ -132,6 +143,15 @@ export default function NotificationBell() {
               Notifications {unread > 0 && <span className="text-primary-red">({unread})</span>}
             </span>
             <div className="flex items-center gap-1.5">
+              {notifications.length > 0 && (
+                <button
+                  onClick={handleClearAll}
+                  title="Clear all notifications"
+                  className="px-2 py-1 bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 text-[10px] font-bold rounded-lg transition-all cursor-pointer mr-1"
+                >
+                  {user?.email?.includes('ar') || locale === 'ar' ? 'مسح الكل' : 'Clear All'}
+                </button>
+              )}
               {unread > 0 && (
                 <button
                   onClick={handleMarkAll}

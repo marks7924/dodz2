@@ -1832,21 +1832,48 @@ export default function AdminDashboardPage() {
                     >
                       <td className="p-4 flex items-center gap-3">
                         <span className="text-text-muted select-none text-xs">☰</span>
-                        
                         {inlineEditCell?.productId === product.id && inlineEditCell?.field === 'imageUrl' ? (
-                          <input
-                            type="text"
-                            value={inlineEditValue}
-                            onChange={(e) => setInlineEditValue(e.target.value)}
-                            onBlur={() => handleInlineEditSave(product, 'imageUrl')}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') handleInlineEditSave(product, 'imageUrl');
-                              if (e.key === 'Escape') setInlineEditCell(null);
-                            }}
-                            autoFocus
-                            placeholder="Image URL"
-                            className="bg-[#18181B] border border-primary-red/50 text-[10px] rounded px-1.5 py-0.5 text-white focus:outline-none w-24"
-                          />
+                          <div className="flex items-center gap-1.5 relative">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                try {
+                                  const fileExt = file.name.split('.').pop();
+                                  const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+                                  const filePath = `${fileName}`;
+                                  const { error: uploadError } = await supabase.storage
+                                    .from('product-images')
+                                    .upload(filePath, file);
+                                  if (uploadError) throw uploadError;
+                                  const { data } = supabase.storage.from('product-images').getPublicUrl(filePath);
+                                  
+                                  await db.updateProduct(product.id, { imageUrl: data.publicUrl });
+                                  queryClient.invalidateQueries({ queryKey: ['products'] });
+                                  setInlineEditCell(null);
+                                } catch (error) {
+                                  console.error('Error uploading image:', error);
+                                  await alert(locale === 'en' ? 'Failed to upload image' : 'فشل رفع الصورة');
+                                }
+                              }}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            />
+                            <button
+                              type="button"
+                              className="px-2 py-1 bg-primary-red hover:bg-primary-red-hover text-white text-[9px] font-bold rounded-lg transition-colors cursor-pointer"
+                            >
+                              {locale === 'en' ? 'Choose File' : 'اختر ملف'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setInlineEditCell(null)}
+                              className="p-1 rounded-lg hover:bg-card-border text-text-muted hover:text-white"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
                         ) : (
                           <img 
                             src={product.imageUrl} 
@@ -1856,7 +1883,7 @@ export default function AdminDashboardPage() {
                               setInlineEditValue(product.imageUrl);
                             }}
                             className="h-10 w-10 rounded-lg object-cover bg-card-border flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-primary-red transition-all" 
-                            title={locale === 'en' ? 'Click to edit image URL' : 'اضغط لتعديل رابط الصورة'}
+                            title={locale === 'en' ? 'Click to upload new image' : 'اضغط لرفع صورة جديدة'}
                           />
                         )}
 

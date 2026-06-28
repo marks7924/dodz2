@@ -50,14 +50,20 @@ function BannerAnnouncement() {
 
   const save = async (newText: string, newActive: boolean) => {
     setSaving(true);
-    await supabase.from('restaurant_settings').upsert([
-      { key: 'promo_banner_text', value: newText, description: 'Promotional banner text' },
-      { key: 'promo_banner_active', value: newActive ? 'true' : 'false', description: 'Banner visibility' },
-    ], { onConflict: 'key' });
-    setText(newText);
-    setActive(newActive);
-    setIsEditing(false);
-    setSaving(false);
+    try {
+      const { error } = await supabase.from('restaurant_settings').upsert([
+        { key: 'promo_banner_text', value: newText, branch_id: null, updated_at: new Date().toISOString() },
+        { key: 'promo_banner_active', value: newActive ? 'true' : 'false', branch_id: null, updated_at: new Date().toISOString() },
+      ]);
+      if (error) throw error;
+      setText(newText);
+      setActive(newActive);
+      setIsEditing(false);
+    } catch (err) {
+      console.error('Error saving banner:', err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const displayText = text || t('promoBanner');
@@ -214,6 +220,38 @@ export default function Home() {
   const [heroEditPriceDouble, setHeroEditPriceDouble] = useState<string>('');
   const [heroSaving, setHeroSaving] = useState(false);
 
+  // Mobile Back Button Modal support
+  const prevOpenRef = useRef(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const hasAnyOpen = cartOpen || !!customizationProduct || !!selectedProduct || !!comboModal;
+    
+    const handlePopState = () => {
+      setCartOpen(false);
+      setCustomizationProduct(null);
+      setSelectedProduct(null);
+      setComboModal(null);
+    };
+
+    if (hasAnyOpen) {
+      if (!prevOpenRef.current) {
+        window.history.pushState({ modalOpen: true }, '');
+      }
+      window.addEventListener('popstate', handlePopState);
+    } else {
+      if (prevOpenRef.current && window.history.state?.modalOpen) {
+        window.history.back();
+      }
+    }
+
+    prevOpenRef.current = hasAnyOpen;
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [cartOpen, customizationProduct, selectedProduct, comboModal, setCartOpen]);
+
   // Get or create chat session once user is loaded
   useEffect(() => {
     if (chatOpen && isAuthenticated && user) {
@@ -348,6 +386,12 @@ export default function Home() {
     queryKey: ['products', selectedBranchId],
     queryFn: () => db.getProducts(undefined, selectedBranchId || undefined),
   });
+
+  const featuredProductIdSetting = settings.find((s: any) => s.key === 'featured_product_id');
+  const featuredProductId = featuredProductIdSetting?.value;
+  const bestseller = products.find((p) => p.id === featuredProductId) || 
+                     products.find((p) => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger')) || 
+                     products[0];
 
   const { data: activeDiscounts = [] } = useQuery({
     queryKey: ['active-discounts', selectedBranchId],
@@ -544,14 +588,10 @@ export default function Home() {
               <div className="absolute w-72 h-72 sm:w-96 sm:h-96 rounded-full bg-gradient-to-tr from-primary-red/20 to-accent-amber/20 blur-3xl -z-10" />
               <div className="relative w-80 h-80 sm:w-[450px] sm:h-[450px] overflow-hidden rounded-3xl border border-card-border/50 shadow-2xl rotate-2 hover:rotate-0 transition-all duration-500 flex flex-col justify-end group">
                 <img
-                  src={(() => {
-                    const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger')) || products[0];
-                    return bestseller?.imageUrl || "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&auto=format&fit=crop&q=80";
-                  })()}
+                  src={bestseller?.imageUrl || "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&auto=format&fit=crop&q=80"}
                   alt="Dodz Charcoal Grilled Burger"
                   className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 cursor-pointer"
                   onClick={() => {
-                    const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger')) || products[0];
                     if (bestseller) setSelectedProduct(bestseller);
                   }}
                 />
@@ -560,37 +600,29 @@ export default function Home() {
                     <div
                       className="cursor-pointer flex-1"
                       onClick={() => {
-                        const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger')) || products[0];
                         if (bestseller) setSelectedProduct(bestseller);
                       }}
                     >
-                      {(() => {
-                        const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger')) || products[0];
-                        if (!bestseller) {
-                          return (
-                            <>
-                              <h4 className="text-sm font-bold text-white">Dodz Burger (دودز برجر)</h4>
-                              <p className="text-[11px] text-accent-amber mt-0.5">Single: 120 EGP | Double: 170 EGP</p>
-                            </>
-                          );
-                        }
-                        return (
-                          <>
-                            <h4 className="text-sm font-bold text-white">
-                              {locale === 'en' ? bestseller.nameEn : bestseller.nameAr}
-                            </h4>
-                            <p className="text-[11px] text-accent-amber mt-0.5 font-mono">
-                              {locale === 'en' ? 'Single' : 'مفرد'}: {bestseller.priceSingle} EGP
-                              {bestseller.priceDouble ? ` | ${locale === 'en' ? 'Double' : 'دبل'}: ${bestseller.priceDouble} EGP` : ''}
-                            </p>
-                          </>
-                        );
-                      })()}
+                      {!bestseller ? (
+                        <>
+                          <h4 className="text-sm font-bold text-white">Dodz Burger (دودز برجر)</h4>
+                          <p className="text-[11px] text-accent-amber mt-0.5">Single: 120 EGP | Double: 170 EGP</p>
+                        </>
+                      ) : (
+                        <>
+                          <h4 className="text-sm font-bold text-white">
+                            {locale === 'en' ? bestseller.nameEn : bestseller.nameAr}
+                          </h4>
+                          <p className="text-[11px] text-accent-amber mt-0.5 font-mono">
+                            {locale === 'en' ? 'Single' : 'مفرد'}: {bestseller.priceSingle} EGP
+                            {bestseller.priceDouble ? ` | ${locale === 'en' ? 'Double' : 'دبل'}: ${bestseller.priceDouble} EGP` : ''}
+                          </p>
+                        </>
+                      )}
                     </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger')) || products[0];
                         if (bestseller) {
                           handleAddToCartClicked(bestseller, bestseller.priceDouble ? 'SINGLE' : 'NONE');
                           setCartOpen(true);
@@ -606,7 +638,6 @@ export default function Home() {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        const bestseller = products.find(p => p.id === 'prod-dodz-burger' || p.nameEn.toLowerCase().includes('dodz burger')) || products[0];
                         if (bestseller) {
                           setHeroEditProductId(bestseller.id);
                           setHeroEditPriceSingle(String(bestseller.priceSingle));
@@ -1281,7 +1312,19 @@ export default function Home() {
                       priceDouble: heroEditPriceDouble ? Number(heroEditPriceDouble) : null,
                     });
                   }
+                  
+                  // Persist featured product selection in settings
+                  await supabase
+                    .from('restaurant_settings')
+                    .upsert({
+                      key: 'featured_product_id',
+                      value: heroEditProductId,
+                      branch_id: null,
+                      updated_at: new Date().toISOString()
+                    });
+
                   queryClient.invalidateQueries({ queryKey: ['products'] });
+                  queryClient.invalidateQueries({ queryKey: ['restaurant-settings'] });
                   setHeroEditOpen(false);
                 } catch (err) {
                    await alert('Save failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
@@ -1345,12 +1388,18 @@ export default function Home() {
                           const isSelected = selectedCustomizations.some(c => c.optionId === opt.id);
 
                           const handleOptionToggle = () => {
-                            if (isSingleSelect) {
+                            if (group.maxSelected === 1) {
                               const otherGroups = selectedCustomizations.filter(c => c.groupId !== group.id);
-                              setSelectedCustomizations([
-                                ...otherGroups,
-                                { optionId: opt.id, groupId: group.id, nameEn: opt.nameEn, nameAr: opt.nameAr, price: opt.price }
-                              ]);
+                              if (isSelected) {
+                                if (group.minSelected === 0) {
+                                  setSelectedCustomizations(otherGroups);
+                                }
+                              } else {
+                                setSelectedCustomizations([
+                                  ...otherGroups,
+                                  { optionId: opt.id, groupId: group.id, nameEn: opt.nameEn, nameAr: opt.nameAr, price: opt.price }
+                                ]);
+                              }
                             } else {
                               if (isSelected) {
                                 setSelectedCustomizations(selectedCustomizations.filter(c => c.optionId !== opt.id));

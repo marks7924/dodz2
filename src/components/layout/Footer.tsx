@@ -14,8 +14,15 @@ export default function Footer() {
     phone: '16974',
     facebook: 'https://www.facebook.com/Dodz.Egypt?mibextid=ZbWKwL',
     instagram: 'https://www.instagram.com/dodzfriedchicken?igsh=MWVicWN6aWh3dGNi',
-    whatsapp: '201038952671'
+    whatsapp: '201038952671',
+    tiktok: 'https://www.tiktok.com/@dodzfriedchicken1',
+    desc_en: 'Craving hot fire-grilled burgers & hand-breaded crispy fried chicken? Dodz is your premium local destination. Order now for ultimate satisfaction!',
+    desc_ar: 'عايز برجر مشوي على الفحم أو دجاج مقرمش متبل؟ دودز هو اختيارك الأول. اطلب الآن واستمتع بطعم لا يقاوم!',
+    hours_en: 'Daily: 11:00 AM - 03:00 AM',
+    hours_ar: 'يومياً: ١١:٠٠ صباحاً - ٠٣:٠٠ فجراً'
   });
+
+  const [dbBranches, setDbBranches] = useState<any[]>([]);
  
   useEffect(() => {
     const fetchFooterSettings = async () => {
@@ -32,17 +39,41 @@ export default function Footer() {
             phone: parsed.phone || prev.phone,
             facebook: parsed.facebook || prev.facebook,
             instagram: parsed.instagram || prev.instagram,
-            whatsapp: parsed.whatsapp || prev.whatsapp
+            whatsapp: parsed.whatsapp || prev.whatsapp,
+            tiktok: parsed.tiktok || prev.tiktok,
+            desc_en: parsed.desc_en || prev.desc_en,
+            desc_ar: parsed.desc_ar || prev.desc_ar,
+            hours_en: parsed.hours_en || prev.hours_en,
+            hours_ar: parsed.hours_ar || prev.hours_ar
           }));
         }
       } catch (e) {
         console.warn('Error reading footer settings, using defaults:', e);
       }
     };
+
+    const fetchBranches = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('branches')
+          .select('*');
+        if (!error && data) {
+          setDbBranches(data.filter((b: any) => b.status !== 'DELETED'));
+        }
+      } catch (e) {
+        console.warn('Error reading branches for footer:', e);
+      }
+    };
+
     fetchFooterSettings();
+    fetchBranches();
   }, [supabase]);
  
-  const branches = [
+  const branchesList = dbBranches.length > 0 ? dbBranches.map(b => ({
+    nameEn: b.name_en,
+    nameAr: b.name_ar,
+    url: b.map_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.name_en)}`
+  })) : [
     { nameEn: 'Seashell Walk Branch', nameAr: 'سي شيل ووك - الساحل', url: 'https://maps.app.goo.gl/41ghzJmGZFH5ydau9' },
     { nameEn: 'Marina Walk Branch', nameAr: 'مارينا ووك - الساحل', url: 'https://maps.app.goo.gl/uFNMVQf7mARqx3VP6?g_st=ac' },
     { nameEn: 'Tagamoa Branch', nameAr: 'فرع التجمع الخامس', url: 'https://maps.app.goo.gl/PY39jUeRrMDCEcoa9' },
@@ -68,9 +99,7 @@ export default function Footer() {
               </span>
             </Link>
             <p className="text-xs text-text-muted leading-relaxed">
-              {locale === 'en'
-                ? 'Craving hot fire-grilled burgers & hand-breaded crispy fried chicken? Dodz is your premium local destination. Order now for ultimate satisfaction!'
-                : 'عايز برجر مشوي على الفحم أو دجاج مقرمش متبل؟ دودز هو اختيارك الأول. اطلب الآن واستمتع بطعم لا يقاوم!'}
+              {locale === 'en' ? footerData.desc_en : footerData.desc_ar}
             </p>
             {/* Social Handles */}
             <div className="flex items-center gap-3 pt-2">
@@ -102,15 +131,17 @@ export default function Footer() {
                   </svg>
                 </a>
               )}
-              <a
-                href="https://www.tiktok.com/@dodzfriedchicken1?_r=1&_d=eki1ej1cljgm33&sec_uid=MS4wLjABAAAAyDIEWKNzqmiSSYjU8PTkg4m9ARg7ng9T9eNdIKBqBm3pgex2LN4kwhwTEz38GQ38&share_author_id=7169236961445807110&sharer_language=en&source=h5_m&u_code=dbgdfk6136818e&timestamp=1782007970&user_id=6809345678806402053&sec_user_id=MS4wLjABAAAAWaScW3tGV5yHhP17roewlEg_OrVF9nn8CvTFB1dsIQoaklk3V2CipNQ_Qus1pqI-&item_author_type=2&utm_source=copy&utm_campaign=client_share&utm_medium=android&share_iid=7652738700464277265&share_link_id=c0b82644-a1ba-4e34-846e-d232147de326&share_app_id=1233&ugbiz_name=ACCOUNT&ug_btm=b6880%2Cb5836&social_share_type=5&share_enter_from=others_homepage&item_author_type=2&enable_checksum=1"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="h-8 w-8 rounded-full bg-card hover:bg-primary-red border border-card-border hover:border-transparent text-foreground hover:text-white flex items-center justify-center transition-all font-bold text-xs"
-                title="TikTok"
-              >
-                🎵
-              </a>
+              {footerData.tiktok && (
+                <a
+                  href={footerData.tiktok}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-8 w-8 rounded-full bg-card hover:bg-primary-red border border-card-border hover:border-transparent text-foreground hover:text-white flex items-center justify-center transition-all font-bold text-xs"
+                  title="TikTok"
+                >
+                  🎵
+                </a>
+              )}
               {footerData.whatsapp && (
                 <a
                   href={footerData.whatsapp.startsWith('http') ? footerData.whatsapp : `https://wa.me/${footerData.whatsapp}`}
@@ -153,7 +184,7 @@ export default function Footer() {
               </div>
             </div>
           </div>
-
+ 
           {/* Operating Hours */}
           <div className="flex flex-col space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-accent-amber">
@@ -162,7 +193,7 @@ export default function Footer() {
             <div className="space-y-2 text-xs text-text-muted">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-accent-amber" />
-                <span>{locale === 'en' ? 'Daily: 11:00 AM - 03:00 AM' : 'يومياً: ١١:٠٠ صباحاً - ٠٣:٠٠ فجراً'}</span>
+                <span>{locale === 'en' ? footerData.hours_en : footerData.hours_ar}</span>
               </div>
               <div className="pt-2">
                 <h4 className="text-[10px] uppercase font-bold text-white mb-1">Quick Links</h4>
@@ -181,14 +212,14 @@ export default function Footer() {
               </div>
             </div>
           </div>
-
+ 
           {/* Our Branches */}
           <div className="flex flex-col space-y-4">
             <h3 className="text-sm font-bold uppercase tracking-wider text-accent-amber">
               {locale === 'en' ? 'Our Branches' : 'فروعنا'}
             </h3>
             <ul className="space-y-2 text-xs">
-              {branches.map((b, idx) => (
+              {branchesList.map((b, idx) => (
                 <li key={idx}>
                   <a
                     href={b.url}
@@ -205,9 +236,9 @@ export default function Footer() {
               ))}
             </ul>
           </div>
-
+ 
         </div>
-
+ 
         {/* Footer Bottom */}
         <div className="border-t border-card-border mt-8 pt-6 flex flex-col md:flex-row items-center justify-between gap-4 text-[10px] text-text-muted">
           <p>© {new Date().getFullYear()} {t('appName')}. All rights reserved.</p>

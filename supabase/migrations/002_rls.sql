@@ -29,7 +29,7 @@ $$ LANGUAGE SQL SECURITY DEFINER STABLE;
 -- Helper function: is internal staff (STAFF, ADMIN, DEVELOPER, OWNER)
 CREATE OR REPLACE FUNCTION public.is_internal_staff()
 RETURNS BOOLEAN AS $$
-  SELECT role IN ('STAFF', 'ADMIN', 'DEVELOPER', 'OWNER')
+  SELECT role IN ('STAFF', 'ADMIN', 'DEVELOPER', 'OWNER', 'CUSTOMER_SERVICE')
   FROM public.profiles WHERE id = auth.uid();
 $$ LANGUAGE SQL SECURITY DEFINER STABLE;
 
@@ -218,6 +218,9 @@ CREATE POLICY "notifications_insert_staff" ON public.notifications
 
 CREATE POLICY "notifications_update_own" ON public.notifications
   FOR UPDATE USING (auth.uid() = user_id);
+
+CREATE POLICY "notifications_delete_own" ON public.notifications
+  FOR DELETE USING (auth.uid() = user_id);
 
 -- ============================================================
 -- ACTIVITY LOGS — Managers and developers only

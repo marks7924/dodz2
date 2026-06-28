@@ -188,11 +188,13 @@ export const useCartStore = create<CartStore>()(
           discountableSubtotal = get().getSubtotal();
         }
 
+        let rawDiscount = 0;
         if (coupon.discountType === 'PERCENT') {
-          return (discountableSubtotal * coupon.discountValue) / 100;
+          rawDiscount = (discountableSubtotal * coupon.discountValue) / 100;
         } else {
-          return Math.min(coupon.discountValue, discountableSubtotal);
+          rawDiscount = Math.min(coupon.discountValue, discountableSubtotal);
         }
+        return Math.round(rawDiscount * 10) / 10;
       },
 
       getTotal: () => {

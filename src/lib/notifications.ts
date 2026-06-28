@@ -72,6 +72,17 @@ export async function markAllAsRead(userId: string): Promise<void> {
 }
 
 /**
+ * Deletes all notifications for a user.
+ */
+export async function clearAllNotifications(userId: string): Promise<void> {
+  const { error } = await supabase
+    .from('notifications')
+    .delete()
+    .eq('user_id', userId);
+  if (error) throw error;
+}
+
+/**
  * Subscribes to new notifications for a specific user via Supabase Realtime.
  * Returns a channel subscription that should be unsubscribed when done.
  */
