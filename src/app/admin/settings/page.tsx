@@ -525,7 +525,7 @@ export default function SettingsPage() {
                 return (
                   <div className="space-y-3">
                     <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                      {locale === 'en' ? 'Manual Recommended Items' : 'تحديد وجبات مميزة يوصى بها'}
+                      {locale === 'en' ? 'Often Ordered With (Upsells)' : 'المنتجات التي تُطلب غالباً معاً (توصيات)'}
                     </h2>
                     <div className="p-4 bg-[#18181B] border border-card-border rounded-2xl space-y-2 max-h-[220px] overflow-y-auto scrollbar-thin">
                       {products.length === 0 ? (

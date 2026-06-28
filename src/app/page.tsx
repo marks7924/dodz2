@@ -188,6 +188,8 @@ export default function Home() {
   const [selectedSize, setSelectedSize] = useState<string>('SINGLE');
   const [productSizes, setProductSizes] = useState<Record<string, string>>({});
   const [customizationProduct, setCustomizationProduct] = useState<{ product: Product, size: string } | null>(null);
+  const [oftenOrderedModalOpen, setOftenOrderedModalOpen] = useState(false);
+  const [oftenOrderedItems, setOftenOrderedItems] = useState<Product[]>([]);
   const [selectedCustomizations, setSelectedCustomizations] = useState<{ optionId: string, groupId: string, nameEn: string, nameAr: string, price: number }[]>([]);
   const [selectedExtras, setSelectedExtras] = useState<{ id: string; nameEn: string; nameAr: string; price: number; quantity: number; isStandard: boolean }[]>([]);
   const [reviewName, setReviewName] = useState('');
@@ -556,6 +558,15 @@ export default function Home() {
     setTimeout(() => {
       setJustAddedId(null);
     }, 1500);
+
+    // Show often ordered with modal if not already open and recommended products are configured
+    if (!oftenOrderedModalOpen) {
+      const recProducts = products.filter(p => recommendedProductIds.includes(p.id) && p.id !== product.id && p.isAvailable);
+      if (recProducts.length > 0) {
+        setOftenOrderedItems(recProducts);
+        setOftenOrderedModalOpen(true);
+      }
+    }
   };
 
   const handleAddToCartClicked = (product: Product, size: string) => {
@@ -1871,6 +1882,104 @@ export default function Home() {
         );
       })()}
       <BranchWelcomePopup />
+
+      {oftenOrderedModalOpen && oftenOrderedItems.length > 0 && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setOftenOrderedModalOpen(false)} />
+          
+          {/* Modal Content */}
+          <div className="relative w-full max-w-md bg-[#131316] border border-card-border rounded-3xl p-6 shadow-2xl z-10 flex flex-col animate-in zoom-in-95 duration-200">
+            <button
+              onClick={() => setOftenOrderedModalOpen(false)}
+              className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-card-border text-text-muted hover:text-white cursor-pointer transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+
+            <div className="mb-4">
+              <h3 className="text-base font-extrabold text-white">
+                {locale === 'en' ? 'Often Ordered With' : 'غالباً ما يُطلب مع'}
+              </h3>
+              <p className="text-[11px] text-text-muted mt-0.5">
+                {locale === 'en' ? 'Add these delicious sides or drinks to your meal!' : 'أضف هذه الأصناف الجانبية أو المشروبات اللذيذة لوجبتك!'}
+              </p>
+            </div>
+
+            {/* Horizontal Scroll Area */}
+            <div className="flex gap-4 overflow-x-auto pb-4 pt-1 pr-1 scrollbar-thin snap-x snap-mandatory">
+              {oftenOrderedItems.map((prod) => {
+                // Calculate discounted price if any
+                let discount = activeDiscounts.find(d => d.appliesTo === prod.id);
+                if (!discount) discount = activeDiscounts.find(d => d.appliesTo === `CAT:${prod.categoryId}`);
+                if (!discount) discount = activeDiscounts.find(d => d.appliesTo === 'ALL');
+
+                let displayPrice = prod.priceSingle;
+                let originalPrice = prod.priceSingle;
+                let hasItemDiscount = false;
+
+                if (discount) {
+                  if (discount.discountType === 'FIXED') displayPrice = Math.max(0, prod.priceSingle - discount.discountValue);
+                  if (discount.discountType === 'PERCENT') displayPrice = Math.max(0, prod.priceSingle * (1 - discount.discountValue / 100));
+                  displayPrice = Math.round(displayPrice);
+                  hasItemDiscount = true;
+                }
+
+                return (
+                  <div
+                    key={prod.id}
+                    className="w-[140px] shrink-0 bg-card border border-card-border hover:border-card-border-hover rounded-2xl p-3 flex flex-col justify-between snap-start transition-all"
+                  >
+                    <div className="space-y-2">
+                      <div className="relative aspect-square w-full rounded-xl overflow-hidden bg-card-border/30">
+                        <img
+                          src={prod.imageUrl || '/placeholder.png'}
+                          alt={locale === 'en' ? prod.nameEn : prod.nameAr}
+                          className="object-cover w-full h-full"
+                        />
+                      </div>
+                      <div className="space-y-0.5">
+                        <h4 className="text-[11px] font-bold text-white line-clamp-2 min-h-[32px] leading-tight">
+                          {locale === 'en' ? prod.nameEn : prod.nameAr}
+                        </h4>
+                        <div className="flex items-baseline gap-1 flex-wrap">
+                          {hasItemDiscount ? (
+                            <>
+                              <span className="text-[9px] line-through text-text-muted font-mono">{originalPrice}</span>
+                              <span className="text-xs font-bold text-primary-red font-mono">{displayPrice} EGP</span>
+                            </>
+                          ) : (
+                            <span className="text-xs font-bold text-accent-amber font-mono">{displayPrice} EGP</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleAddToCartClicked(prod, 'SINGLE');
+                      }}
+                      className="mt-3 w-full py-1.5 bg-primary-red hover:bg-primary-red-hover text-white text-[10px] font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>{locale === 'en' ? 'Add' : 'إضافة'}</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Close / Action button */}
+            <button
+              onClick={() => setOftenOrderedModalOpen(false)}
+              className="mt-2 w-full py-3 bg-card border border-card-border hover:bg-white/5 text-white text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
+            >
+              {locale === 'en' ? 'Continue to Checkout' : 'الاستمرار للدفع'}
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
