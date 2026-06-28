@@ -504,54 +504,7 @@ export default function SettingsPage() {
                 );
               })()}
 
-              {/* Recommended Products Selection */}
-              {(() => {
-                const recommendedSetting = settings.find((s: any) => s.key === 'recommended_product_ids') || { value: '[]' };
-                let currentRecommendedIds: string[] = [];
-                try {
-                  currentRecommendedIds = JSON.parse(recommendedSetting.value || '[]');
-                } catch {}
 
-                const handleRecommendToggle = (prodId: string, checked: boolean) => {
-                  let updated: string[];
-                  if (checked) {
-                    updated = [...currentRecommendedIds, prodId];
-                  } else {
-                    updated = currentRecommendedIds.filter(id => id !== prodId);
-                  }
-                  handleSave('recommended_product_ids', JSON.stringify(updated));
-                };
-
-                return (
-                  <div className="space-y-3">
-                    <h2 className="text-sm font-bold text-white uppercase tracking-wider">
-                      {locale === 'en' ? 'Often Ordered With (Upsells)' : 'المنتجات التي تُطلب غالباً معاً (توصيات)'}
-                    </h2>
-                    <div className="p-4 bg-[#18181B] border border-card-border rounded-2xl space-y-2 max-h-[220px] overflow-y-auto scrollbar-thin">
-                      {products.length === 0 ? (
-                        <p className="text-xs text-text-muted italic py-4 text-center">
-                          {locale === 'en' ? 'No products available.' : 'لا توجد منتجات متاحة.'}
-                        </p>
-                      ) : (
-                        products.map((p) => {
-                          const isRec = currentRecommendedIds.includes(p.id);
-                          return (
-                            <label key={p.id} className="flex items-center justify-between p-2 rounded-lg bg-card border border-card-border/50 hover:border-card-border cursor-pointer select-none">
-                              <span className="text-xs text-white pr-2">{locale === 'en' ? p.nameEn : p.nameAr}</span>
-                              <input
-                                type="checkbox"
-                                checked={isRec}
-                                onChange={(e) => handleRecommendToggle(p.id, e.target.checked)}
-                                className="rounded bg-[#18181B] border-card-border text-primary-red focus:ring-primary-red/50 shrink-0"
-                              />
-                            </label>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
             </div>
           </div>
         )}

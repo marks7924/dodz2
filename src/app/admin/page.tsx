@@ -2425,6 +2425,66 @@ export default function AdminDashboardPage() {
                   })()}
                 </div>
 
+                {/* ── Often Ordered With (Upsells) ── */}
+                {(() => {
+                  const recommendedSetting = settings.find((s: any) => s.key === 'recommended_product_ids') || { value: '[]' };
+                  let currentRecommendedIds: string[] = [];
+                  try {
+                    currentRecommendedIds = JSON.parse(recommendedSetting.value || '[]');
+                  } catch {}
+
+                  const handleRecommendToggle = (prodId: string, checked: boolean) => {
+                    let updated: string[];
+                    if (checked) {
+                      updated = [...currentRecommendedIds, prodId];
+                    } else {
+                      updated = currentRecommendedIds.filter(id => id !== prodId);
+                    }
+                    saveSettingMutation.mutate({ key: 'recommended_product_ids', value: JSON.stringify(updated) });
+                  };
+
+                  return (
+                    <div className="bg-[#18181B] border border-card-border rounded-2xl p-5 mt-4 space-y-4">
+                      <div className="flex items-center gap-2">
+                        <Tag className="h-4 w-4 text-accent-amber" />
+                        <h3 className="text-xs font-black uppercase tracking-wider text-white">
+                          {locale === 'en' ? 'Often Ordered With (Upsells)' : 'المنتجات التي تُطلب غالباً معاً (توصيات)'}
+                        </h3>
+                      </div>
+                      <p className="text-[10px] text-text-muted">
+                        {locale === 'en'
+                          ? 'Select which items will be offered in the "Often Ordered With" slider when customers add items to their cart.'
+                          : 'اختر العناصر التي سيتم عرضها في شريط "غالباً ما يُطلب مع" عند إضافة عناصر إلى السلة.'}
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-56 overflow-y-auto bg-card border border-card-border rounded-xl p-3 scrollbar-thin">
+                        {products.length === 0 ? (
+                          <p className="col-span-full text-xs text-text-muted italic py-4 text-center">
+                            {locale === 'en' ? 'No products available.' : 'لا توجد منتجات متاحة.'}
+                          </p>
+                        ) : (
+                          products.map((p: any) => {
+                            const isRec = currentRecommendedIds.includes(p.id);
+                            return (
+                              <label key={p.id} className="flex items-center justify-between p-2 rounded-lg bg-card-border/30 border border-card-border/50 hover:border-card-border cursor-pointer select-none">
+                                <span className="text-[11px] text-white pr-2 truncate" title={locale === 'en' ? p.nameEn : p.nameAr}>
+                                  {locale === 'en' ? p.nameEn : p.nameAr}
+                                </span>
+                                <input
+                                  type="checkbox"
+                                  checked={isRec}
+                                  onChange={(e) => handleRecommendToggle(p.id, e.target.checked)}
+                                  className="rounded bg-[#18181B] border-card-border text-primary-red focus:ring-primary-red/50 shrink-0"
+                                />
+                              </label>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {editingCategory && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setEditingCategory(null)} />
