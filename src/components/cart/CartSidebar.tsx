@@ -143,8 +143,11 @@ export default function CartSidebar() {
                 {t('cartEmpty')}
               </p>
               <button
-                onClick={() => setCartOpen(false)}
-                className="px-6 py-2 rounded-xl bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold transition-all"
+                onClick={() => {
+                  setCartOpen(false);
+                  router.push('/');
+                }}
+                className="px-6 py-2 rounded-xl bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold transition-all cursor-pointer"
               >
                 {t('viewMenu')}
               </button>
