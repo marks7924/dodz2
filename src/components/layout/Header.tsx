@@ -348,10 +348,18 @@ export default function Header() {
             {/* Logo */}
             <div className="flex-shrink-0 flex items-center gap-3">
               <Link href="/" className="flex items-center gap-2 group">
+                <img
+                  src="/logo-transparent.png"
+                  alt="DODZ Logo"
+                  className="h-10 md:h-12 w-auto object-contain transition-transform group-hover:scale-105"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
                 <span className="text-xl md:text-3xl font-extrabold tracking-wider bg-gradient-to-r from-primary-red to-accent-amber bg-clip-text text-transparent group-hover:opacity-90 transition-opacity">
                   DODZ
                 </span>
-                <span className="hidden sm:inline text-sm font-bold uppercase tracking-widest text-foreground px-2 py-0.5 rounded bg-primary-red pulse-glow-red">
+                <span className="hidden sm:inline text-xs font-bold uppercase tracking-widest text-white px-2 py-0.5 rounded bg-primary-red pulse-glow-red">
                   Fried Chicken
                 </span>
               </Link>

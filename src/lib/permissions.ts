@@ -53,6 +53,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, PermissionAction[]> = {
     'VIEW_ORDERS',
     'STAFF_CHAT',
   ],
+  CUSTOMER_SERVICE: [
+    'STAFF_CHAT',
+  ],
   DRIVER: [
     'DRIVER_DELIVERIES',
   ],

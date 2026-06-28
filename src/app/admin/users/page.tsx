@@ -15,11 +15,12 @@ import { useModal } from '@/context/ModalContext';
 const ROLE_HIERARCHY: Record<string, number> = {
   CUSTOMER: 0,
   DRIVER: 1,
-  STAFF: 2,
-  ADMIN: 3,
-  HEAD_ADMIN: 4,
-  OWNER: 5,
-  DEVELOPER: 6,
+  CUSTOMER_SERVICE: 2,
+  STAFF: 3,
+  ADMIN: 4,
+  HEAD_ADMIN: 5,
+  OWNER: 6,
+  DEVELOPER: 7,
 };
 
 // Roles each level CAN assign (they can only assign roles strictly below themselves)
@@ -38,6 +39,7 @@ const ROLE_LABELS: Record<string, string> = {
   HEAD_ADMIN: 'Head Admin',
   ADMIN: 'Admin',
   STAFF: 'Staff',
+  CUSTOMER_SERVICE: 'Customer Service',
   DRIVER: 'Driver',
   CUSTOMER: 'Customer',
 };
@@ -261,6 +263,7 @@ export default function UserManagementPage() {
     HEAD_ADMIN:'bg-pink-500/10 text-pink-400 border-pink-500/20',
     ADMIN:     'bg-primary-red/10 text-primary-red border-primary-red/20',
     STAFF:     'bg-accent-amber/10 text-accent-amber border-accent-amber/20',
+    CUSTOMER_SERVICE: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     DRIVER:    'bg-blue-500/10 text-blue-400 border-blue-500/20',
     CUSTOMER:  'bg-green-500/10 text-green-400 border-green-500/20',
   };

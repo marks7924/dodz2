@@ -11,7 +11,7 @@ import CartSidebar from '@/components/cart/CartSidebar';
 import ComboOfferModal from '@/components/cart/ComboOfferModal';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, Product, Category, Review } from '@/lib/db';
-import { ShoppingBag, Star, Flame, Sparkles, Plus, Check, StarIcon, X, MessageCircle, Send, Edit2, Save, Pencil, Trash2, Megaphone } from 'lucide-react';
+import { ShoppingBag, Star, Flame, Sparkles, Plus, Check, StarIcon, X, MessageCircle, Send, Edit2, Save, Pencil, Trash2, Megaphone, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useBranch } from '@/context/BranchContext';
 import { createClient } from '@/lib/supabase/client';
@@ -143,9 +143,11 @@ export default function Home() {
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [selectedSize, setSelectedSize] = useState<'SINGLE' | 'DOUBLE'>('SINGLE');
-  const [customizationProduct, setCustomizationProduct] = useState<{ product: Product, size: 'SINGLE' | 'DOUBLE' | 'NONE' } | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string>('SINGLE');
+  const [productSizes, setProductSizes] = useState<Record<string, string>>({});
+  const [customizationProduct, setCustomizationProduct] = useState<{ product: Product, size: string } | null>(null);
   const [selectedCustomizations, setSelectedCustomizations] = useState<{ optionId: string, groupId: string, nameEn: string, nameAr: string, price: number }[]>([]);
+  const [selectedExtras, setSelectedExtras] = useState<{ id: string; nameEn: string; nameAr: string; price: number; quantity: number; isStandard: boolean }[]>([]);
   const [reviewName, setReviewName] = useState('');
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
@@ -154,6 +156,17 @@ export default function Home() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
+  const categoriesNavRef = useRef<HTMLDivElement>(null);
+
+  const scrollCategories = (direction: 'left' | 'right') => {
+    if (categoriesNavRef.current) {
+      const offset = 200;
+      categoriesNavRef.current.scrollBy({
+        left: direction === 'left' ? -offset : offset,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   const { user, profile, isAuthenticated, role } = useAuth();
   const { selectedBranch, selectedBranchId, selectBranch, allBranches, isGlobalView, isClosed } = useBranch();
@@ -179,6 +192,8 @@ export default function Home() {
   const comboDiscount = comboDiscountSetting ? Number(comboDiscountSetting.value) : 25;
   const comboFixedPriceSetting = settings.find((s) => s.key === 'combo_fixed_price');
   const comboFixedPrice = comboFixedPriceSetting && comboFixedPriceSetting.value ? Number(comboFixedPriceSetting.value) : null;
+  const reviewsActiveSetting = settings.find((s) => s.key === 'reviews_active');
+  const isReviewsActive = reviewsActiveSetting ? reviewsActiveSetting.value === 'true' : true;
 
   useEffect(() => {
     if (profile) {
@@ -278,6 +293,44 @@ export default function Home() {
     queryFn: () => db.getCategories(),
   });
 
+  const { data: recommendedProductIds = [] } = useQuery<string[]>({
+    queryKey: ['recommended-product-ids', user?.id, settings],
+    queryFn: async () => {
+      const ids = new Set<string>();
+      const recSetting = settings.find((s: any) => s.key === 'recommended_product_ids');
+      if (recSetting && recSetting.value) {
+        try {
+          const manualIds = JSON.parse(recSetting.value);
+          if (Array.isArray(manualIds)) {
+            manualIds.forEach(id => ids.add(id));
+          }
+        } catch {}
+      }
+      if (user?.id) {
+        try {
+          const userOrders = await db.getOrders({ userId: user.id });
+          const counts: Record<string, number> = {};
+          userOrders.forEach((o) => {
+            if (o.items) {
+              o.items.forEach((item) => {
+                counts[item.productId] = (counts[item.productId] || 0) + item.quantity;
+              });
+            }
+          });
+          const sorted = Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5)
+            .map(([pid]) => pid);
+          sorted.forEach(id => ids.add(id));
+        } catch (e) {
+          console.error('Error fetching user orders for recommendations:', e);
+        }
+      }
+      return Array.from(ids);
+    },
+    enabled: !!settings,
+  });
+
   const hasInitializedDefaultCategoryRef = useRef(false);
   useEffect(() => {
     if (categories && categories.length > 0 && !hasInitializedDefaultCategoryRef.current) {
@@ -285,6 +338,8 @@ export default function Home() {
       const defaultCat = categories.find((c) => c.isDefault);
       if (defaultCat) {
         setActiveCategory(defaultCat.id);
+      } else {
+        setActiveCategory('recommended');
       }
     }
   }, [categories]);
@@ -324,13 +379,20 @@ export default function Home() {
 
   const handleAddProductToCart = (
     product: Product,
-    size: 'SINGLE' | 'DOUBLE' | 'NONE',
-    customizations: { optionId: string; nameEn: string; nameAr: string; price: number }[] = []
+    size: string,
+    customizations: { optionId: string; nameEn: string; nameAr: string; price: number }[] = [],
+    extras: { id: string; nameEn: string; nameAr: string; price: number; quantity: number; isStandard: boolean }[] = []
   ) => {
     // Apply discounts logic to the price before adding to cart
-    const basePrice = size === 'DOUBLE' && product.priceDouble ? product.priceDouble : product.priceSingle;
-    
+    let basePrice = product.priceSingle;
+    if (size === 'DOUBLE' && product.priceDouble) basePrice = product.priceDouble;
+    else if (size === 'TRIPLE' && product.priceTriple) basePrice = product.priceTriple;
+    else if (size === 'MEDIUM' && product.priceDouble) basePrice = product.priceDouble;
+    else if (size === 'LARGE' && product.priceTriple) basePrice = product.priceTriple;
+    else if (size === 'FAMILY' && product.priceFamily) basePrice = product.priceFamily;
+
     let discount = activeDiscounts.find(d => d.appliesTo === product.id);
+    if (!discount) discount = activeDiscounts.find(d => d.appliesTo === `CAT:${product.categoryId}`);
     if (!discount) discount = activeDiscounts.find(d => d.appliesTo === 'ALL');
 
     let finalPrice = basePrice;
@@ -343,6 +405,10 @@ export default function Home() {
     const customizationSum = customizations.reduce((sum, c) => sum + c.price, 0);
     finalPrice += customizationSum;
 
+    // Add sum of extras price!
+    const extrasSum = extras.reduce((sum, e) => sum + (e.isStandard ? 0 : e.price * e.quantity), 0);
+    finalPrice += extrasSum;
+
     addItem({
       productId: product.id,
       nameEn: product.nameEn,
@@ -351,6 +417,8 @@ export default function Home() {
       size: size as any,
       imageUrl: product.imageUrl,
       customizations,
+      extras,
+      categoryId: product.categoryId,
     });
 
     setJustAddedId(`${product.id}-${size}`);
@@ -368,7 +436,7 @@ export default function Home() {
     }
   };
 
-  const handleAddToCartClicked = (product: Product, size: 'SINGLE' | 'DOUBLE' | 'NONE') => {
+  const handleAddToCartClicked = (product: Product, size: string) => {
     if (isClosed) {
       alert(
         locale === 'en'
@@ -379,9 +447,22 @@ export default function Home() {
       return;
     }
 
-    if (product.customizationGroups && product.customizationGroups.length > 0) {
+    const hasGroups = product.customizationGroups && product.customizationGroups.length > 0;
+    const hasExtras = product.extrasConfig && product.extrasConfig.length > 0;
+
+    if (hasGroups || hasExtras) {
       setCustomizationProduct({ product, size });
       setSelectedCustomizations([]);
+      const initialExtras = (product.extrasConfig || []).map((item: any) => ({
+        id: item.id,
+        nameEn: item.nameEn,
+        nameAr: item.nameAr,
+        price: item.price || 0,
+        quantity: item.isStandard ? 1 : 0,
+        isStandard: !!item.isStandard,
+        maxLimit: item.maxLimit || 3
+      }));
+      setSelectedExtras(initialExtras);
     } else {
       handleAddProductToCart(product, size);
     }
@@ -406,7 +487,9 @@ export default function Home() {
 
   const activeProducts = activeCategory === 'all'
     ? products
-    : products.filter((p) => p.categoryId === activeCategory || p.categoryIds?.includes(activeCategory));
+    : activeCategory === 'recommended'
+      ? products.filter((p) => recommendedProductIds.includes(p.id))
+      : products.filter((p) => p.categoryId === activeCategory || p.categoryIds?.includes(activeCategory));
 
   return (
     <>
@@ -564,41 +647,95 @@ export default function Home() {
             {locale === 'en' ? 'Browse Our Menu' : 'تصفح قائمة الطعام'}
           </h2>
 
-          {/* Categories Navigation Bar */}
-          <div className="sticky top-[64px] md:top-[80px] z-30 w-full glass-panel border border-card-border p-2 rounded-2xl mb-8 flex gap-2 overflow-x-auto no-scrollbar scroll-smooth">
-            {/* All category button */}
+          {/* Categories Navigation Bar with Scroll Arrows */}
+          <div className="relative w-full mb-8">
+            {/* Left scroll arrow button */}
             <button
-              onClick={() => setActiveCategory('all')}
-              className={`px-5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                activeCategory === 'all'
-                  ? 'bg-primary-red text-white shadow-md'
-                  : 'text-foreground hover:bg-card-border'
-              }`}
+              onClick={() => scrollCategories('left')}
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-[#111113]/90 border border-card-border text-white hover:text-primary-red hover:bg-black hover:scale-105 transition-all shadow-lg focus:outline-none cursor-pointer flex items-center justify-center"
+              title={locale === 'en' ? 'Scroll Left' : 'التمرير لليسار'}
             >
-              {locale === 'en' ? 'All' : 'الكل'}
+              <ChevronLeft className="h-4 w-4" />
             </button>
-            {categories.map((cat) => (
+
+            {/* Categories scroll area */}
+            <div
+              ref={categoriesNavRef}
+              className="sticky top-[64px] md:top-[80px] z-30 w-full glass-panel border border-card-border p-2 rounded-2xl flex gap-2 overflow-x-auto no-scrollbar scroll-smooth px-12"
+            >
+              {/* Recommended category button */}
               <button
-                key={cat.id}
-                onClick={() => setActiveCategory(cat.id)}
+                onClick={() => setActiveCategory('recommended')}
                 className={`px-5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                  activeCategory === cat.id
+                  activeCategory === 'recommended'
                     ? 'bg-primary-red text-white shadow-md'
                     : 'text-foreground hover:bg-card-border'
                 }`}
               >
-                {locale === 'en' ? cat.nameEn : cat.nameAr}
+                {locale === 'en' ? `★ Recommended (${recommendedProductIds.length})` : `★ المقترحات (${recommendedProductIds.length})`}
               </button>
-            ))}
+
+              {/* All category button */}
+              <button
+                onClick={() => setActiveCategory('all')}
+                className={`px-5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  activeCategory === 'all'
+                    ? 'bg-primary-red text-white shadow-md'
+                    : 'text-foreground hover:bg-card-border'
+                }`}
+              >
+                {locale === 'en' ? `All (${products.length})` : `الكل (${products.length})`}
+              </button>
+              {categories.map((cat) => {
+                const count = products.filter(p => p.categoryId === cat.id || p.categoryIds?.includes(cat.id)).length;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setActiveCategory(cat.id)}
+                    className={`px-5 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      activeCategory === cat.id
+                        ? 'bg-primary-red text-white shadow-md'
+                        : 'text-foreground hover:bg-card-border'
+                    }`}
+                  >
+                    {locale === 'en' ? cat.nameEn : cat.nameAr} ({count})
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Right scroll arrow button */}
+            <button
+              onClick={() => scrollCategories('right')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-40 p-2 rounded-full bg-[#111113]/90 border border-card-border text-white hover:text-primary-red hover:bg-black hover:scale-105 transition-all shadow-lg focus:outline-none cursor-pointer flex items-center justify-center"
+              title={locale === 'en' ? 'Scroll Right' : 'التمرير لليمين'}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
           </div>
 
           {/* Grid Layout of Menu Items */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {activeProducts.map((product) => {
-              const hasOptions = !!product.priceDouble;
+              const availableSizes: { code: string; labelEn: string; labelAr: string; price: number }[] = [];
+              if (product.sizeType === 'SIZE') {
+                if (product.priceSingle) availableSizes.push({ code: 'SMALL', labelEn: 'Small', labelAr: 'صغير', price: product.priceSingle });
+                if (product.priceDouble) availableSizes.push({ code: 'MEDIUM', labelEn: 'Medium', labelAr: 'وسط', price: product.priceDouble });
+                if (product.priceTriple) availableSizes.push({ code: 'LARGE', labelEn: 'Large', labelAr: 'كبير', price: product.priceTriple });
+                if (product.priceFamily) availableSizes.push({ code: 'FAMILY', labelEn: 'Family Size', labelAr: 'عائلي', price: product.priceFamily });
+              } else {
+                if (product.priceSingle) availableSizes.push({ code: 'SINGLE', labelEn: 'Single', labelAr: 'سنجل', price: product.priceSingle });
+                if (product.priceDouble) availableSizes.push({ code: 'DOUBLE', labelEn: 'Double', labelAr: 'دبل', price: product.priceDouble });
+                if (product.priceTriple) availableSizes.push({ code: 'TRIPLE', labelEn: 'Triple', labelAr: 'تربل', price: product.priceTriple });
+              }
+
+              const selectedProductSizeCode = productSizes[product.id] || availableSizes[0]?.code || 'NONE';
+              const currentSizeObj = availableSizes.find(s => s.code === selectedProductSizeCode) || availableSizes[0];
+              const basePrice = currentSizeObj ? currentSizeObj.price : product.priceSingle;
 
               // Apply discounts
               let discount = activeDiscounts.find(d => d.appliesTo === product.id);
+              if (!discount) discount = activeDiscounts.find(d => d.appliesTo === `CAT:${product.categoryId}`);
               if (!discount) discount = activeDiscounts.find(d => d.appliesTo === 'ALL');
 
               const getDiscountedPrice = (price: number) => {
@@ -608,8 +745,8 @@ export default function Home() {
                 return price;
               };
 
-              const displayPriceSingle = getDiscountedPrice(product.priceSingle);
-              const displayPriceDouble = product.priceDouble ? getDiscountedPrice(product.priceDouble) : undefined;
+              const displayPrice = getDiscountedPrice(basePrice);
+              const displayOriginalPrice = basePrice;
               const hasDiscount = !!discount;
 
               return (
@@ -669,45 +806,43 @@ export default function Home() {
 
                   {/* Add action area */}
                   <div className="p-5 pt-0 border-t border-card-border/30 mt-auto">
-                    {hasOptions ? (
+                    {availableSizes.length > 1 ? (
                       <div className="space-y-4 pt-4">
                         {/* Selector tabs for sizes */}
-                        <div className="flex justify-between items-center text-xs text-text-muted">
-                          <span>
-                            {t('single')}: {' '}
-                            {hasDiscount && <span className="line-through opacity-50 mr-1">{product.priceSingle}</span>}
-                            <b className={hasDiscount ? 'text-primary-red' : 'text-foreground'}>{displayPriceSingle} {t('egp')}</b>
-                          </span>
-                          <span>
-                            {t('double')}: {' '}
-                            {hasDiscount && <span className="line-through opacity-50 mr-1">{product.priceDouble}</span>}
-                            <b className={hasDiscount ? 'text-primary-red' : 'text-foreground'}>{displayPriceDouble} {t('egp')}</b>
-                          </span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {availableSizes.map((sz) => {
+                            const isSelected = selectedProductSizeCode === sz.code;
+                            return (
+                              <button
+                                key={sz.code}
+                                type="button"
+                                onClick={() => setProductSizes(prev => ({ ...prev, [product.id]: sz.code }))}
+                                className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${
+                                  isSelected 
+                                    ? 'bg-primary-red/10 border-primary-red/45 text-primary-red font-extrabold' 
+                                    : 'bg-card border-card-border hover:bg-card-border/50 text-text-muted hover:text-white'
+                                }`}
+                              >
+                                {locale === 'en' ? sz.labelEn : sz.labelAr}
+                              </button>
+                            );
+                          })}
                         </div>
-                        <div className="flex gap-2">
+                        
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="text-right">
+                            {hasDiscount && <div className="text-[10px] line-through opacity-50">{displayOriginalPrice} {t('egp')}</div>}
+                            <span className="font-black text-sm text-accent-amber">
+                              {displayPrice} {t('egp')}
+                            </span>
+                          </div>
+                          
                           <button
                             disabled={!product.isAvailable}
-                            onClick={() => handleAddToCartClicked(product, 'SINGLE')}
-                            className="flex-1 py-2 bg-card hover:bg-card-border border border-card-border hover:border-primary-red/35 text-[11px] font-bold rounded-xl text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            onClick={() => handleAddToCartClicked(product, selectedProductSizeCode)}
+                            className="px-4 py-2 bg-primary-red hover:bg-primary-red-hover text-xs font-bold rounded-xl text-white transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                           >
-                            {justAddedId === `${product.id}-SINGLE` ? (
-                              <>
-                                <Check className="h-3.5 w-3.5 text-green-500" />
-                                <span className="text-green-500">{t('added')}</span>
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="h-3.5 w-3.5" />
-                                <span>{t('single')}</span>
-                              </>
-                            )}
-                          </button>
-                          <button
-                            disabled={!product.isAvailable}
-                            onClick={() => handleAddToCartClicked(product, 'DOUBLE')}
-                            className="flex-1 py-2 bg-primary-red hover:bg-primary-red-hover text-[11px] font-bold rounded-xl text-white transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
-                          >
-                            {justAddedId === `${product.id}-DOUBLE` ? (
+                            {justAddedId === `${product.id}-${selectedProductSizeCode}` ? (
                               <>
                                 <Check className="h-3.5 w-3.5 text-white" />
                                 <span>{t('added')}</span>
@@ -715,7 +850,7 @@ export default function Home() {
                             ) : (
                               <>
                                 <Plus className="h-3.5 w-3.5" />
-                                <span>{t('double')}</span>
+                                <span>{t('addToCart')}</span>
                               </>
                             )}
                           </button>
@@ -724,9 +859,9 @@ export default function Home() {
                     ) : (
                       <div className="flex items-center justify-between gap-4 pt-4">
                         <div className="text-right">
-                          {hasDiscount && <div className="text-[10px] line-through opacity-50">{product.priceSingle} {t('egp')}</div>}
+                          {hasDiscount && <div className="text-[10px] line-through opacity-50">{displayOriginalPrice} {t('egp')}</div>}
                           <span className={`font-black text-sm ${hasDiscount ? 'text-primary-red' : 'text-accent-amber'}`}>
-                            {displayPriceSingle} {t('egp')}
+                            {displayPrice} {t('egp')}
                           </span>
                         </div>
                         <button
@@ -792,80 +927,84 @@ export default function Home() {
                   </p>
 
                   {/* Rating summary */}
-                  <div className="flex items-center gap-1">
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <Star key={s} className="h-4 w-4 fill-accent-amber text-accent-amber" />
-                    ))}
-                    <span className="text-xs text-foreground font-bold ml-1">5.0</span>
-                    <span className="text-xs text-text-muted">({reviews.length} {t('reviews')})</span>
-                  </div>
-
-                  <div className="border-t border-card-border/50 pt-4 space-y-4">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted">{t('reviews')}</h3>
-                    
-                    {/* Reviews List */}
-                    <div className="max-h-[140px] overflow-y-auto space-y-3 pr-2 scrollbar-thin">
-                      {reviews.length === 0 ? (
-                        <p className="text-[11px] text-text-muted italic">{t('noReviews')}</p>
-                      ) : (
-                        reviews.map((rev) => (
-                          <div key={rev.id} className="p-2.5 rounded-lg bg-card-border/40 text-[11px] border border-card-border/30">
-                            <div className="flex justify-between items-center mb-1">
-                              <span className="font-bold text-foreground">{rev.userName}</span>
-                              <div className="flex gap-0.5">
-                                {Array.from({ length: rev.rating }).map((_, i) => (
-                                  <Star key={i} className="h-3 w-3 fill-accent-amber text-accent-amber" />
-                                ))}
-                              </div>
-                            </div>
-                            <p className="text-text-muted">{rev.comment}</p>
-                          </div>
-                        ))
-                      )}
+                  {isReviewsActive && (
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star key={s} className="h-4 w-4 fill-accent-amber text-accent-amber" />
+                      ))}
+                      <span className="text-xs text-foreground font-bold ml-1">5.0</span>
+                      <span className="text-xs text-text-muted">({reviews.length} {t('reviews')})</span>
                     </div>
+                  )}
 
-                    {/* Write Review Form */}
-                    <form onSubmit={handleReviewSubmit} className="space-y-2 border-t border-card-border/30 pt-3">
-                      <h4 className="text-[11px] font-bold text-white">{t('writeReview')}</h4>
-                      <div className="grid grid-cols-2 gap-2">
-                        <input
-                          type="text"
-                          value={reviewName}
-                          onChange={(e) => setReviewName(e.target.value)}
-                          placeholder={t('namePlaceholder')}
-                          required
-                          className="bg-card-border text-[11px] px-2.5 py-1.5 rounded-lg border border-card-border focus:outline-none focus:border-primary-red/50 text-white"
-                        />
-                        <select
-                          value={reviewRating}
-                          onChange={(e) => setReviewRating(Number(e.target.value))}
-                          className="bg-card-border text-[11px] px-2 py-1.5 rounded-lg border border-card-border focus:outline-none focus:border-primary-red/50 text-white"
-                        >
-                          <option value={5}>5 Stars</option>
-                          <option value={4}>4 Stars</option>
-                          <option value={3}>3 Stars</option>
-                          <option value={2}>2 Stars</option>
-                          <option value={1}>1 Star</option>
-                        </select>
+                  {isReviewsActive && (
+                    <div className="border-t border-card-border/50 pt-4 space-y-4">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-text-muted">{t('reviews')}</h3>
+                      
+                      {/* Reviews List */}
+                      <div className="max-h-[140px] overflow-y-auto space-y-3 pr-2 scrollbar-thin">
+                        {reviews.length === 0 ? (
+                          <p className="text-[11px] text-text-muted italic">{t('noReviews')}</p>
+                        ) : (
+                          reviews.map((rev) => (
+                            <div key={rev.id} className="p-2.5 rounded-lg bg-card-border/40 text-[11px] border border-card-border/30">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="font-bold text-foreground">{rev.userName}</span>
+                                <div className="flex gap-0.5">
+                                  {Array.from({ length: rev.rating }).map((_, i) => (
+                                    <Star key={i} className="h-3 w-3 fill-accent-amber text-accent-amber" />
+                                  ))}
+                                </div>
+                              </div>
+                              <p className="text-text-muted">{rev.comment}</p>
+                            </div>
+                          ))
+                        )}
                       </div>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={reviewComment}
-                          onChange={(e) => setReviewComment(e.target.value)}
-                          placeholder={t('comment')}
-                          required
-                          className="flex-1 bg-card-border text-[11px] px-2.5 py-1.5 rounded-lg border border-card-border focus:outline-none focus:border-primary-red/50 text-white"
-                        />
-                        <button
-                          type="submit"
-                          className="px-3 py-1.5 bg-primary-red hover:bg-primary-red-hover text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
-                        >
-                          {locale === 'en' ? 'Send' : 'إرسال'}
-                        </button>
-                      </div>
-                    </form>
-                  </div>
+
+                      {/* Write Review Form */}
+                      <form onSubmit={handleReviewSubmit} className="space-y-2 border-t border-card-border/30 pt-3">
+                        <h4 className="text-[11px] font-bold text-white">{t('writeReview')}</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          <input
+                            type="text"
+                            value={reviewName}
+                            onChange={(e) => setReviewName(e.target.value)}
+                            placeholder={t('namePlaceholder')}
+                            required
+                            className="bg-card-border text-[11px] px-2.5 py-1.5 rounded-lg border border-card-border focus:outline-none focus:border-primary-red/50 text-white"
+                          />
+                          <select
+                            value={reviewRating}
+                            onChange={(e) => setReviewRating(Number(e.target.value))}
+                            className="bg-card-border text-[11px] px-2 py-1.5 rounded-lg border border-card-border focus:outline-none focus:border-primary-red/50 text-white"
+                          >
+                            <option value={5}>5 Stars</option>
+                            <option value={4}>4 Stars</option>
+                            <option value={3}>3 Stars</option>
+                            <option value={2}>2 Stars</option>
+                            <option value={1}>1 Star</option>
+                          </select>
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={reviewComment}
+                            onChange={(e) => setReviewComment(e.target.value)}
+                            placeholder={t('comment')}
+                            required
+                            className="flex-1 bg-card-border text-[11px] px-2.5 py-1.5 rounded-lg border border-card-border focus:outline-none focus:border-primary-red/50 text-white"
+                          />
+                          <button
+                            type="submit"
+                            className="px-3 py-1.5 bg-primary-red hover:bg-primary-red-hover text-white text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                          >
+                            {locale === 'en' ? 'Send' : 'إرسال'}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  )}
                 </div>
 
                 {/* Size choice and add button */}
@@ -1059,7 +1198,7 @@ export default function Home() {
                   const sumOthers = comboItems.slice(0, -1).reduce((sum, item) => sum + Math.round(item.priceSingle * ratio), 0);
                   itemPrice = comboPrice - sumOthers;
                 }
-                addItem({ productId: p.id, nameEn: p.nameEn, nameAr: p.nameAr, price: itemPrice, size: 'NONE', imageUrl: p.imageUrl });
+                addItem({ productId: p.id, nameEn: p.nameEn, nameAr: p.nameAr, price: itemPrice, size: 'NONE', imageUrl: p.imageUrl, categoryId: p.categoryId });
               });
               setComboModal(null);
               setCartOpen(true);
@@ -1115,8 +1254,14 @@ export default function Home() {
                 try {
                   await db.updateProduct(heroEditProductId, {
                     priceSingle: Number(heroEditPriceSingle),
-                    ...(heroEditPriceDouble ? { priceDouble: Number(heroEditPriceDouble) } : {}),
+                    priceDouble: heroEditPriceDouble ? Number(heroEditPriceDouble) : undefined,
                   });
+                  if (selectedBranchId) {
+                    await db.updateProductBranchOverride(heroEditProductId, selectedBranchId, {
+                      priceSingle: Number(heroEditPriceSingle),
+                      priceDouble: heroEditPriceDouble ? Number(heroEditPriceDouble) : null,
+                    });
+                  }
                   queryClient.invalidateQueries({ queryKey: ['products'] });
                   setHeroEditOpen(false);
                 } catch (err) {
@@ -1137,7 +1282,8 @@ export default function Home() {
         const { product, size } = customizationProduct;
         const basePrice = size === 'DOUBLE' && product.priceDouble ? product.priceDouble : product.priceSingle;
         const customizationSum = selectedCustomizations.reduce((sum, c) => sum + c.price, 0);
-        const finalPrice = basePrice + customizationSum;
+        const extrasSum = selectedExtras.reduce((sum, e) => sum + (e.isStandard ? 0 : e.price * e.quantity), 0);
+        const finalPrice = basePrice + customizationSum + extrasSum;
 
         return (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
@@ -1230,6 +1376,95 @@ export default function Home() {
                     </div>
                   );
                 })}
+
+                {/* Sandwich Extras Configuration */}
+                {selectedExtras.length > 0 && (
+                  <div className="space-y-3 border-t border-card-border/50 pt-4 mt-4">
+                    <div className="flex justify-between items-center bg-card-border/30 px-3 py-2 rounded-xl border border-card-border/20">
+                      <h4 className="text-xs font-extrabold text-white">
+                        {locale === 'en' ? 'Extras & Options' : 'الإضافات والخيارات'}
+                      </h4>
+                      <span className="text-[9px] uppercase font-bold px-2 py-0.5 rounded-full bg-accent-amber/10 border border-accent-amber/20 text-accent-amber">
+                        {locale === 'en' ? 'Customize Sandwich' : 'تخصيص الساندوتش'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {selectedExtras.map((item, idx) => {
+                        return (
+                          <div key={item.id} className="flex items-center justify-between p-3 rounded-2xl border border-card-border bg-card text-xs font-bold">
+                            <span className="text-white flex items-center gap-1.5">
+                              {locale === 'en' ? item.nameEn : item.nameAr}
+                              {item.isStandard && item.quantity === 0 && (
+                                <span className="ml-2 text-primary-red text-[10px] font-black uppercase bg-primary-red/10 px-1.5 py-0.5 rounded border border-primary-red/20 font-sans">
+                                  {locale === 'en' ? 'NO' : 'بدون'}
+                                </span>
+                              )}
+                            </span>
+
+                            {item.isStandard ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...selectedExtras];
+                                  updated[idx].quantity = item.quantity === 1 ? 0 : 1;
+                                  setSelectedExtras(updated);
+                                }}
+                                className={`px-3 py-1.5 rounded-xl text-[10px] font-black border transition-all cursor-pointer ${
+                                  item.quantity === 1
+                                    ? 'bg-green-500/10 border-green-500/30 text-green-400'
+                                    : 'bg-red-500/10 border-red-500/30 text-red-500'
+                                }`}
+                              >
+                                {item.quantity === 1 
+                                  ? (locale === 'en' ? 'Included' : 'مضاف') 
+                                  : (locale === 'en' ? 'NO (Omit)' : 'بدون')}
+                              </button>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="text-text-muted font-extrabold text-[10px] mr-2">
+                                  {item.price > 0 ? `+${item.price} EGP` : 'Free'}
+                                </span>
+                                <div className="flex items-center bg-card-border rounded-lg border border-card-border">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (item.quantity > 0) {
+                                        const updated = [...selectedExtras];
+                                        updated[idx].quantity -= 1;
+                                        setSelectedExtras(updated);
+                                      }
+                                    }}
+                                    className="px-2 py-1 text-xs text-text-muted hover:text-white transition-colors cursor-pointer"
+                                  >
+                                    -
+                                  </button>
+                                  <span className="px-2.5 text-[10px] font-extrabold text-white font-mono">
+                                    {item.quantity}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const max = (item as any).maxLimit || 3;
+                                      if (item.quantity < max) {
+                                        const updated = [...selectedExtras];
+                                        updated[idx].quantity += 1;
+                                        setSelectedExtras(updated);
+                                      }
+                                    }}
+                                    className="px-2 py-1 text-xs text-text-muted hover:text-white transition-colors cursor-pointer"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Modal footer summary & CTA */}
@@ -1258,7 +1493,7 @@ export default function Home() {
                       return;
                     }
 
-                    handleAddProductToCart(product, size, selectedCustomizations);
+                    handleAddProductToCart(product, size, selectedCustomizations, selectedExtras);
                     setCustomizationProduct(null);
                     setCartOpen(true);
                   }}

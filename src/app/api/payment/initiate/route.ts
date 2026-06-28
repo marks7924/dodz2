@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
 
     let orderId: string;
     let orderTotal = total;
+    let finalOrder: any = null;
 
     if (useSupabase) {
       try {
@@ -102,6 +103,15 @@ export async function POST(req: NextRequest) {
           .insert(orderItems);
 
         if (itemsError) throw itemsError;
+
+        try {
+          const completedOrder = await db.getOrderById(orderId);
+          if (completedOrder) {
+            finalOrder = completedOrder;
+          }
+        } catch (fetchErr) {
+          console.error('Error fetching completed order for response:', fetchErr);
+        }
       } catch (err: any) {
         console.error('Supabase order creation failed, falling back to mock DB:', err.message || err);
         // Fallback to mock DB
@@ -121,6 +131,7 @@ export async function POST(req: NextRequest) {
           items,
         });
         orderId = mockOrder.id;
+        finalOrder = mockOrder;
       }
     } else {
       // Use mock DB directly
@@ -140,6 +151,7 @@ export async function POST(req: NextRequest) {
         items,
       });
       orderId = mockOrder.id;
+      finalOrder = mockOrder;
     }
 
     // 3. Payment handling based on method
@@ -148,6 +160,7 @@ export async function POST(req: NextRequest) {
         success: true,
         orderId,
         paymentMethod: 'COD',
+        order: finalOrder,
       });
     }
 
@@ -229,6 +242,7 @@ export async function POST(req: NextRequest) {
           orderId,
           paymentMethod: 'FAWRY',
           fawryRefNumber: fawryResult.bill_reference,
+          order: finalOrder,
         });
       } else {
         // CARD payment method
@@ -241,6 +255,7 @@ export async function POST(req: NextRequest) {
           paymentMethod: 'CARD',
           paymentKey,
           iframeUrl,
+          order: finalOrder,
         });
       }
     } catch (paymobErr: any) {
@@ -258,6 +273,7 @@ export async function POST(req: NextRequest) {
             paymentMethod === 'CARD'
               ? `/payment/mock-iframe?orderId=${orderId}&amount=${orderTotal}`
               : undefined,
+          order: finalOrder,
         });
       }
 

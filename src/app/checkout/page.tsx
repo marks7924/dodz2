@@ -1,5 +1,5 @@
 'use client';
-
+ 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLanguage } from '@/context/LanguageContext';
@@ -12,10 +12,10 @@ import { useAuth } from '@/context/AuthContext';
 import { useBranch } from '@/context/BranchContext';
 import { MapPin, Phone, User, CreditCard, ChevronRight, CheckCircle, Navigation, ArrowRight } from 'lucide-react';
 import LazyDeliveryMap from '@/components/map/LazyDeliveryMap';
-import { searchAddress } from '@/lib/nominatim';
+import { searchAddress, reverseGeocode } from '@/lib/nominatim';
 import { calcDeliveryFee } from '@/lib/osrm';
 import { useModal } from '@/context/ModalContext';
-
+ 
 export default function CheckoutPage() {
   const { t, locale, dir } = useLanguage();
   const { alert } = useModal();
@@ -31,9 +31,9 @@ export default function CheckoutPage() {
     coupon,
     clearCart,
   } = useCartStore();
-
+ 
   const { selectedBranchId, selectedBranch, selectBranch, allBranches } = useBranch();
-
+ 
   // Form states
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -43,7 +43,8 @@ export default function CheckoutPage() {
   const [saveDetails, setSaveDetails] = useState(false);
   const [payment, setPayment] = useState<'COD' | 'FAWRY' | 'CARD'>('COD');
   const [errors, setErrors] = useState<Record<string, boolean>>({});
-
+  const [isLocating, setIsLocating] = useState(false);
+ 
   // Fawry reference states
   const [fawryCode, setFawryCode] = useState<string | null>(null);
   const [successOrderId, setSuccessOrderId] = useState<string | null>(null);
@@ -72,7 +73,7 @@ export default function CheckoutPage() {
     let initialPhone = '';
     let initialAddress = '';
 
-    const savedState = localStorage.getItem('dodz_saved_delivery');
+    const savedState = localStorage.getItem('dodz_saved_delivery') || localStorage.getItem('dodz_temp_delivery');
     if (savedState) {
       try {
         const parsed = JSON.parse(savedState);
@@ -81,13 +82,15 @@ export default function CheckoutPage() {
         initialAddress = parsed.address || '';
         if (parsed.apptDetails) setApptDetails(parsed.apptDetails);
         if (parsed.notes) setNotes(parsed.notes);
-        setSaveDetails(true);
+        if (localStorage.getItem('dodz_saved_delivery')) {
+          setSaveDetails(true);
+        }
       } catch (e) {}
     }
 
     if (profile) {
-      if (profile.full_name) initialName = profile.full_name;
-      if (profile.phone) initialPhone = profile.phone;
+      if (profile.full_name && !initialName) initialName = profile.full_name;
+      if (profile.phone && !initialPhone) initialPhone = profile.phone;
     }
 
     setName(initialName);
@@ -110,6 +113,40 @@ export default function CheckoutPage() {
     setAddress(addr);
     setCustomDeliveryFee(fee);
     setIsPinning(true);
+  };
+
+  // Share current location handler
+  const handleShareLocation = () => {
+    if (!navigator.geolocation) {
+      alert(locale === 'en' ? 'Geolocation is not supported by your browser' : 'تحديد الموقع الجغرافي غير مدعوم في متصفحك');
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setPinLat(lat);
+        setPinLng(lng);
+        setIsPinning(true);
+        setIsLocating(false);
+        try {
+          const addr = await reverseGeocode(lat, lng);
+          setAddress(addr);
+          // Distance from Cairo center (Tahrir square fallback base calculation)
+          const dist = Math.sqrt(Math.pow(lat - 30.0444, 2) + Math.pow(lng - 31.2357, 2)) * 100;
+          const fee = calcDeliveryFee(dist / 10);
+          setCustomDeliveryFee(fee);
+        } catch (e) {
+          console.error('Error reverse geocoding shared location:', e);
+        }
+      },
+      (error) => {
+        setIsLocating(false);
+        alert(locale === 'en' ? 'Failed to get your location. Please check browser permissions.' : 'تعذر الحصول على موقعك. يرجى التحقق من صلاحيات المتصفح.');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
   };
 
   // Automatically search and pin coordinates when user finishes typing address in text field
@@ -214,6 +251,15 @@ export default function CheckoutPage() {
       lng: deliveryType === 'DELIVERY' ? pinLng : undefined,
     };
 
+    // Backup delivery details temporarily so they aren't lost on page reload/navigation
+    localStorage.setItem('dodz_temp_delivery', JSON.stringify({
+      name,
+      phone,
+      address: deliveryType === 'DELIVERY' ? address : '',
+      apptDetails: deliveryType === 'DELIVERY' ? apptDetails : '',
+      notes
+    }));
+
     if (saveDetails) {
       localStorage.setItem('dodz_saved_delivery', JSON.stringify({
         name,
@@ -239,6 +285,19 @@ export default function CheckoutPage() {
       }
 
       const data = await response.json();
+
+      // Sync mock order to client-side localStorage to prevent "cant find order" error
+      if (data.order) {
+        try {
+          const localOrders = JSON.parse(localStorage.getItem('dodz_mock_orders') || '[]');
+          if (!localOrders.some((o: any) => o.id === data.order.id)) {
+            localOrders.push(data.order);
+            localStorage.setItem('dodz_mock_orders', JSON.stringify(localOrders));
+          }
+        } catch (e) {
+          console.error('Error saving mock order to localStorage:', e);
+        }
+      }
 
       if (payment === 'COD') {
         clearCart();
@@ -478,9 +537,22 @@ export default function CheckoutPage() {
 
                   {/* Street address */}
                   <div className="space-y-1">
-                    <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
-                      {locale === 'en' ? 'Street Location / Address (Auto-filled by Map)' : 'موقع الشارع / العنوان (يملأ تلقائياً من الخريطة)'}
-                    </label>
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">
+                        {locale === 'en' ? 'Street Location / Address (Auto-filled by Map)' : 'موقع الشارع / العنوان (يملأ تلقائياً من الخريطة)'}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleShareLocation}
+                        disabled={isLocating}
+                        className="text-[10px] font-bold text-accent-amber hover:text-[#fbbf24] flex items-center gap-1 cursor-pointer bg-transparent border-none focus:outline-none"
+                      >
+                        <Navigation className={`h-3 w-3 ${isLocating ? 'animate-spin' : ''}`} />
+                        {isLocating
+                          ? (locale === 'en' ? 'Locating...' : 'تحديد الموقع...')
+                          : (locale === 'en' ? 'Share Location' : 'مشاركة موقعي')}
+                      </button>
+                    </div>
                     <div className="relative">
                       <MapPin className="absolute left-3 rtl:right-3 rtl:left-auto top-3.5 h-4.5 w-4.5 text-text-muted" />
                       <input

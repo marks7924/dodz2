@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client';
 import { Clock, CheckCircle2, Truck, Check, ChevronRight, ShoppingBag, MapPin, User, Phone, Play, AlertTriangle } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { useModal } from '@/context/ModalContext';
+import { useCartStore } from '@/store/useCartStore';
 
 // Lazy-load LiveTrackingMap (Leaflet is browser-only)
 const LiveTrackingMap = dynamic(() => import('@/components/map/LiveTrackingMap'), {
@@ -55,6 +56,14 @@ export default function OrderTrackingPage() {
     queryFn: () => db.getOrderById(orderId),
     refetchInterval: 2000,
   });
+
+  const { clearCart } = useCartStore();
+
+  useEffect(() => {
+    if (order) {
+      clearCart();
+    }
+  }, [order, clearCart]);
 
   const selectedBranch = order ? branches.find((b) => b.id === order.branchId) : null;
 

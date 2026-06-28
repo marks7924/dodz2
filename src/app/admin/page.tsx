@@ -7,7 +7,7 @@ import Footer from '@/components/layout/Footer';
 import CartSidebar from '@/components/cart/CartSidebar';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { db, Order, Product, Category } from '@/lib/db';
-import { Plus, Edit2, Trash2, ShieldAlert, Bell, DollarSign, ListOrdered, Check, AlertTriangle, EyeOff, RotateCcw, Tag, X, Activity, MapPin, Sliders, ChevronUp, ChevronDown } from 'lucide-react';
+import { Plus, Edit2, Trash2, ShieldAlert, Bell, DollarSign, ListOrdered, Check, AlertTriangle, EyeOff, RotateCcw, Tag, X, Activity, MapPin, Sliders, Star, ChevronUp, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useBranch } from '@/context/BranchContext';
 import Link from 'next/link';
@@ -22,8 +22,9 @@ export default function AdminDashboardPage() {
   const { user, profile, role, isAuthenticated, isLoading } = useAuth();
   const { selectedBranchId, selectBranch, allBranches, userBranches, hasGlobalAccess, isGlobalView, storeStatus, fetchStoreStatus, refetchBranches } = useBranch();
 
-  // Tab state: 'ORDERS', 'MENU', 'COUPONS', 'CHAT', or 'LOGS'
-  const [activeTab, setActiveTab] = useState<'ORDERS' | 'MENU' | 'COUPONS' | 'CHAT' | 'LOGS'>('ORDERS');
+  // Tab state: 'ORDERS', 'MENU', 'COUPONS', 'CHAT', 'LOGS' or 'REVIEWS'
+  const [activeTab, setActiveTab] = useState<'ORDERS' | 'MENU' | 'COUPONS' | 'CHAT' | 'LOGS' | 'REVIEWS'>('ORDERS');
+  const [showClosedChats, setShowClosedChats] = useState(false);
   // Legacy filter kept for UI compat; now synced from BranchContext
   const filterBranchId = selectedBranchId || 'ALL';
   const setFilterBranchId = (id: string) => selectBranch(id === 'ALL' ? null : id);
@@ -48,6 +49,13 @@ export default function AdminDashboardPage() {
   const [customizationGroupsList, setCustomizationGroupsList] = useState<any[]>([]);
   const [assignedCustomizationGroupIds, setAssignedCustomizationGroupIds] = useState<string[]>([]);
   const [isSavingCustomizations, setIsSavingCustomizations] = useState(false);
+  const [showStatsOverlay, setShowStatsOverlay] = useState(false);
+  const [statsFilter, setStatsFilter] = useState<'DAY' | 'WEEK' | 'MONTH' | 'ALL'>('ALL');
+
+  // Inline cell editing states
+  const [inlineEditCell, setInlineEditCell] = useState<{ productId: string; field: 'nameEn' | 'nameAr' | 'descEn' | 'descAr' | 'priceSingle' | 'priceDouble' | 'categoryId' | 'imageUrl' } | null>(null);
+  const [inlineEditValue, setInlineEditValue] = useState<string>('');
+  const [inlineEditValueDouble, setInlineEditValueDouble] = useState<string>('');
 
   // Customization group management inside the customization modal
   const [showAddGroupForm, setShowAddGroupForm] = useState(false);
@@ -108,6 +116,9 @@ export default function AdminDashboardPage() {
     };
 
     checkEdit();
+    if (role === 'CUSTOMER_SERVICE') {
+      setActiveTab('CHAT');
+    }
   }, [role]);
 
   // Poll orders database every 2 seconds for live kitchen updates!
@@ -119,7 +130,7 @@ export default function AdminDashboardPage() {
         : undefined
     ),
     refetchInterval: 2000,
-    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'CUSTOMER_SERVICE'].includes(role || ''),
   });
 
   const { data: products = [] } = useQuery<Product[]>({
@@ -129,7 +140,7 @@ export default function AdminDashboardPage() {
       filterBranchId && filterBranchId !== 'ALL' ? filterBranchId : undefined
     ),
     refetchInterval: 2000,
-    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'CUSTOMER_SERVICE'].includes(role || ''),
   });
 
   const [filterEditCategoryId, setFilterEditCategoryId] = useState<string>('ALL');
@@ -141,13 +152,13 @@ export default function AdminDashboardPage() {
   const { data: categories = [] } = useQuery<Category[]>({
     queryKey: ['admin-categories'],
     queryFn: () => db.getCategories(),
-    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'CUSTOMER_SERVICE'].includes(role || ''),
   });
 
   const { data: branches = [] } = useQuery<any[]>({
     queryKey: ['admin-branches'],
     queryFn: () => db.getBranches(),
-    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'CUSTOMER_SERVICE'].includes(role || ''),
   });
 
   // Category management state
@@ -316,13 +327,9 @@ export default function AdminDashboardPage() {
     const [removed] = updatedList.splice(dragIdx, 1);
     updatedList.splice(targetIdx, 0, removed);
 
-    const upsertData = updatedList.map((c, i) => ({
-      id: c.id,
-      sort_order: i,
-    }));
+    const success = await db.reorderCategories(updatedList.map((c: any) => c.id));
 
-    const { error } = await supabase.from('categories').upsert(upsertData, { onConflict: 'id' });
-    if (error) {
+    if (!success) {
       alert(locale === 'en' ? 'Failed to reorder categories' : 'فشل إعادة ترتيب الأقسام');
     } else {
       refetchCategories();
@@ -339,13 +346,9 @@ export default function AdminDashboardPage() {
     const [removed] = updatedList.splice(dragIdx, 1);
     updatedList.splice(targetIdx, 0, removed);
 
-    const upsertData = updatedList.map((p, i) => ({
-      id: p.id,
-      sort_order: i,
-    }));
+    const success = await db.reorderProducts(updatedList.map((p) => p.id));
 
-    const { error } = await supabase.from('menu_items').upsert(upsertData, { onConflict: 'id' });
-    if (error) {
+    if (!success) {
       alert(locale === 'en' ? 'Failed to reorder items' : 'فشل إعادة ترتيب المنتجات');
     } else {
       queryClient.invalidateQueries({ queryKey: ['admin-products'] });
@@ -430,6 +433,7 @@ export default function AdminDashboardPage() {
   const [newCouponBranchId, setNewCouponBranchId] = useState('');
   const [newCouponMaxUsesPerUser, setNewCouponMaxUsesPerUser] = useState<string>('');
   const [newCouponUsageLimit, setNewCouponUsageLimit] = useState<string>('');
+  const [newCouponCategoryId, setNewCouponCategoryId] = useState('');
 
   const handleOpenAddCoupon = () => {
     if (!hasGlobalAccess && userBranches.length > 0) {
@@ -455,6 +459,7 @@ export default function AdminDashboardPage() {
       branchId?: string | null;
       maxUsesPerUser?: number | null;
       usageLimit?: number | null;
+      applicableCategoryId?: string | null;
     }) => db.createCoupon(data),
     onSuccess: () => {
       db.logActivity('CREATED_COUPON', 'coupon', '', { code: newCouponCode });
@@ -466,6 +471,7 @@ export default function AdminDashboardPage() {
       setNewCouponBranchId('');
       setNewCouponMaxUsesPerUser('');
       setNewCouponUsageLimit('');
+      setNewCouponCategoryId('');
     },
   });
 
@@ -515,10 +521,49 @@ export default function AdminDashboardPage() {
     },
   });
 
+  // Settings query & toggle reviews setting mutation
+  const { data: legacySettings = [] } = useQuery({
+    queryKey: ['admin-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('restaurant_settings').select('*');
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: isAuthenticated,
+  });
+
+  const toggleReviewsActiveMutation = useMutation({
+    mutationFn: async (newValue: string) => {
+      const { error } = await supabase
+        .from('restaurant_settings')
+        .upsert({ key: 'reviews_active', value: newValue }, { onConflict: 'key' });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['restaurant-settings'] });
+    },
+  });
+
+  // Admin Reviews query & status mutation
+  const { data: adminReviews = [] } = useQuery({
+    queryKey: ['admin-reviews'],
+    queryFn: () => db.getReviews(undefined, true), // includeAllForAdmin = true
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role || ''),
+  });
+
+  const updateReviewStatusMutation = useMutation({
+    mutationFn: (data: { id: string; status: 'APPROVED' | 'REJECTED' }) =>
+      db.updateReviewStatus(data.id, data.status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-reviews'] });
+    },
+  });
+
   const { data: drivers = [] } = useQuery({
     queryKey: ['admin-drivers'],
     queryFn: () => db.getDrivers(),
-    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'CUSTOMER_SERVICE'].includes(role || ''),
   });
 
   // Support Chat admin states
@@ -532,21 +577,21 @@ export default function AdminDashboardPage() {
   const { data: activeChats = [] } = useQuery({
     queryKey: ['active-chats', filterBranchId],
     queryFn: async () => {
-      const chats = await db.getActiveChats(['OWNER', 'HEAD_ADMIN', 'DEVELOPER', 'ADMIN'].includes(role || ''));
+      const chats = await db.getActiveChats(['OWNER', 'HEAD_ADMIN', 'DEVELOPER', 'ADMIN', 'STAFF', 'CUSTOMER_SERVICE'].includes(role || ''));
       if (filterBranchId && filterBranchId !== 'ALL') {
         return chats.filter((c: any) => !c.branchId || c.branchId === filterBranchId);
       }
       return chats;
     },
     refetchInterval: 2000,
-    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || ''),
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'CUSTOMER_SERVICE'].includes(role || ''),
   });
 
   const { data: adminChatMessages = [] } = useQuery({
     queryKey: ['admin-chat-messages', activeChatUserId],
     queryFn: () => (activeChatUserId ? db.getChatMessages(activeChatUserId) : Promise.resolve([])),
     refetchInterval: 2000,
-    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || '') && !!activeChatUserId,
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'CUSTOMER_SERVICE'].includes(role || '') && !!activeChatUserId,
   });
 
   const sendAdminChatMutation = useMutation({
@@ -568,6 +613,34 @@ export default function AdminDashboardPage() {
       queryClient.invalidateQueries({ queryKey: ['admin-chat-messages', activeChatUserId] });
       setActiveChatId(null);
       setActiveChatUserId(null);
+    },
+  });
+
+  const { data: settings = [], refetch: refetchSettings } = useQuery<any[]>({
+    queryKey: ['restaurant-settings'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('restaurant_settings')
+        .select('key, value');
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const saveSettingMutation = useMutation({
+    mutationFn: async ({ key, value }: { key: string; value: string }) => {
+      const { error } = await supabase
+        .from('restaurant_settings')
+        .upsert({
+          key,
+          value,
+          updated_at: new Date().toISOString(),
+        });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      refetchSettings();
+      queryClient.invalidateQueries({ queryKey: ['restaurant-settings'] });
     },
   });
 
@@ -773,7 +846,7 @@ export default function AdminDashboardPage() {
   if (!mounted || isLoading) return null;
 
   // Access Protection
-  const hasAccess = isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || '');
+  const hasAccess = isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'CUSTOMER_SERVICE'].includes(role || '');
   if (!hasAccess) {
     return (
       <>
@@ -813,6 +886,25 @@ export default function AdminDashboardPage() {
   // Business metrics (only visible for OWNER!)
   const totalRevenue = filteredOrders.filter((o) => o.status === 'DELIVERED').reduce((acc, o) => acc + o.total, 0);
   const totalOrdersCount = filteredOrders.length;
+
+  const getFilteredStatsOrders = () => {
+    const now = new Date();
+    return filteredOrders.filter((o) => {
+      const orderDate = new Date(o.createdAt);
+      const diffTime = Math.abs(now.getTime() - orderDate.getTime());
+      const diffDays = diffTime / (1000 * 60 * 60 * 24);
+      if (statsFilter === 'DAY') return diffDays <= 1;
+      if (statsFilter === 'WEEK') return diffDays <= 7;
+      if (statsFilter === 'MONTH') return diffDays <= 30;
+      return true; // ALL
+    });
+  };
+
+  const statsOrders = getFilteredStatsOrders();
+  const statsDeliveredOrders = statsOrders.filter((o) => o.status === 'DELIVERED');
+  const statsRevenue = statsDeliveredOrders.reduce((sum, o) => sum + o.total, 0);
+  const statsCount = statsOrders.length;
+  const statsAOV = statsDeliveredOrders.length > 0 ? Math.round(statsRevenue / statsDeliveredOrders.length) : 0;
 
   const handleOpenBranchOverrides = async (product: Product) => {
     setBranchOverrideProduct(product);
@@ -1059,11 +1151,50 @@ export default function AdminDashboardPage() {
     setIsEditingProduct(true);
   };
 
+  const handleInlineEditSave = (product: Product, field: 'nameEn' | 'nameAr' | 'descEn' | 'descAr' | 'priceSingle' | 'priceDouble' | 'categoryId' | 'imageUrl') => {
+    if (!inlineEditCell) return;
+
+    const updatedProd: Partial<Product> = { id: product.id };
+
+    if (field === 'nameEn') {
+      if (!inlineEditValue.trim()) { setInlineEditCell(null); return; }
+      updatedProd.nameEn = inlineEditValue.trim();
+    } else if (field === 'nameAr') {
+      if (!inlineEditValue.trim()) { setInlineEditCell(null); return; }
+      updatedProd.nameAr = inlineEditValue.trim();
+    } else if (field === 'descEn') {
+      updatedProd.descEn = inlineEditValue.trim();
+    } else if (field === 'descAr') {
+      updatedProd.descAr = inlineEditValue.trim();
+    } else if (field === 'priceSingle') {
+      const val = parseFloat(inlineEditValue);
+      if (isNaN(val) || val < 0) { setInlineEditCell(null); return; }
+      updatedProd.priceSingle = val;
+    } else if (field === 'priceDouble') {
+      const val = inlineEditValue.trim() ? parseFloat(inlineEditValue) : undefined;
+      updatedProd.priceDouble = (val !== undefined && !isNaN(val)) ? val : undefined;
+    } else if (field === 'categoryId') {
+      updatedProd.categoryId = inlineEditValue;
+    } else if (field === 'imageUrl') {
+      if (!inlineEditValue.trim()) { setInlineEditCell(null); return; }
+      updatedProd.imageUrl = inlineEditValue.trim();
+    }
+
+    const fullProd = { ...product, ...updatedProd };
+    saveProductMutation.mutate(fullProd);
+    setInlineEditCell(null);
+  };
+
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProduct) return;
     saveProductMutation.mutate(editingProduct);
   };
+
+  // Pre-computed chat lists (used by CHAT tab without IIFE)
+  const sortedChats = [...activeChats].sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  const chatOpenSessions = sortedChats.filter(c => c.status !== 'CLOSED');
+  const chatClosedSessions = sortedChats.filter(c => c.status === 'CLOSED');
 
   return (
     <>
@@ -1150,16 +1281,18 @@ export default function AdminDashboardPage() {
 
             {/* Desktop Navigation for Main Tabs */}
             <div className="hidden md:flex gap-1 bg-[#18181B] p-1 rounded-xl border border-card-border">
-              <button
-                onClick={() => setActiveTab('ORDERS')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  activeTab === 'ORDERS' ? 'bg-primary-red text-white shadow-md shadow-primary-red/20' : 'text-text-muted hover:text-white hover:bg-card-border'
-                }`}
-              >
-                {locale === 'en' ? 'Orders' : 'الطلبات'}
-              </button>
+              {role !== 'CUSTOMER_SERVICE' && (
+                <button
+                  onClick={() => setActiveTab('ORDERS')}
+                  className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                    activeTab === 'ORDERS' ? 'bg-primary-red text-white shadow-md shadow-primary-red/20' : 'text-text-muted hover:text-white hover:bg-card-border'
+                  }`}
+                >
+                  {locale === 'en' ? 'Orders' : 'الطلبات'}
+                </button>
+              )}
               
-              {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || '') && (
+              {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'CUSTOMER_SERVICE'].includes(role || '') && (
                 <>
                   {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
                     <button
@@ -1179,6 +1312,16 @@ export default function AdminDashboardPage() {
                       }`}
                     >
                       {locale === 'en' ? 'Coupons' : 'كوبونات'}
+                    </button>
+                  )}
+                  {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
+                    <button
+                      onClick={() => setActiveTab('REVIEWS')}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        activeTab === 'REVIEWS' ? 'bg-primary-red text-white shadow-md shadow-primary-red/20' : 'text-text-muted hover:text-white hover:bg-card-border'
+                      }`}
+                    >
+                      {locale === 'en' ? 'Reviews' : 'التقييمات'}
                     </button>
                   )}
                   <button
@@ -1245,12 +1388,15 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-[#18181B] border border-card-border flex items-center gap-4 text-white">
-              <div className="h-10 w-10 rounded-xl bg-accent-amber/10 text-accent-amber flex items-center justify-center">
+            <div
+              onClick={() => setShowStatsOverlay(true)}
+              className="p-4 rounded-2xl bg-[#18181B] border border-card-border hover:border-accent-amber/50 hover:bg-[#1f1f23] transition-all cursor-pointer flex items-center gap-4 text-white group"
+            >
+              <div className="h-10 w-10 rounded-xl bg-accent-amber/10 text-accent-amber flex items-center justify-center group-hover:scale-110 transition-transform">
                 <ListOrdered className="h-5 w-5" />
               </div>
               <div>
-                <span className="text-[10px] text-text-muted block font-semibold">{t('totalOrdersCount')}</span>
+                <span className="text-[10px] text-text-muted block font-semibold group-hover:text-white transition-colors">{t('totalOrdersCount')}</span>
                 <span className="text-lg font-black text-white">{totalOrdersCount}</span>
               </div>
             </div>
@@ -1260,7 +1406,7 @@ export default function AdminDashboardPage() {
         {/* ========================================================================= */}
         {/* ACTIVE ORDERS CONTROLLER TAB */}
         {/* ========================================================================= */}
-        {activeTab === 'ORDERS' && (
+        {activeTab === 'ORDERS' && role !== 'CUSTOMER_SERVICE' && (
           <div className="space-y-6">
             {/* Customer Cancellation Alert Banner */}
             {customerCancelledOrders.length > 0 && (
@@ -1356,6 +1502,27 @@ export default function AdminDashboardPage() {
                                     + {locale === 'en' ? cust.nameEn : cust.nameAr}
                                   </span>
                                 ))}
+                              </div>
+                            )}
+                            {it.extras && it.extras.length > 0 && (
+                              <div className="pl-4 text-[9px] font-semibold flex flex-wrap gap-1">
+                                {it.extras.map((extra: any, eIdx: number) => {
+                                  if (extra.isStandard && extra.quantity === 0) {
+                                    return (
+                                      <span key={eIdx} className="bg-red-500/10 border border-red-500/25 px-1 py-0.2 rounded text-red-500">
+                                        NO {locale === 'en' ? extra.nameEn.toUpperCase() : extra.nameAr}
+                                      </span>
+                                    );
+                                  }
+                                  if (!extra.isStandard && extra.quantity > 0) {
+                                    return (
+                                      <span key={eIdx} className="bg-accent-amber/10 border border-accent-amber/20 px-1 py-0.2 rounded text-accent-amber">
+                                        + {locale === 'en' ? extra.nameEn : extra.nameAr} {extra.quantity > 1 ? `x${extra.quantity}` : ''}
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })}
                               </div>
                             )}
                           </div>
@@ -1475,6 +1642,27 @@ export default function AdminDashboardPage() {
                                 ))}
                               </div>
                             )}
+                            {it.extras && it.extras.length > 0 && (
+                              <div className="pl-4 text-[9px] font-semibold flex flex-wrap gap-1">
+                                {it.extras.map((extra: any, eIdx: number) => {
+                                  if (extra.isStandard && extra.quantity === 0) {
+                                    return (
+                                      <span key={eIdx} className="bg-red-500/10 border border-red-500/25 px-1 py-0.2 rounded text-red-500">
+                                        NO {locale === 'en' ? extra.nameEn.toUpperCase() : extra.nameAr}
+                                      </span>
+                                    );
+                                  }
+                                  if (!extra.isStandard && extra.quantity > 0) {
+                                    return (
+                                      <span key={eIdx} className="bg-accent-amber/10 border border-accent-amber/20 px-1 py-0.2 rounded text-accent-amber">
+                                        + {locale === 'en' ? extra.nameEn : extra.nameAr} {extra.quantity > 1 ? `x${extra.quantity}` : ''}
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -1575,12 +1763,15 @@ export default function AdminDashboardPage() {
                     onChange={(e) => setFilterEditCategoryId(e.target.value)}
                     className="bg-[#18181B] border border-[#27272A] rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-primary-red/50 cursor-pointer"
                   >
-                    <option value="ALL">{locale === 'en' ? 'ALL' : 'الكل'}</option>
-                    {categories.map((c: any) => (
-                      <option key={c.id} value={c.id}>
-                        {locale === 'en' ? c.nameEn : c.nameAr}
-                      </option>
-                    ))}
+                    <option value="ALL">{locale === 'en' ? `ALL (${products.length})` : `الكل (${products.length})`}</option>
+                    {categories.map((c: any) => {
+                      const count = products.filter((p) => p.categoryId === c.id || p.categoryIds?.includes(c.id)).length;
+                      return (
+                        <option key={c.id} value={c.id}>
+                          {locale === 'en' ? c.nameEn : c.nameAr} ({count})
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
@@ -1640,21 +1831,181 @@ export default function AdminDashboardPage() {
                     >
                       <td className="p-4 flex items-center gap-3">
                         <span className="text-text-muted select-none text-xs">☰</span>
-                        <img src={product.imageUrl} alt={product.nameEn} className="h-10 w-10 rounded-lg object-cover bg-card-border flex-shrink-0" />
-                        <div>
-                          <span className="font-bold text-white block">{locale === 'en' ? product.nameEn : product.nameAr}</span>
-                          <span className="text-[10px] text-text-muted line-clamp-1 max-w-[200px]">{locale === 'en' ? product.descEn : product.descAr}</span>
+                        
+                        {inlineEditCell?.productId === product.id && inlineEditCell?.field === 'imageUrl' ? (
+                          <input
+                            type="text"
+                            value={inlineEditValue}
+                            onChange={(e) => setInlineEditValue(e.target.value)}
+                            onBlur={() => handleInlineEditSave(product, 'imageUrl')}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') handleInlineEditSave(product, 'imageUrl');
+                              if (e.key === 'Escape') setInlineEditCell(null);
+                            }}
+                            autoFocus
+                            placeholder="Image URL"
+                            className="bg-[#18181B] border border-primary-red/50 text-[10px] rounded px-1.5 py-0.5 text-white focus:outline-none w-24"
+                          />
+                        ) : (
+                          <img 
+                            src={product.imageUrl} 
+                            alt={product.nameEn} 
+                            onClick={() => {
+                              setInlineEditCell({ productId: product.id, field: 'imageUrl' });
+                              setInlineEditValue(product.imageUrl);
+                            }}
+                            className="h-10 w-10 rounded-lg object-cover bg-card-border flex-shrink-0 cursor-pointer hover:ring-2 hover:ring-primary-red transition-all" 
+                            title={locale === 'en' ? 'Click to edit image URL' : 'اضغط لتعديل رابط الصورة'}
+                          />
+                        )}
+
+                        <div className="flex-1 min-w-0">
+                          {inlineEditCell?.productId === product.id && inlineEditCell?.field === (locale === 'en' ? 'nameEn' : 'nameAr') ? (
+                            <input
+                              type="text"
+                              value={inlineEditValue}
+                              onChange={(e) => setInlineEditValue(e.target.value)}
+                              onBlur={() => handleInlineEditSave(product, locale === 'en' ? 'nameEn' : 'nameAr')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleInlineEditSave(product, locale === 'en' ? 'nameEn' : 'nameAr');
+                                if (e.key === 'Escape') setInlineEditCell(null);
+                              }}
+                              autoFocus
+                              className="bg-[#18181B] border border-primary-red/50 text-xs rounded px-1.5 py-0.5 text-white focus:outline-none w-full"
+                            />
+                          ) : (
+                            <span 
+                              onClick={() => {
+                                setInlineEditCell({ productId: product.id, field: locale === 'en' ? 'nameEn' : 'nameAr' });
+                                setInlineEditValue(locale === 'en' ? product.nameEn : product.nameAr);
+                              }}
+                              className="font-bold text-white block cursor-pointer hover:underline decoration-dashed decoration-primary-red"
+                              title={locale === 'en' ? 'Click to edit name' : 'اضغط لتعديل الاسم'}
+                            >
+                              {locale === 'en' ? product.nameEn : product.nameAr}
+                            </span>
+                          )}
+
+                          {inlineEditCell?.productId === product.id && inlineEditCell?.field === (locale === 'en' ? 'descEn' : 'descAr') ? (
+                            <input
+                              type="text"
+                              value={inlineEditValue}
+                              onChange={(e) => setInlineEditValue(e.target.value)}
+                              onBlur={() => handleInlineEditSave(product, locale === 'en' ? 'descEn' : 'descAr')}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') handleInlineEditSave(product, locale === 'en' ? 'descEn' : 'descAr');
+                                if (e.key === 'Escape') setInlineEditCell(null);
+                              }}
+                              autoFocus
+                              className="bg-[#18181B] border border-primary-red/50 text-[10px] rounded px-1.5 py-0.5 text-white focus:outline-none w-full mt-1"
+                            />
+                          ) : (
+                            <span 
+                              onClick={() => {
+                                setInlineEditCell({ productId: product.id, field: locale === 'en' ? 'descEn' : 'descAr' });
+                                setInlineEditValue(locale === 'en' ? product.descEn : product.descAr);
+                              }}
+                              className="text-[10px] text-text-muted line-clamp-1 max-w-[200px] block cursor-pointer hover:underline decoration-dashed"
+                              title={locale === 'en' ? 'Click to edit description' : 'اضغط لتعديل الوصف'}
+                            >
+                              {locale === 'en' ? product.descEn : product.descAr}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="p-4 font-medium text-text-muted">
-                        {categories.find((c: any) => c.id === product.categoryId)
-                          ? (locale === 'en'
-                              ? categories.find((c: any) => c.id === product.categoryId)?.nameEn
-                              : categories.find((c: any) => c.id === product.categoryId)?.nameAr)
-                          : '—'}
+                        {inlineEditCell?.productId === product.id && inlineEditCell?.field === 'categoryId' ? (
+                          <select
+                            value={inlineEditValue}
+                            onChange={(e) => {
+                              setInlineEditValue(e.target.value);
+                              const updatedProd = { ...product, categoryId: e.target.value };
+                              saveProductMutation.mutate(updatedProd);
+                              setInlineEditCell(null);
+                            }}
+                            onBlur={() => setInlineEditCell(null)}
+                            autoFocus
+                            className="bg-[#18181B] border border-primary-red/50 text-xs rounded px-1 py-1 text-white focus:outline-none w-full"
+                          >
+                            {categories.map((c) => (
+                              <option key={c.id} value={c.id}>{locale === 'en' ? c.nameEn : c.nameAr}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span
+                            onClick={() => {
+                              setInlineEditCell({ productId: product.id, field: 'categoryId' });
+                              setInlineEditValue(product.categoryId);
+                            }}
+                            className="font-medium text-text-muted cursor-pointer hover:underline hover:text-white"
+                            title={locale === 'en' ? 'Click to edit category' : 'اضغط لتعديل القسم'}
+                          >
+                            {categories.find((c: any) => c.id === product.categoryId)
+                              ? (locale === 'en'
+                                  ? categories.find((c: any) => c.id === product.categoryId)?.nameEn
+                                  : categories.find((c: any) => c.id === product.categoryId)?.nameAr)
+                              : '—'}
+                          </span>
+                        )}
                       </td>
                       <td className="p-4 font-mono font-bold text-accent-amber">
-                        {product.priceSingle} EGP {product.priceDouble ? `/ ${product.priceDouble} EGP` : ''}
+                        {inlineEditCell?.productId === product.id && (inlineEditCell?.field === 'priceSingle' || inlineEditCell?.field === 'priceDouble') ? (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[9px] text-text-muted">S:</span>
+                              <input
+                                type="number"
+                                value={inlineEditValue}
+                                onChange={(e) => setInlineEditValue(e.target.value)}
+                                onBlur={() => handleInlineEditSave(product, 'priceSingle')}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleInlineEditSave(product, 'priceSingle');
+                                  if (e.key === 'Escape') setInlineEditCell(null);
+                                }}
+                                autoFocus={inlineEditCell?.field === 'priceSingle'}
+                                className="bg-[#18181B] border border-primary-red/50 text-[10px] rounded px-1 py-0.5 text-white focus:outline-none w-14"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[9px] text-text-muted">D:</span>
+                              <input
+                                type="number"
+                                value={inlineEditValueDouble}
+                                onChange={(e) => setInlineEditValueDouble(e.target.value)}
+                                onBlur={() => {
+                                  setInlineEditValue(inlineEditValueDouble);
+                                  setTimeout(() => {
+                                    handleInlineEditSave(product, 'priceDouble');
+                                  }, 50);
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    setInlineEditValue(inlineEditValueDouble);
+                                    setTimeout(() => {
+                                      handleInlineEditSave(product, 'priceDouble');
+                                    }, 50);
+                                  }
+                                  if (e.key === 'Escape') setInlineEditCell(null);
+                                }}
+                                autoFocus={inlineEditCell?.field === 'priceDouble'}
+                                placeholder="None"
+                                className="bg-[#18181B] border border-primary-red/50 text-[10px] rounded px-1 py-0.5 text-white focus:outline-none w-14"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <span
+                            onClick={() => {
+                              setInlineEditCell({ productId: product.id, field: 'priceSingle' });
+                              setInlineEditValue(String(product.priceSingle));
+                              setInlineEditValueDouble(product.priceDouble !== undefined ? String(product.priceDouble) : '');
+                            }}
+                            className="font-mono font-bold text-accent-amber cursor-pointer hover:underline"
+                            title={locale === 'en' ? 'Click to edit prices' : 'اضغط لتعديل الأسعار'}
+                          >
+                            {product.priceSingle} EGP {product.priceDouble ? `/ ${product.priceDouble} EGP` : ''}
+                          </span>
+                        )}
                       </td>
                       <td className="p-4">
                         <button
@@ -1803,6 +2154,61 @@ export default function AdminDashboardPage() {
                   ))}
                 </div>
 
+                {/* ── Combo Price Customizer ── */}
+                <div className="bg-[#18181B] border border-card-border rounded-2xl p-5 mt-4 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-accent-amber" />
+                    <h3 className="text-xs font-black uppercase tracking-wider text-white">
+                      {locale === 'en' ? 'Combo Price Customization' : 'تخصيص تسعير وجبات الكومبو'}
+                    </h3>
+                  </div>
+                  <p className="text-[10px] text-text-muted">
+                    {locale === 'en' 
+                      ? 'Configure discounts or fixed pricing for customers upgrading items to a combo meal.' 
+                      : 'تعديل الخصم أو السعر الموحد الذي يتم تطبيقه عند اختيار إضافة الكومبو للمنتجات.'}
+                  </p>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {(() => {
+                      const discountSetting = settings.find((s: any) => s.key === 'combo_discount_percentage') || { value: '25' };
+                      return (
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">
+                            {locale === 'en' ? 'Combo Offer Discount (%)' : 'نسبة خصم الكومبو (%)'}
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            defaultValue={discountSetting.value}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-primary-red/50"
+                            onBlur={(e) => saveSettingMutation.mutate({ key: 'combo_discount_percentage', value: e.target.value })}
+                          />
+                        </div>
+                      );
+                    })()}
+
+                    {(() => {
+                      const fixedPriceSetting = settings.find((s: any) => s.key === 'combo_fixed_price') || { value: '' };
+                      return (
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">
+                            {locale === 'en' ? 'Combo Fixed Price (EGP) - Overrides %' : 'سعر الكومبو الثابت (ج.م)'}
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="e.g. 50"
+                            defaultValue={fixedPriceSetting.value}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-primary-red/50"
+                            onBlur={(e) => saveSettingMutation.mutate({ key: 'combo_fixed_price', value: e.target.value })}
+                          />
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+
                 {editingCategory && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setEditingCategory(null)} />
@@ -1930,14 +2336,25 @@ export default function AdminDashboardPage() {
                     <tr key={cp.id} className="hover:bg-card-border/20 transition-all">
                       <td className="p-4 font-bold text-white font-mono">{cp.code}</td>
                       <td className="p-4 text-text-muted font-medium">
-                        {cp.branchId ? (
-                          branches.find((b: any) => b.id === cp.branchId)
-                            ? (locale === 'en' ? branches.find((b: any) => b.id === cp.branchId)?.nameEn : branches.find((b: any) => b.id === cp.branchId)?.nameAr)
-                            : 'Specific Branch'
-                        ) : (
-                          <span className="text-[10px] bg-white/5 border border-white/10 text-white font-bold px-1.5 py-0.5 rounded">
-                            {locale === 'en' ? '🌐 All Branches' : '🌐 جميع الفروع'}
-                          </span>
+                        <div>
+                          {cp.branchId ? (
+                            branches.find((b: any) => b.id === cp.branchId)
+                              ? (locale === 'en' ? branches.find((b: any) => b.id === cp.branchId)?.nameEn : branches.find((b: any) => b.id === cp.branchId)?.nameAr)
+                              : 'Specific Branch'
+                          ) : (
+                            <span className="text-[10px] bg-white/5 border border-white/10 text-white font-bold px-1.5 py-0.5 rounded">
+                              {locale === 'en' ? '🌐 All Branches' : '🌐 جميع الفروع'}
+                            </span>
+                          )}
+                        </div>
+                        {cp.applicableCategoryId && (
+                          <div className="text-[10px] text-accent-amber font-bold mt-1">
+                            🏷️ {
+                              categories.find((c: any) => c.id === cp.applicableCategoryId)
+                                ? (locale === 'en' ? categories.find((c: any) => c.id === cp.applicableCategoryId)?.nameEn : categories.find((c: any) => c.id === cp.applicableCategoryId)?.nameAr)
+                                : 'Selected Category'
+                            }
+                          </div>
                         )}
                       </td>
                       <td className="p-4 text-text-muted">{cp.discountType}</td>
@@ -1979,6 +2396,7 @@ export default function AdminDashboardPage() {
                       branchId: newCouponBranchId || null,
                       maxUsesPerUser: newCouponMaxUsesPerUser ? Number(newCouponMaxUsesPerUser) : null,
                       usageLimit: newCouponUsageLimit ? Number(newCouponUsageLimit) : null,
+                      applicableCategoryId: newCouponCategoryId || null,
                     });
                   }}
                   className="relative w-full max-w-md bg-card border border-card-border rounded-3xl p-6 shadow-2xl space-y-4 z-10"
@@ -2004,6 +2422,22 @@ export default function AdminDashboardPage() {
                               {locale === 'en' ? b.nameEn : b.nameAr}
                             </option>
                           ))}
+                      </select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[10px] text-text-muted block font-bold uppercase tracking-wider">Scope (Category - Optional)</label>
+                      <select
+                        value={newCouponCategoryId}
+                        onChange={(e) => setNewCouponCategoryId(e.target.value)}
+                        className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                      >
+                        <option value="">All Categories (Default)</option>
+                        {categories.map((c: any) => (
+                          <option key={c.id} value={c.id}>
+                            {locale === 'en' ? c.nameEn : c.nameAr}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
@@ -2145,7 +2579,15 @@ export default function AdminDashboardPage() {
                         )}
                       </td>
                       <td className="p-4 text-text-muted">
-                        {dsc.appliesTo === 'ALL' ? 'Entire Menu' : products.find(p => p.id === dsc.appliesTo)?.nameEn || dsc.appliesTo}
+                        {dsc.appliesTo === 'ALL'
+                          ? 'Entire Menu'
+                          : dsc.appliesTo.startsWith('CAT:')
+                            ? `Category: ${
+                                categories.find((c: any) => c.id === dsc.appliesTo.substring(4))
+                                  ? (locale === 'en' ? categories.find((c: any) => c.id === dsc.appliesTo.substring(4))?.nameEn : categories.find((c: any) => c.id === dsc.appliesTo.substring(4))?.nameAr)
+                                  : dsc.appliesTo.substring(4)
+                              }`
+                            : products.find(p => p.id === dsc.appliesTo)?.nameEn || dsc.appliesTo}
                       </td>
                       <td className="p-4 font-bold text-primary-red">
                         {dsc.discountValue} {dsc.discountType === 'PERCENT' ? '%' : 'EGP'}
@@ -2227,9 +2669,16 @@ export default function AdminDashboardPage() {
                         className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none"
                       >
                         <option value="ALL">Entire Menu (All Products)</option>
-                        {products.map(p => (
-                          <option key={p.id} value={p.id}>{p.nameEn}</option>
-                        ))}
+                        <optgroup label="Categories">
+                          {categories.map((c: any) => (
+                            <option key={c.id} value={`CAT:${c.id}`}>Category: {locale === 'en' ? c.nameEn : c.nameAr}</option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="Products">
+                          {products.map(p => (
+                            <option key={p.id} value={p.id}>{p.nameEn} ({p.nameAr})</option>
+                          ))}
+                        </optgroup>
                       </select>
                     </div>
 
@@ -2282,50 +2731,226 @@ export default function AdminDashboardPage() {
         )}
 
         {/* ========================================================================= */}
+        {/* REVIEWS MODERATION PANEL TAB */}
+        {/* ========================================================================= */}
+        {activeTab === 'REVIEWS' && (
+          <div className="bg-card border border-card-border rounded-3xl p-4 sm:p-6 space-y-6 shadow-xl">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-card-border/50">
+              <div>
+                <h2 className="text-lg font-black text-white">
+                  {locale === 'en' ? 'Reviews Moderation & Settings' : 'إشراف وإعدادات التقييمات'}
+                </h2>
+                <p className="text-xs text-text-muted">
+                  {locale === 'en'
+                    ? 'Approve or reject customer reviews before they appear on the site.'
+                    : 'الموافقة على تقييمات العملاء أو رفضها قبل ظهورها على الموقع.'}
+                </p>
+              </div>
+
+              {/* Toggle Review System globally */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-white font-bold">
+                  {locale === 'en' ? 'Review System Status:' : 'حالة نظام التقييمات:'}
+                </span>
+                {(() => {
+                  const setting = (legacySettings.length > 0 ? legacySettings : settings).find((s: any) => s.key === 'reviews_active');
+                  const isActive = setting ? setting.value === 'true' : true;
+                  return (
+                    <button
+                      onClick={() => toggleReviewsActiveMutation.mutate(isActive ? 'false' : 'true')}
+                      className={`px-4 py-2 text-xs font-bold rounded-xl border transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-green-500/10 text-green-500 border-green-500/20 hover:bg-green-500/20'
+                          : 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20'
+                      }`}
+                    >
+                      {isActive
+                        ? (locale === 'en' ? '🟢 Active (Resume)' : '🟢 نشط (يعمل)')
+                        : (locale === 'en' ? '🔴 Stopped (Pause)' : '🔴 متوقف')}
+                    </button>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Reviews List for moderation */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left rtl:text-right text-xs">
+                <thead className="bg-[#18181B] text-text-muted border-b border-card-border">
+                  <tr>
+                    <th className="p-4 font-bold">{locale === 'en' ? 'Customer' : 'العميل'}</th>
+                    <th className="p-4 font-bold">{locale === 'en' ? 'Product' : 'المنتج'}</th>
+                    <th className="p-4 font-bold">{locale === 'en' ? 'Rating' : 'التقييم'}</th>
+                    <th className="p-4 font-bold">{locale === 'en' ? 'Comment' : 'التعليق'}</th>
+                    <th className="p-4 font-bold">{locale === 'en' ? 'Status' : 'الحالة'}</th>
+                    <th className="p-4 font-bold text-center">{locale === 'en' ? 'Actions' : 'إجراءات'}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-card-border/30">
+                  {adminReviews.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-text-muted italic">
+                        {locale === 'en' ? 'No reviews found.' : 'لا توجد تقييمات مضافة.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    adminReviews.map((rev: any) => {
+                      const prodName = products.find((p) => p.id === rev.productId)
+                        ? (locale === 'en' ? products.find((p) => p.id === rev.productId)?.nameEn : products.find((p) => p.id === rev.productId)?.nameAr)
+                        : 'Unknown Product';
+                      return (
+                        <tr key={rev.id} className="hover:bg-card-border/20 transition-all text-white animate-in fade-in duration-200">
+                          <td className="p-4 font-bold">{rev.userName}</td>
+                          <td className="p-4 text-text-muted font-medium">{prodName}</td>
+                          <td className="p-4">
+                            <div className="flex gap-0.5">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`h-3.5 w-3.5 ${
+                                    i < rev.rating ? 'fill-accent-amber text-accent-amber' : 'text-card-border'
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </td>
+                          <td className="p-4 text-text-muted max-w-xs truncate" title={rev.comment}>
+                            {rev.comment || '—'}
+                          </td>
+                          <td className="p-4">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                rev.status === 'APPROVED'
+                                  ? 'bg-green-500/10 text-green-500 border-green-500/20'
+                                  : rev.status === 'REJECTED'
+                                  ? 'bg-red-500/10 text-red-500 border-red-500/20'
+                                  : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                              }`}
+                            >
+                              {rev.status || 'PENDING'}
+                            </span>
+                          </td>
+                          <td className="p-4 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                              {rev.status !== 'APPROVED' && (
+                                <button
+                                  onClick={() => updateReviewStatusMutation.mutate({ id: rev.id, status: 'APPROVED' })}
+                                  className="px-2.5 py-1 bg-green-500 hover:bg-green-600 text-white text-[10px] font-bold rounded-lg transition-all cursor-pointer"
+                                >
+                                  {locale === 'en' ? 'Approve' : 'موافقة'}
+                                </button>
+                              )}
+                              {rev.status !== 'REJECTED' && (
+                                <button
+                                  onClick={() => updateReviewStatusMutation.mutate({ id: rev.id, status: 'REJECTED' })}
+                                  className="px-2.5 py-1 bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold rounded-lg transition-all cursor-pointer"
+                                >
+                                  {locale === 'en' ? 'Reject' : 'رفض'}
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
         {/* LIVE SUPPORT CHAT ADMIN PANEL TAB */}
         {/* ========================================================================= */}
         {activeTab === 'CHAT' && (
           <div className="bg-card border border-card-border rounded-3xl p-4 sm:p-6 flex flex-col md:flex-row gap-6 min-h-[450px]">
-            {/* Left list: active chats */}
-            <div className="md:w-1/3 border-b md:border-b-0 md:border-r rtl:md:border-r-0 rtl:md:border-l border-card-border pb-4 md:pb-0 md:pr-6 rtl:md:pr-0 rtl:md:pl-6 space-y-4">
-              <h3 className="text-xs font-bold text-white uppercase tracking-wider">Active Chat Sessions</h3>
-              <div className="space-y-2">
-                {activeChats.length === 0 ? (
-                  <div className="text-xs text-text-muted italic">No active customer chats.</div>
-                ) : (
-                  activeChats.map((chat) => (
+              {/* Left list: active chats */}
+              <div className="md:w-1/3 border-b md:border-b-0 md:border-r rtl:md:border-r-0 rtl:md:border-l border-card-border pb-4 md:pb-0 md:pr-6 rtl:md:pr-0 rtl:md:pl-6 space-y-4">
+                <h3 className="text-xs font-bold text-white uppercase tracking-wider">Active Chat Sessions</h3>
+                <div className="space-y-2">
+                  {chatOpenSessions.length === 0 ? (
+                    <div className="text-xs text-text-muted italic">No active customer chats.</div>
+                  ) : (
+                    chatOpenSessions.map((chat) => (
+                      <button
+                        key={chat.userId}
+                        onClick={() => {
+                          setActiveChatUserId(chat.userId);
+                          setActiveChatUserName(chat.userName);
+                          setActiveChatId(chat.chatId || null);
+                        }}
+                        className={`w-full text-left rtl:text-right p-3 rounded-xl border text-xs transition-all flex flex-col gap-1 cursor-pointer ${
+                          activeChatUserId === chat.userId
+                            ? 'border-primary-red bg-primary-red/5'
+                            : chat.hasUnread
+                              ? 'border-red-500/80 bg-red-500/5 animate-pulse'
+                              : 'border-card-border hover:bg-card-border/20'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center w-full font-bold">
+                          <span className="text-white flex items-center gap-1.5">
+                            {chat.userName}
+                            {chat.hasUnread && (
+                              <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping" />
+                            )}
+                          </span>
+                          <span className="text-[9px] text-text-muted">
+                            {new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-text-muted truncate max-w-full">
+                          {chat.lastMessage}
+                        </p>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                {/* Collapsible Closed Sessions Accordion */}
+                {chatClosedSessions.length > 0 && (
+                  <div className="border-t border-card-border pt-4 mt-4">
                     <button
-                      key={chat.userId}
-                      onClick={() => {
-                        setActiveChatUserId(chat.userId);
-                        setActiveChatUserName(chat.userName);
-                        setActiveChatId(chat.chatId || null);
-                      }}
-                      className={`w-full text-left rtl:text-right p-3 rounded-xl border text-xs transition-all flex flex-col gap-1 cursor-pointer ${
-                        activeChatUserId === chat.userId
-                          ? 'border-primary-red bg-primary-red/5'
-                          : 'border-card-border hover:bg-card-border/20'
-                      }`}
+                      type="button"
+                      onClick={() => setShowClosedChats(!showClosedChats)}
+                      className="w-full flex items-center justify-between text-[11px] font-black text-text-muted hover:text-white uppercase tracking-wider cursor-pointer"
                     >
-                      <div className="flex justify-between items-center w-full font-bold">
-                        <span className="text-white flex items-center gap-1">
-                          {chat.userName}
-                          {chat.status === 'CLOSED' && (
-                            <span className="px-1.5 py-0.5 rounded bg-card-border text-[8px] uppercase">Closed</span>
-                          )}
-                        </span>
-                        <span className="text-[9px] text-text-muted">
-                          {new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-text-muted truncate max-w-full">
-                        {chat.lastMessage}
-                      </p>
+                      <span>{locale === 'en' ? `Closed Sessions (${chatClosedSessions.length})` : `الجلسات المغلقة (${chatClosedSessions.length})`}</span>
+                      {showClosedChats ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                     </button>
-                  ))
+                    
+                    {showClosedChats && (
+                      <div className="space-y-2 mt-3 max-h-[200px] overflow-y-auto pr-1 no-scrollbar animate-in slide-in-from-top-2 duration-200">
+                        {chatClosedSessions.map((chat) => (
+                          <button
+                            key={chat.userId}
+                            onClick={() => {
+                              setActiveChatUserId(chat.userId);
+                              setActiveChatUserName(chat.userName);
+                              setActiveChatId(chat.chatId || null);
+                            }}
+                            className={`w-full text-left rtl:text-right p-2.5 rounded-xl border text-[11px] transition-all flex flex-col gap-1 cursor-pointer opacity-70 hover:opacity-100 ${
+                              activeChatUserId === chat.userId
+                                ? 'border-primary-red bg-primary-red/5'
+                                : 'border-card-border/60 hover:bg-card-border/10'
+                            }`}
+                          >
+                            <div className="flex justify-between items-center w-full font-bold">
+                              <span className="text-white">{chat.userName}</span>
+                              <span className="text-[8px] text-text-muted">
+                                {new Date(chat.updatedAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-text-muted truncate max-w-full italic">
+                              {chat.lastMessage}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-            </div>
 
             {/* Right details: chat conversations */}
             <div className="md:w-2/3 flex flex-col justify-between">
@@ -2622,6 +3247,13 @@ export default function AdminDashboardPage() {
                       placeholder="https://..."
                       className="flex-1 text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50 transition-colors disabled:opacity-50"
                     />
+                    <button
+                      type="button"
+                      onClick={() => setEditingProduct({ ...editingProduct, imageUrl: '/logo.png' })}
+                      className="px-3 py-2.5 bg-card border border-card-border text-accent-amber text-xs font-bold rounded-xl whitespace-nowrap hover:bg-card-border transition-colors cursor-pointer"
+                    >
+                      {locale === 'en' ? 'Use Placeholder' : 'استخدام الافتراضي'}
+                    </button>
                     <div className="relative">
                       <input
                         type="file"
@@ -2633,9 +3265,9 @@ export default function AdminDashboardPage() {
                       <button
                         type="button"
                         disabled={isUploadingImage}
-                        className="px-4 py-2.5 bg-card border border-card-border text-white text-xs font-bold rounded-xl whitespace-nowrap hover:bg-card-border transition-colors disabled:opacity-50"
+                        className="px-3 py-2.5 bg-card border border-card-border text-white text-xs font-bold rounded-xl whitespace-nowrap hover:bg-card-border transition-colors disabled:opacity-50"
                       >
-                        {isUploadingImage ? '...' : (locale === 'en' ? 'Upload' : 'رفع ملف')}
+                        {isUploadingImage ? '...' : (locale === 'en' ? 'Upload' : 'رفع')}
                       </button>
                     </div>
                   </div>
@@ -2644,6 +3276,174 @@ export default function AdminDashboardPage() {
                       <img src={editingProduct.imageUrl} alt="Preview" className="w-full h-full object-cover" />
                     </div>
                   )}
+                </div>
+
+                {/* Sandwich Extras Configuration */}
+                <div className="space-y-3 sm:col-span-2 border-t border-card-border/50 pt-4">
+                  <div className="flex justify-between items-center">
+                    <label className="text-[10px] text-accent-amber block font-black uppercase tracking-widest">
+                      {locale === 'en' ? 'Sandwich Extras Configuration' : 'إعداد إضافات الساندوتش'}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const currentExtras = editingProduct.extrasConfig || [];
+                        const newExtra = {
+                          id: `extra-${Date.now()}`,
+                          nameEn: '',
+                          nameAr: '',
+                          isStandard: false,
+                          price: 0,
+                          maxLimit: 1
+                        };
+                        setEditingProduct({ ...editingProduct, extrasConfig: [...currentExtras, newExtra] });
+                      }}
+                      className="px-2.5 py-1.5 bg-card border border-card-border text-[9px] text-white hover:text-primary-red rounded-lg transition-colors cursor-pointer"
+                    >
+                      + {locale === 'en' ? 'Add Custom Item' : 'إضافة عنصر مخصص'}
+                    </button>
+                  </div>
+
+                  <p className="text-[10px] text-text-muted">
+                    {locale === 'en' 
+                      ? 'Standard items can be deselected by customers (will print "NO [Item]" on ticket). Non-standard items are paid extras with a price and maximum limit.'
+                      : 'العناصر الأساسية يمكن للعميل إلغاء تحديدها (ستطبع "بدون [العنصر]" باللون الأحمر على الفاتورة). العناصر غير الأساسية هي إضافات مدفوعة بسعر وحد أقصى.'}
+                  </p>
+
+                  {/* Extras list */}
+                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
+                    {((editingProduct.extrasConfig && Array.isArray(editingProduct.extrasConfig)) ? editingProduct.extrasConfig : []).length === 0 ? (
+                      <div className="text-[10px] text-text-muted italic bg-[#18181B] p-4 rounded-xl border border-card-border/50 text-center">
+                        {locale === 'en' ? 'No extras configured yet. Click "Add Custom Item" or initialize defaults below.' : 'لم يتم إعداد إضافات بعد. انقر على إضافة عنصر مخصص أو تهيئة الافتراضي أدناه.'}
+                        <div className="mt-2 flex justify-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const defaults = [
+                                { id: 'lettuce', nameEn: 'Lettuce', nameAr: 'خس', isStandard: true, price: 0, maxLimit: 1 },
+                                { id: 'onion', nameEn: 'Onion', nameAr: 'بصل', isStandard: true, price: 0, maxLimit: 1 },
+                                { id: 'pickle', nameEn: 'Pickles', nameAr: 'مخلل', isStandard: true, price: 0, maxLimit: 1 },
+                                { id: 'tomato', nameEn: 'Tomato', nameAr: 'طماطم', isStandard: true, price: 0, maxLimit: 1 },
+                                { id: 'cheese', nameEn: 'Extra Cheese', nameAr: 'جبنة إضافية', isStandard: false, price: 15, maxLimit: 3 },
+                                { id: 'patty', nameEn: 'Extra Patty', nameAr: 'شريحة لحم إضافية', isStandard: false, price: 40, maxLimit: 2 }
+                              ];
+                              setEditingProduct({ ...editingProduct, extrasConfig: defaults });
+                            }}
+                            className="px-3 py-1 bg-primary-red/10 border border-primary-red/20 text-primary-red text-[9px] font-bold rounded-lg hover:bg-primary-red/25 transition-colors cursor-pointer"
+                          >
+                            {locale === 'en' ? 'Initialize Default Sandwich Config' : 'تهيئة الإعداد الافتراضي للساندوتش'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {editingProduct.extrasConfig?.map((item: any, idx: number) => (
+                          <div key={item.id || idx} className="grid grid-cols-1 sm:grid-cols-6 gap-2 bg-[#18181B] p-2.5 rounded-xl border border-card-border/50 items-center">
+                            
+                            {/* Type Switch */}
+                            <div className="sm:col-span-1">
+                              <select
+                                value={item.isStandard ? 'standard' : 'extra'}
+                                onChange={(e) => {
+                                  const updated = [...(editingProduct.extrasConfig || [])];
+                                  updated[idx] = { 
+                                    ...item, 
+                                    isStandard: e.target.value === 'standard',
+                                    price: e.target.value === 'standard' ? 0 : (item.price || 15),
+                                    maxLimit: e.target.value === 'standard' ? 1 : (item.maxLimit || 3)
+                                  };
+                                  setEditingProduct({ ...editingProduct, extrasConfig: updated });
+                                }}
+                                className="w-full text-[10px] bg-[#121214] border border-card-border rounded-lg px-2 py-1.5 text-white focus:outline-none"
+                              >
+                                <option value="standard">{locale === 'en' ? 'Standard' : 'أساسي'}</option>
+                                <option value="extra">{locale === 'en' ? 'Extra' : 'إضافي'}</option>
+                              </select>
+                            </div>
+
+                            {/* Name EN */}
+                            <div className="sm:col-span-2">
+                              <input
+                                type="text"
+                                value={item.nameEn || ''}
+                                onChange={(e) => {
+                                  const updated = [...(editingProduct.extrasConfig || [])];
+                                  updated[idx] = { ...item, nameEn: e.target.value };
+                                  setEditingProduct({ ...editingProduct, extrasConfig: updated });
+                                }}
+                                placeholder="Name (EN)"
+                                required
+                                className="w-full text-[10px] bg-[#121214] border border-card-border rounded-lg px-2 py-1.5 text-white focus:outline-none"
+                              />
+                            </div>
+
+                            {/* Name AR */}
+                            <div className="sm:col-span-1">
+                              <input
+                                type="text"
+                                value={item.nameAr || ''}
+                                onChange={(e) => {
+                                  const updated = [...(editingProduct.extrasConfig || [])];
+                                  updated[idx] = { ...item, nameAr: e.target.value };
+                                  setEditingProduct({ ...editingProduct, extrasConfig: updated });
+                                }}
+                                placeholder="Name (AR)"
+                                required
+                                className="w-full text-[10px] bg-[#121214] border border-card-border rounded-lg px-2 py-1.5 text-white focus:outline-none"
+                              />
+                            </div>
+
+                            {/* Price & Max (Only if Extra) */}
+                            <div className="sm:col-span-1 flex gap-1 items-center">
+                              {!item.isStandard ? (
+                                <>
+                                  <input
+                                    type="number"
+                                    value={item.price || 0}
+                                    onChange={(e) => {
+                                      const updated = [...(editingProduct.extrasConfig || [])];
+                                      updated[idx] = { ...item, price: Number(e.target.value) };
+                                      setEditingProduct({ ...editingProduct, extrasConfig: updated });
+                                    }}
+                                    placeholder="Price"
+                                    className="w-1/2 text-[10px] bg-[#121214] border border-card-border rounded-lg px-1.5 py-1.5 text-white text-center focus:outline-none"
+                                  />
+                                  <input
+                                    type="number"
+                                    value={item.maxLimit || 1}
+                                    onChange={(e) => {
+                                      const updated = [...(editingProduct.extrasConfig || [])];
+                                      updated[idx] = { ...item, maxLimit: Number(e.target.value) };
+                                      setEditingProduct({ ...editingProduct, extrasConfig: updated });
+                                    }}
+                                    placeholder="Max"
+                                    className="w-1/2 text-[10px] bg-[#121214] border border-card-border rounded-lg px-1.5 py-1.5 text-white text-center focus:outline-none"
+                                  />
+                                </>
+                              ) : (
+                                <span className="text-[9px] text-text-muted block text-center w-full italic">Standard</span>
+                              )}
+                            </div>
+
+                            {/* Delete button */}
+                            <div className="sm:col-span-1 text-right">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = (editingProduct.extrasConfig || []).filter((_: any, i: number) => i !== idx);
+                                  setEditingProduct({ ...editingProduct, extrasConfig: updated });
+                                }}
+                                className="p-1.5 text-text-muted hover:text-primary-red cursor-pointer rounded-lg hover:bg-card-border/30 transition-colors"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
               </div>
@@ -2674,15 +3474,17 @@ export default function AdminDashboardPage() {
       {/* ===== STICKY BOTTOM TAB BAR — Mobile Only (md:hidden) ===== */}
       <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-[#0E0E10]/95 backdrop-blur-md border-t border-card-border safe-bottom">
         <div className="flex items-stretch h-16">
-          <button
-            onClick={() => setActiveTab('ORDERS')}
-            className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
-              activeTab === 'ORDERS' ? 'text-primary-red' : 'text-text-muted'
-            }`}
-          >
-            <ListOrdered className="h-5 w-5" />
-            <span>{locale === 'en' ? 'Orders' : 'الطلبات'}</span>
-          </button>
+          {role !== 'CUSTOMER_SERVICE' && (
+            <button
+              onClick={() => setActiveTab('ORDERS')}
+              className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
+                activeTab === 'ORDERS' ? 'text-primary-red' : 'text-text-muted'
+              }`}
+            >
+              <ListOrdered className="h-5 w-5" />
+              <span>{locale === 'en' ? 'Orders' : 'الطلبات'}</span>
+            </button>
+          )}
 
           {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER'].includes(role || '') && (
             <>
@@ -2696,20 +3498,31 @@ export default function AdminDashboardPage() {
                 <span>{locale === 'en' ? 'Menu' : 'المنيو'}</span>
               </button>
               {['OWNER', 'HEAD_ADMIN', 'ADMIN'].includes(role || '') && (
-                <button
-                  onClick={() => setActiveTab('COUPONS')}
-                  className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
-                    activeTab === 'COUPONS' ? 'text-primary-red' : 'text-text-muted'
-                  }`}
-                >
-                  <DollarSign className="h-5 w-5" />
-                  <span>{locale === 'en' ? 'Coupons' : 'كوبونات'}</span>
-                </button>
+                <>
+                  <button
+                    onClick={() => setActiveTab('COUPONS')}
+                    className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
+                      activeTab === 'COUPONS' ? 'text-primary-red' : 'text-text-muted'
+                    }`}
+                  >
+                    <DollarSign className="h-5 w-5" />
+                    <span>{locale === 'en' ? 'Coupons' : 'كوبونات'}</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('REVIEWS')}
+                    className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
+                      activeTab === 'REVIEWS' ? 'text-primary-red' : 'text-text-muted'
+                    }`}
+                  >
+                    <Star className="h-5 w-5" />
+                    <span>{locale === 'en' ? 'Reviews' : 'التقييمات'}</span>
+                  </button>
+                </>
               )}
             </>
           )}
 
-          {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(role || '') && (
+          {['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'CUSTOMER_SERVICE'].includes(role || '') && (
             <button
               onClick={() => setActiveTab('CHAT')}
               className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-bold transition-colors cursor-pointer ${
@@ -2722,6 +3535,167 @@ export default function AdminDashboardPage() {
           )}
         </div>
       </nav>
+
+        {showStatsOverlay && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onClick={() => setShowStatsOverlay(false)} />
+            <div className="relative w-full max-w-4xl bg-card border border-card-border rounded-3xl p-6 shadow-2xl z-10 max-h-[85vh] overflow-y-auto animate-in zoom-in-95 duration-200 space-y-6">
+              
+              {/* Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-card-border/50">
+                <div>
+                  <h3 className="text-base font-extrabold text-white">
+                    {locale === 'en' ? 'Dodz Platform Business Analytics' : 'تحليلات أعمال منصة دودز'}
+                  </h3>
+                  <p className="text-[11px] text-text-muted mt-0.5">
+                    {locale === 'en'
+                      ? 'Detailed breakdown of customer orders and revenue parameters.'
+                      : 'تفصيل كامل لطلبات العملاء ومعايير الإيرادات.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowStatsOverlay(false)}
+                  className="p-1.5 rounded-lg hover:bg-card-border transition-colors text-white cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Time Range Filter Selector */}
+              <div className="flex gap-2 p-1 bg-card-border rounded-xl w-fit">
+                {(['DAY', 'WEEK', 'MONTH', 'ALL'] as const).map((filter) => {
+                  const label = {
+                    DAY: locale === 'en' ? 'Today' : 'اليوم',
+                    WEEK: locale === 'en' ? 'This Week' : 'هذا الأسبوع',
+                    MONTH: locale === 'en' ? 'This Month' : 'هذا الشهر',
+                    ALL: locale === 'en' ? 'All-Time' : 'كل الأوقات',
+                  }[filter];
+                  return (
+                    <button
+                      key={filter}
+                      type="button"
+                      onClick={() => setStatsFilter(filter)}
+                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                        statsFilter === filter ? 'bg-primary-red text-white' : 'text-text-muted hover:text-white'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Aggregated KPI Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 rounded-2xl bg-[#18181B] border border-card-border flex items-center gap-4 text-white">
+                  <div className="h-10 w-10 rounded-xl bg-accent-amber/10 text-accent-amber flex items-center justify-center">
+                    <ListOrdered className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-text-muted block font-semibold">{locale === 'en' ? 'Orders count' : 'عدد الطلبات'}</span>
+                    <span className="text-lg font-black text-white">{statsCount}</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-[#18181B] border border-card-border flex items-center gap-4 text-white">
+                  <div className="h-10 w-10 rounded-xl bg-green-500/10 text-green-500 flex items-center justify-center">
+                    <DollarSign className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-text-muted block font-semibold">{t('revenue')}</span>
+                    <span className="text-lg font-black text-white">{statsRevenue} EGP</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-[#18181B] border border-card-border flex items-center gap-4 text-white">
+                  <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center">
+                    <Sliders className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-text-muted block font-semibold">{locale === 'en' ? 'Avg Order Value' : 'متوسط قيمة الطلب'}</span>
+                    <span className="text-lg font-black text-white">{statsAOV} EGP</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Orders History List Table */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                  {locale === 'en' ? 'Historical Orders List' : 'قائمة الطلبات التاريخية'}
+                </h4>
+                <div className="overflow-x-auto border border-card-border rounded-2xl">
+                  <table className="w-full text-left rtl:text-right text-[11px] text-white">
+                    <thead className="bg-[#18181B] text-text-muted border-b border-card-border">
+                      <tr>
+                        <th className="p-3 font-bold">{locale === 'en' ? 'Order ID' : 'رقم الطلب'}</th>
+                        <th className="p-3 font-bold">{locale === 'en' ? 'Customer' : 'العميل'}</th>
+                        <th className="p-3 font-bold">{locale === 'en' ? 'Date' : 'التاريخ'}</th>
+                        <th className="p-3 font-bold">{locale === 'en' ? 'Status' : 'الحالة'}</th>
+                        <th className="p-3 font-bold">{locale === 'en' ? 'Payment' : 'الدفع'}</th>
+                        <th className="p-3 font-bold">{locale === 'en' ? 'Total' : 'الإجمالي'}</th>
+                        <th className="p-3 font-bold text-center">{locale === 'en' ? 'Action' : 'إجراء'}</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-card-border/30 bg-[#0E0E10]">
+                      {statsOrders.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="p-6 text-center text-text-muted italic">
+                            {locale === 'en' ? 'No orders in this period.' : 'لا توجد طلبات في هذه الفترة.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        statsOrders.map((o) => {
+                          const dateStr = new Date(o.createdAt).toLocaleDateString(locale === 'en' ? 'en-US' : 'ar-EG', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          });
+                          return (
+                            <tr key={o.id} className="hover:bg-card-border/20 transition-all">
+                              <td className="p-3 font-bold text-accent-amber font-mono">#{o.id}</td>
+                              <td className="p-3">
+                                <div>{o.userName}</div>
+                                <div className="text-[10px] text-text-muted font-mono">{o.userPhone}</div>
+                              </td>
+                              <td className="p-3 text-text-muted">{dateStr}</td>
+                              <td className="p-3">
+                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                  o.status === 'DELIVERED' ? 'bg-green-500/10 text-green-500' :
+                                  o.status === 'CANCELLED' ? 'bg-red-500/10 text-red-500' :
+                                  'bg-accent-amber/10 text-accent-amber'
+                                }`}>
+                                  {o.status}
+                                </span>
+                              </td>
+                              <td className="p-3 text-text-muted uppercase font-semibold">{o.paymentMethod}</td>
+                              <td className="p-3 font-bold text-white">{o.total} EGP</td>
+                              <td className="p-3 text-center">
+                                <button
+                                  onClick={() => {
+                                    setActiveTab('ORDERS');
+                                    // Scroll to the active kitchen/orders section if needed
+                                    const element = document.getElementById('menu-section');
+                                    if (element) element.scrollIntoView({ behavior: 'smooth' });
+                                    setShowStatsOverlay(false);
+                                  }}
+                                  className="px-2 py-1 bg-primary-red hover:bg-primary-red-hover text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer"
+                                >
+                                  {locale === 'en' ? 'View Details' : 'عرض التفاصيل'}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
 
         {branchOverrideProduct && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -2897,6 +3871,43 @@ export default function AdminDashboardPage() {
                           className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500/50 placeholder:text-text-muted"
                         />
                         <span className="text-[8px] text-text-muted leading-tight block">Format: Option En: Price / Option Ar: Price, ...</span>
+                        {(() => {
+                          const sauceAndAddonProducts = products.filter((p) => {
+                            const cat = categories.find((c) => c.id === p.categoryId);
+                            if (!cat) return false;
+                            const catName = (cat.nameEn + ' ' + cat.nameAr).toLowerCase();
+                            return catName.includes('sauce') || catName.includes('add-on') || catName.includes('side') || catName.includes('appetizer') ||
+                                   catName.includes('صوص') || catName.includes('إضافات') || catName.includes('مقبلات') || catName.includes('جانبي');
+                          });
+                          if (sauceAndAddonProducts.length === 0) return null;
+                          return (
+                            <div className="mt-2 space-y-1">
+                              <label className="text-[9px] text-[#fbbf24] block font-bold uppercase tracking-wider">
+                                {locale === 'en' ? 'Quick Add from Sauces/Add-ons' : 'إضافة سريعة من الصوصات/الإضافات'}
+                              </label>
+                              <select
+                                onChange={(e) => {
+                                  const prodId = e.target.value;
+                                  if (!prodId) return;
+                                  const prod = sauceAndAddonProducts.find(p => p.id === prodId);
+                                  if (prod) {
+                                    const optionString = `${prod.nameEn}: ${prod.priceSingle} / ${prod.nameAr}: ${prod.priceSingle}`;
+                                    setNewGroupOptionsText(prev => prev ? `${prev}, ${optionString}` : optionString);
+                                  }
+                                  e.target.value = '';
+                                }}
+                                className="w-full text-xs bg-[#131316] border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none"
+                              >
+                                <option value="">-- {locale === 'en' ? 'Select an item to import' : 'اختر عنصر للاستيراد'} --</option>
+                                {sauceAndAddonProducts.map((p) => (
+                                  <option key={p.id} value={p.id} className="bg-[#131316]">
+                                    {locale === 'en' ? `${p.nameEn} (${p.priceSingle} EGP)` : `${p.nameAr} (${p.priceSingle} ج.م)`}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       <button

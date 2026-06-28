@@ -7,11 +7,17 @@ import { useLanguage } from '@/context/LanguageContext';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { CheckCircle, ArrowRight, ShoppingBag } from 'lucide-react';
+import { useCartStore } from '@/store/useCartStore';
 
 function PaymentSuccessContent() {
   const { t, locale } = useLanguage();
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId') || searchParams.get('id') || '';
+  const { clearCart } = useCartStore();
+
+  React.useEffect(() => {
+    clearCart();
+  }, []);
 
   return (
     <div className="flex-grow flex items-center justify-center py-16 px-4">

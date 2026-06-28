@@ -1,5 +1,5 @@
 'use client';
-
+ 
 import React, { useState } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
 import { useAuth } from '@/context/AuthContext';
@@ -8,7 +8,8 @@ import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
 import { ShieldAlert, Loader2, Save, CheckCircle2 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-
+import { db } from '@/lib/db';
+ 
 export default function SettingsPage() {
   const { locale, t } = useLanguage();
   const { role, isLoading: authLoading, isAuthenticated, user } = useAuth();
@@ -23,6 +24,12 @@ export default function SettingsPage() {
       if (error) throw error;
       return data;
     },
+    enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role || ''),
+  });
+
+  const { data: products = [] } = useQuery({
+    queryKey: ['admin-settings-products'],
+    queryFn: () => db.getProducts(),
     enabled: isAuthenticated && ['OWNER', 'HEAD_ADMIN', 'DEVELOPER'].includes(role || ''),
   });
 
@@ -224,6 +231,157 @@ export default function SettingsPage() {
                   );
                 })()}
               </div>
+            </div>
+
+            {/* Column 2: Footer, Reviews control and Recommended items */}
+            <div className="bg-card border border-card-border rounded-3xl p-6 space-y-6">
+              {/* Review System Toggle */}
+              {(() => {
+                const reviewsActiveSetting = settings.find((s: any) => s.key === 'reviews_active') || { value: 'true' };
+                const isReviewsActive = reviewsActiveSetting.value !== 'false';
+                return (
+                  <div className="space-y-2">
+                    <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                      {locale === 'en' ? 'Review System Gate' : 'نظام التقييمات والمراجعات'}
+                    </h2>
+                    <div className="flex items-center justify-between p-3.5 bg-[#18181B] border border-card-border rounded-2xl">
+                      <div className="min-w-0 flex-1 pr-3">
+                        <span className="text-xs font-bold text-white block">
+                          {isReviewsActive ? (locale === 'en' ? 'Active / Resumed' : 'نشط / يعمل') : (locale === 'en' ? 'Disabled / Stopped' : 'معطل / متوقف')}
+                        </span>
+                        <span className="text-[10px] text-text-muted block leading-relaxed mt-0.5">
+                          {locale === 'en' ? 'Toggle to start/stop public reviews visibility' : 'تفعيل أو إيقاف عرض مراجعات وتقييمات العملاء في المتجر'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleSave('reviews_active', isReviewsActive ? 'false' : 'true')}
+                        className={`px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+                          isReviewsActive 
+                            ? 'bg-red-500/10 border border-red-500/25 text-red-500 hover:bg-red-500 hover:text-white'
+                            : 'bg-green-500/10 border border-green-500/25 text-green-500 hover:bg-green-500 hover:text-white'
+                        }`}
+                      >
+                        {isReviewsActive ? (locale === 'en' ? 'Stop System' : 'إيقاف النظام') : (locale === 'en' ? 'Resume System' : 'تشغيل النظام')}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Footer Customization Settings */}
+              {(() => {
+                const footerSetting = settings.find((s: any) => s.key === 'footer_settings') || { value: '{"phone":"19999","facebook":"","instagram":"","whatsapp":""}' };
+                let footerData = { phone: '19999', facebook: '', instagram: '', whatsapp: '' };
+                try {
+                  footerData = { ...footerData, ...JSON.parse(footerSetting.value) };
+                } catch {}
+
+                const handleFooterChange = (field: string, val: string) => {
+                  const updated = { ...footerData, [field]: val };
+                  handleSave('footer_settings', JSON.stringify(updated));
+                };
+
+                return (
+                  <div className="space-y-3">
+                    <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                      {locale === 'en' ? 'Footer & Social Media' : 'إعدادات أسفل الصفحة والروابط'}
+                    </h2>
+                    <div className="p-4 bg-[#18181B] border border-card-border rounded-2xl space-y-3">
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">
+                          {locale === 'en' ? 'Contact Phone Line' : 'رقم التليفون للاتصال'}
+                        </label>
+                        <input
+                          type="text"
+                          defaultValue={footerData.phone}
+                          onBlur={(e) => handleFooterChange('phone', e.target.value)}
+                          className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Facebook Page Link</label>
+                        <input
+                          type="text"
+                          placeholder="https://facebook.com/..."
+                          defaultValue={footerData.facebook}
+                          onBlur={(e) => handleFooterChange('facebook', e.target.value)}
+                          className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Instagram Page Link</label>
+                        <input
+                          type="text"
+                          placeholder="https://instagram.com/..."
+                          defaultValue={footerData.instagram}
+                          onBlur={(e) => handleFooterChange('instagram', e.target.value)}
+                          className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">WhatsApp Contact Link</label>
+                        <input
+                          type="text"
+                          placeholder="https://wa.me/..."
+                          defaultValue={footerData.whatsapp}
+                          onBlur={(e) => handleFooterChange('whatsapp', e.target.value)}
+                          className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2.5 text-white focus:outline-none focus:border-primary-red/50"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Recommended Products Selection */}
+              {(() => {
+                const recommendedSetting = settings.find((s: any) => s.key === 'recommended_product_ids') || { value: '[]' };
+                let currentRecommendedIds: string[] = [];
+                try {
+                  currentRecommendedIds = JSON.parse(recommendedSetting.value || '[]');
+                } catch {}
+
+                const handleRecommendToggle = (prodId: string, checked: boolean) => {
+                  let updated: string[];
+                  if (checked) {
+                    updated = [...currentRecommendedIds, prodId];
+                  } else {
+                    updated = currentRecommendedIds.filter(id => id !== prodId);
+                  }
+                  handleSave('recommended_product_ids', JSON.stringify(updated));
+                };
+
+                return (
+                  <div className="space-y-3">
+                    <h2 className="text-sm font-bold text-white uppercase tracking-wider">
+                      {locale === 'en' ? 'Manual Recommended Items' : 'تحديد وجبات مميزة يوصى بها'}
+                    </h2>
+                    <div className="p-4 bg-[#18181B] border border-card-border rounded-2xl space-y-2 max-h-[220px] overflow-y-auto scrollbar-thin">
+                      {products.length === 0 ? (
+                        <p className="text-xs text-text-muted italic py-4 text-center">
+                          {locale === 'en' ? 'No products available.' : 'لا توجد منتجات متاحة.'}
+                        </p>
+                      ) : (
+                        products.map((p) => {
+                          const isRec = currentRecommendedIds.includes(p.id);
+                          return (
+                            <label key={p.id} className="flex items-center justify-between p-2 rounded-lg bg-card border border-card-border/50 hover:border-card-border cursor-pointer select-none">
+                              <span className="text-xs text-white pr-2">{locale === 'en' ? p.nameEn : p.nameAr}</span>
+                              <input
+                                type="checkbox"
+                                checked={isRec}
+                                onChange={(e) => handleRecommendToggle(p.id, e.target.checked)}
+                                className="rounded bg-[#18181B] border-card-border text-primary-red focus:ring-primary-red/50 shrink-0"
+                              />
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}

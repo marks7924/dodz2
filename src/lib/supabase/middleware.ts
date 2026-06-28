@@ -50,7 +50,7 @@ export async function updateSession(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (!profile || profile.is_suspended || !['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF'].includes(profile.role)) {
+    if (!profile || profile.is_suspended || !['OWNER', 'HEAD_ADMIN', 'ADMIN', 'DEVELOPER', 'STAFF', 'CUSTOMER_SERVICE'].includes(profile.role)) {
       url.pathname = '/';
       return NextResponse.redirect(url);
     }

@@ -42,6 +42,10 @@ export interface Product {
   descAr: string;
   priceSingle: number;
   priceDouble?: number;
+  priceTriple?: number;
+  priceFamily?: number;
+  sizeType?: 'NUMERIC' | 'SIZE';
+  extrasConfig?: any[];
   imageUrl: string;
   categoryId: string;
   categoryIds?: string[];
@@ -56,10 +60,11 @@ export interface OrderItem {
   productId: string;
   productNameEn: string;
   productNameAr: string;
-  size: 'SINGLE' | 'DOUBLE' | 'NONE';
+  size: string;
   quantity: number;
   price: number;
   customizations?: { optionId: string; nameEn: string; nameAr: string; price: number }[];
+  extras?: { id: string; nameEn: string; nameAr: string; price: number; quantity: number; isStandard: boolean }[];
 }
 
 export interface Branch {
@@ -101,7 +106,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
-  role: 'CUSTOMER' | 'DRIVER' | 'STAFF' | 'OWNER' | 'HEAD_ADMIN' | 'ADMIN' | 'DEVELOPER';
+  role: 'CUSTOMER' | 'DRIVER' | 'STAFF' | 'OWNER' | 'HEAD_ADMIN' | 'ADMIN' | 'DEVELOPER' | 'CUSTOMER_SERVICE';
   phone?: string;
   showAsDriver?: boolean;
 }
@@ -114,6 +119,7 @@ export interface Review {
   rating: number;
   comment: string;
   createdAt: string;
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED';
 }
 
 export interface Coupon {
@@ -125,6 +131,7 @@ export interface Coupon {
   branchId?: string | null;
   maxUsesPerUser?: number | null;
   usageLimit?: number | null;
+  applicableCategoryId?: string | null;
 }
 
 export interface Discount {
@@ -352,6 +359,8 @@ function mapCategory(c: any): Category {
 function mapProduct(p: any, branchId?: string | null): Product {
   let priceSingle = Number(p.price_single);
   let priceDouble = p.price_double ? Number(p.price_double) : undefined;
+  let priceTriple = p.price_triple ? Number(p.price_triple) : undefined;
+  let priceFamily = p.price_family ? Number(p.price_family) : undefined;
   let isAvailable = p.is_available;
 
   if (branchId && Array.isArray(p.branch_menu_items)) {
@@ -364,6 +373,16 @@ function mapProduct(p: any, branchId?: string | null): Product {
         priceDouble = Number(override.price_double);
       } else if (override.price_double === null) {
         priceDouble = undefined;
+      }
+      if (override.price_triple !== null && override.price_triple !== undefined) {
+        priceTriple = Number(override.price_triple);
+      } else if (override.price_triple === null) {
+        priceTriple = undefined;
+      }
+      if (override.price_family !== null && override.price_family !== undefined) {
+        priceFamily = Number(override.price_family);
+      } else if (override.price_family === null) {
+        priceFamily = undefined;
       }
       if (override.is_available !== null && override.is_available !== undefined) {
         isAvailable = override.is_available;
@@ -406,6 +425,10 @@ function mapProduct(p: any, branchId?: string | null): Product {
     descAr: p.desc_ar,
     priceSingle,
     priceDouble,
+    priceTriple,
+    priceFamily,
+    sizeType: p.size_type || 'NUMERIC',
+    extrasConfig: Array.isArray(p.extras_config) ? p.extras_config : [],
     imageUrl: p.image_url,
     isAvailable,
     branchId: p.branch_id || null,
@@ -463,6 +486,7 @@ function mapOrderItem(oi: any): OrderItem {
     quantity: oi.quantity,
     price: Number(oi.price),
     customizations: Array.isArray(oi.customizations) ? oi.customizations : [],
+    extras: Array.isArray(oi.extras) ? oi.extras : [],
   };
 }
 
@@ -475,6 +499,7 @@ function mapReview(r: any): Review {
     rating: r.rating,
     comment: r.comment || '',
     createdAt: r.created_at,
+    status: r.status || 'APPROVED',
   };
 }
 
@@ -488,6 +513,7 @@ function mapCoupon(c: any): Coupon {
     branchId: c.branch_id || undefined,
     maxUsesPerUser: c.max_uses_per_user !== null && c.max_uses_per_user !== undefined ? Number(c.max_uses_per_user) : null,
     usageLimit: c.usage_limit !== null && c.usage_limit !== undefined ? Number(c.usage_limit) : null,
+    applicableCategoryId: c.applicable_category_id || undefined,
   };
 }
 
@@ -590,6 +616,64 @@ export const db = {
     return true;
   },
 
+  async reorderCategories(orderedIds: string[]): Promise<boolean> {
+    if (isSupabaseConfigured()) {
+      try {
+        const promises = orderedIds.map((id, index) =>
+          getSupabase()
+            .from('categories')
+            .update({ sort_order: index })
+            .eq('id', id)
+        );
+        const results = await Promise.all(promises);
+        return !results.some((r) => r.error);
+      } catch (err) {
+        console.error('reorderCategories error:', err);
+        return false;
+      }
+    }
+    // Fallback for mock mode
+    const reordered: Category[] = [];
+    orderedIds.forEach((id) => {
+      const match = mockCategories.find((c) => c.id === id);
+      if (match) reordered.push(match);
+    });
+    mockCategories.forEach((c) => {
+      if (!orderedIds.includes(c.id)) reordered.push(c);
+    });
+    mockCategories = reordered;
+    return true;
+  },
+
+  async reorderProducts(orderedIds: string[]): Promise<boolean> {
+    if (isSupabaseConfigured()) {
+      try {
+        const promises = orderedIds.map((id, index) =>
+          getSupabase()
+            .from('menu_items')
+            .update({ sort_order: index })
+            .eq('id', id)
+        );
+        const results = await Promise.all(promises);
+        return !results.some((r) => r.error);
+      } catch (err) {
+        console.error('reorderProducts error:', err);
+        return false;
+      }
+    }
+    // Fallback for mock mode
+    const reordered: Product[] = [];
+    orderedIds.forEach((id) => {
+      const match = mockProducts.find((p) => p.id === id);
+      if (match) reordered.push(match);
+    });
+    mockProducts.forEach((p) => {
+      if (!orderedIds.includes(p.id)) reordered.push(p);
+    });
+    mockProducts = reordered;
+    return true;
+  },
+
   // BRANCHES
   async getBranches(): Promise<Branch[]> {
     if (isSupabaseConfigured()) {
@@ -666,6 +750,10 @@ export const db = {
             desc_ar: data.descAr,
             price_single: data.priceSingle,
             price_double: data.priceDouble || null,
+            price_triple: data.priceTriple || null,
+            price_family: data.priceFamily || null,
+            size_type: data.sizeType || 'NUMERIC',
+            extras_config: data.extrasConfig || [],
             image_url: data.imageUrl,
             is_available: true,
             branch_id: data.branchId || null,
@@ -680,7 +768,7 @@ export const db = {
     }
     const newProd = { id: `prod-${Date.now()}`, isAvailable: true, ...data };
     mockProducts.push(newProd);
-    return newProd;
+    return newProd as Product;
   },
 
   async updateProduct(id: string, data: Partial<Product>): Promise<Product> {
@@ -695,6 +783,10 @@ export const db = {
         if (data.descAr !== undefined) updateData.desc_ar = data.descAr;
         if (data.priceSingle !== undefined) updateData.price_single = data.priceSingle;
         if (data.priceDouble !== undefined) updateData.price_double = data.priceDouble || null;
+        if (data.priceTriple !== undefined) updateData.price_triple = data.priceTriple || null;
+        if (data.priceFamily !== undefined) updateData.price_family = data.priceFamily || null;
+        if (data.sizeType !== undefined) updateData.size_type = data.sizeType;
+        if (data.extrasConfig !== undefined) updateData.extras_config = data.extrasConfig;
         if (data.imageUrl !== undefined) updateData.image_url = data.imageUrl;
         if (data.isAvailable !== undefined) updateData.is_available = data.isAvailable;
         if (data.branchId !== undefined) updateData.branch_id = data.branchId || null;
@@ -723,6 +815,8 @@ export const db = {
     data: {
       priceSingle?: number;
       priceDouble?: number | null;
+      priceTriple?: number | null;
+      priceFamily?: number | null;
       isAvailable?: boolean;
     }
   ): Promise<void> {
@@ -735,6 +829,8 @@ export const db = {
             menu_item_id: productId,
             price_single: data.priceSingle !== undefined ? data.priceSingle : null,
             price_double: data.priceDouble !== undefined ? data.priceDouble : null,
+            price_triple: data.priceTriple !== undefined ? data.priceTriple : null,
+            price_family: data.priceFamily !== undefined ? data.priceFamily : null,
             is_available: data.isAvailable !== undefined ? data.isAvailable : null,
             updated_at: new Date().toISOString(),
           }, { onConflict: 'branch_id,menu_item_id' });
@@ -769,9 +865,8 @@ export const db = {
       try {
         const { error } = await getSupabase()
           .from('menu_items')
-          .update({ is_available: false })
+          .delete()
           .eq('id', id);
-
         if (!error) return true;
       } catch (err) {
         console.error('deleteProduct Supabase error:', err);
@@ -913,6 +1008,15 @@ export const db = {
         console.error('getOrderById Supabase error:', err);
       }
     }
+    if (typeof window !== 'undefined') {
+      try {
+        const localOrders = JSON.parse(localStorage.getItem('dodz_mock_orders') || '[]');
+        const found = localOrders.find((o: any) => o.id === id);
+        if (found) return found;
+      } catch (e) {
+        console.error('Error reading mock orders from localStorage:', e);
+      }
+    }
     return mockOrders.find((o) => o.id === id);
   },
 
@@ -969,6 +1073,7 @@ export const db = {
           quantity: it.quantity,
           price: it.price,
           customizations: it.customizations || [],
+          extras: it.extras || [],
         }));
 
         const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
@@ -1080,21 +1185,36 @@ export const db = {
   },
 
   // REVIEWS
-  async getReviews(productId: string): Promise<Review[]> {
-    if (isSupabaseConfigured() && isValidUuid(productId)) {
+  async getReviews(productId?: string, includeAllForAdmin = false): Promise<Review[]> {
+    if (isSupabaseConfigured()) {
       try {
-        const { data, error } = await getSupabase()
+        let query = getSupabase()
           .from('reviews')
           .select('*, profiles(full_name)')
-          .eq('menu_item_id', productId)
           .order('created_at', { ascending: false });
 
+        if (productId && isValidUuid(productId)) {
+          query = query.eq('menu_item_id', productId);
+        }
+
+        if (!includeAllForAdmin) {
+          query = query.eq('status', 'APPROVED');
+        }
+
+        const { data, error } = await query;
         if (!error && data) return data.map(mapReview);
       } catch (err) {
         console.error('getReviews Supabase error, falling back to mock:', err);
       }
     }
-    return mockReviews.filter((r) => r.productId === productId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    let list = [...mockReviews];
+    if (productId) {
+      list = list.filter((r) => r.productId === productId);
+    }
+    if (!includeAllForAdmin) {
+      list = list.filter((r) => r.status === 'APPROVED');
+    }
+    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   },
 
   async createReview(data: {
@@ -1113,6 +1233,7 @@ export const db = {
             menu_item_id: data.productId,
             rating: data.rating,
             comment: data.comment,
+            status: 'PENDING',
           })
           .select('*, profiles(full_name)')
           .single();
@@ -1126,10 +1247,32 @@ export const db = {
     const newReview: Review = {
       id: `rev-${Date.now()}`,
       createdAt: new Date().toISOString(),
+      status: 'PENDING',
       ...data,
     };
     mockReviews.push(newReview);
     return newReview;
+  },
+
+  async updateReviewStatus(id: string, status: 'APPROVED' | 'REJECTED'): Promise<boolean> {
+    if (isSupabaseConfigured() && isValidUuid(id)) {
+      try {
+        const { error } = await getSupabase()
+          .from('reviews')
+          .update({ status })
+          .eq('id', id);
+        return !error;
+      } catch (err) {
+        console.error('updateReviewStatus error:', err);
+        return false;
+      }
+    }
+    const idx = mockReviews.findIndex((r) => r.id === id);
+    if (idx !== -1) {
+      mockReviews[idx].status = status;
+      return true;
+    }
+    return false;
   },
 
   // COUPONS
@@ -1227,6 +1370,7 @@ export const db = {
             branch_id: data.branchId || null,
             max_uses_per_user: data.maxUsesPerUser || null,
             usage_limit: data.usageLimit || null,
+            applicable_category_id: data.applicableCategoryId || null,
           })
           .select()
           .single();
@@ -1337,6 +1481,17 @@ export const db = {
             .order('created_at', { ascending: true });
             
           if (!error && messages) {
+            // Mark customer messages as read in the background
+            getSupabase()
+              .from('support_messages')
+              .update({ is_read: true })
+              .eq('chat_id', chat.id)
+              .eq('is_read', false)
+              .eq('sender_role', 'CUSTOMER')
+              .then(({ error }: { error: any }) => {
+                if (error) console.error('Failed to mark messages as read:', error);
+              });
+
             return messages.map((m: any) => ({
               id: m.id,
               userId: userId,
@@ -1357,7 +1512,7 @@ export const db = {
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   },
 
-  async getActiveChats(includeClosed: boolean = false): Promise<{ chatId?: string; status?: string; userId: string; userName: string; lastMessage: string; updatedAt: string; branchId?: string }[]> {
+  async getActiveChats(includeClosed: boolean = false): Promise<{ chatId?: string; status?: string; userId: string; userName: string; lastMessage: string; updatedAt: string; branchId?: string; hasUnread?: boolean }[]> {
     if (isSupabaseConfigured()) {
       try {
         let query = getSupabase()
@@ -1369,7 +1524,7 @@ export const db = {
             updated_at,
             branch_id,
             profiles!support_chats_customer_id_fkey(full_name),
-            support_messages(content, created_at)
+            support_messages(content, created_at, sender_role, is_read)
           `);
           
         if (!includeClosed) {
@@ -1402,6 +1557,7 @@ export const db = {
             const msgs = chat.support_messages || [];
             msgs.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
             const lastMsg = msgs.length > 0 ? msgs[msgs.length - 1].content : '';
+            const hasUnread = msgs.some((m: any) => m.sender_role === 'CUSTOMER' && !m.is_read);
             return {
               chatId: chat.id,
               status: chat.status,
@@ -1410,6 +1566,7 @@ export const db = {
               lastMessage: lastMsg,
               updatedAt: chat.updated_at,
               branchId: chat.branch_id || undefined,
+              hasUnread: hasUnread,
             };
           });
         }
@@ -1430,6 +1587,7 @@ export const db = {
           userName: lastMsg.senderRole === 'CUSTOMER' ? lastMsg.senderName : 'Customer',
           lastMessage: lastMsg.text,
           updatedAt: lastMsg.createdAt,
+          hasUnread: userMsgs.length > 0 && userMsgs[0].senderRole === 'CUSTOMER',
         };
       })
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
@@ -1553,5 +1711,10 @@ export const db = {
         console.error('logActivity error:', err);
       }
     }
+  },
+
+  isSupabaseConfigured(): boolean {
+    return isSupabaseConfigured();
   }
 };
+

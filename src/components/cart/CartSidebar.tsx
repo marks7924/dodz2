@@ -15,7 +15,7 @@ import { useRouter } from 'next/navigation';
 export default function CartSidebar() {
   const { t, locale, dir } = useLanguage();
   const { user } = useAuth();
-  const { alert } = useModal();
+  const { alert, confirm } = useModal();
   const router = useRouter();
   const {
     items,
@@ -31,6 +31,7 @@ export default function CartSidebar() {
     getSubtotal,
     getDiscountAmount,
     getTotal,
+    clearCart,
   } = useCartStore();
 
   const { selectedBranchId, isClosed } = useBranch();
@@ -66,6 +67,7 @@ export default function CartSidebar() {
           code: foundCoupon.code,
           discountType: foundCoupon.discountType,
           discountValue: foundCoupon.discountValue,
+          applicableCategoryId: (foundCoupon as any).applicableCategoryId || null,
         });
         setCouponSuccess(true);
       } else {
@@ -108,12 +110,26 @@ export default function CartSidebar() {
               {items.reduce((acc, it) => acc + it.quantity, 0)}
             </span>
           </div>
-          <button
-            onClick={() => setCartOpen(false)}
-            className="p-1.5 rounded-lg hover:bg-card-border transition-colors text-foreground"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {items.length > 0 && (
+              <button
+                onClick={async () => {
+                  if (await confirm(locale === 'en' ? 'Are you sure you want to clear your cart?' : 'هل أنت متأكد من رغبتك في تفريغ سلة التسوق؟')) {
+                    clearCart();
+                  }
+                }}
+                className="text-[10px] uppercase font-bold text-primary-red hover:underline cursor-pointer px-2 py-1 rounded bg-primary-red/5 border border-primary-red/20 transition-all"
+              >
+                {locale === 'en' ? 'Clear Cart' : 'تفريغ السلة'}
+              </button>
+            )}
+            <button
+              onClick={() => setCartOpen(false)}
+              className="p-1.5 rounded-lg hover:bg-card-border transition-colors text-foreground cursor-pointer"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
         {/* Cart Items List */}

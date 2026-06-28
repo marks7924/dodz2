@@ -1,5 +1,5 @@
 # AI_CONTEXT.md — Dodz Fried Chicken Platform
-> **Last Updated:** 2026-06-26 | **Session:** Phase 12 — Mobile drawer fix, combo modal, inline hero edit, branch separation + HEAD_ADMIN (SQL), discounts system pending
+> **Last Updated:** 2026-06-28 | **Session:** Phase 15 — CUSTOMER_SERVICE role restricted views, live chat sorting & drawer collapsible archive, sandwich extras configurability, NO labels in red for kitchen tickets
 > **Next AI:** Read this entire file before touching ANY code.
 
 ---
@@ -414,3 +414,7 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 | 2026-06-27 | 14 | New: Isolated support chats by branch association | ✅ |
 | 2026-06-27 | 14 | New: Scoped coupon and discount creation restricted to assigned branch for branch admins | ✅ |
 | 2026-06-27 | 14 | New: Configurable combo offer discount percentage in settings | ✅ |
+| 2026-06-28 | 15 | SQL: Append handle_new_user trigger to 026_final_features.sql to guarantee profile insertion | ✅ |
+| 2026-06-28 | 15 | RBAC: Introduce CUSTOMER_SERVICE role with restricted chat-only views in Admin Dashboard | ✅ |
+| 2026-06-28 | 15 | Chat: Sort sessions newest-first, highlight unread, and render closed sessions in collapsible sidebar | ✅ |
+| 2026-06-28 | 15 | Extras: Implement customizable sandwich extras with limit caps, and NO labels printed in red on kitchen tickets | ✅ |
