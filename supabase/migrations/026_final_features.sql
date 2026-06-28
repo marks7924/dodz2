@@ -89,3 +89,8 @@ $$ LANGUAGE SQL SECURITY DEFINER STABLE;
 DROP POLICY IF EXISTS "notifications_delete_own" ON public.notifications;
 CREATE POLICY "notifications_delete_own" ON public.notifications
   FOR DELETE USING (auth.uid() = user_id);
+
+-- 13. Allow internal staff to update reviews (approve / reject status)
+DROP POLICY IF EXISTS "reviews_update_staff" ON public.reviews;
+CREATE POLICY "reviews_update_staff" ON public.reviews
+  FOR UPDATE USING (public.is_internal_staff());

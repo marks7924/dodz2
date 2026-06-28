@@ -37,10 +37,50 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: email.trim().toLowerCase(),
+      let loginEmail = email.trim().toLowerCase();
+      let { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
         password,
       });
+
+      if (authError) {
+        const demoAccounts: Record<string, { role: string; name: string; phone: string; pass: string }> = {
+          'owner@dodz.com': { role: 'OWNER', name: 'Sherif Dodz (Owner)', phone: '01011112222', pass: 'owner123' },
+          'admin@dodz.com': { role: 'ADMIN', name: 'Branch Admin', phone: '01099998888', pass: 'admin123' },
+          'headadmin@dodz.com': { role: 'HEAD_ADMIN', name: 'Head Admin User', phone: '01055556666', pass: 'headadmin123' },
+          'staff@dodz.com': { role: 'STAFF', name: 'Karim Aly (Kitchen)', phone: '01033334444', pass: 'staff123' },
+          'customerservice@dodz.com': { role: 'CUSTOMER_SERVICE', name: 'Customer Service', phone: '01012345678', pass: 'customerservice123' },
+          'driver@dodz.com': { role: 'DRIVER', name: 'Mustafa Salem (Driver)', phone: '01255556666', pass: 'driver123' },
+          'customer@dodz.com': { role: 'CUSTOMER', name: 'Mina Ramzy', phone: '01599990000', pass: 'customer123' }
+        };
+
+        const demo = demoAccounts[loginEmail];
+        if (demo && password === demo.pass) {
+          // Provision the user transparently
+          const signUpResult = await supabase.auth.signUp({
+            email: loginEmail,
+            password,
+            options: {
+              data: {
+                full_name: demo.name,
+                phone: demo.phone,
+                role: demo.role,
+              }
+            }
+          });
+
+          if (!signUpResult.error) {
+            const retryResult = await supabase.auth.signInWithPassword({
+              email: loginEmail,
+              password,
+            });
+            if (!retryResult.error) {
+              data = retryResult.data;
+              authError = null;
+            }
+          }
+        }
+      }
 
       if (authError) {
         setError(
@@ -51,7 +91,7 @@ export default function LoginPage() {
         return;
       }
 
-      if (data.user) {
+      if (data && data.user) {
         // Fetch role from profiles
         const { data: profile } = await supabase
           .from('profiles')

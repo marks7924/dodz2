@@ -64,7 +64,11 @@ export default function AdminDashboardPage() {
   const [newGroupNameAr, setNewGroupNameAr] = useState('');
   const [newGroupMin, setNewGroupMin] = useState('0');
   const [newGroupMax, setNewGroupMax] = useState('1');
-  const [newGroupOptionsText, setNewGroupOptionsText] = useState(''); // e.g. "Add Cheese: 15 / إضافة جبنة: 15"
+  const [newGroupOptionsList, setNewGroupOptionsList] = useState<{ name_en: string; name_ar: string; price: number }[]>([]);
+  const [manualOptNameEn, setManualOptNameEn] = useState('');
+  const [manualOptNameAr, setManualOptNameAr] = useState('');
+  const [manualOptPrice, setManualOptPrice] = useState('');
+  const [manualOptFree, setManualOptFree] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [quickAddSelectedId, setQuickAddSelectedId] = useState<string>('');
   const [quickAddPrice, setQuickAddPrice] = useState<string>('');
@@ -575,11 +579,17 @@ export default function AdminDashboardPage() {
   });
 
   const updateReviewStatusMutation = useMutation({
-    mutationFn: (data: { id: string; status: 'APPROVED' | 'REJECTED' }) =>
-      db.updateReviewStatus(data.id, data.status),
+    mutationFn: async (data: { id: string; status: 'APPROVED' | 'REJECTED' }) => {
+      const ok = await db.updateReviewStatus(data.id, data.status);
+      if (!ok) throw new Error('Failed to update review status');
+      return ok;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-reviews'] });
     },
+    onError: (err: any) => {
+      alert(locale === 'en' ? 'Failed to update review status. Please check your permissions.' : 'فشل في تحديث حالة التقييم. يرجى التحقق من الصلاحيات.');
+    }
   });
 
   const { data: drivers = [] } = useQuery({
@@ -1023,7 +1033,7 @@ export default function AdminDashboardPage() {
     setNewGroupNameAr('');
     setNewGroupMin('0');
     setNewGroupMax('1');
-    setNewGroupOptionsText('');
+    setNewGroupOptionsList([]);
     await fetchCustomizationsData(product.id);
   };
 
@@ -1102,6 +1112,10 @@ export default function AdminDashboardPage() {
       alert('Please fill out name in English and Arabic');
       return;
     }
+    if (newGroupOptionsList.length === 0) {
+      alert('Please add at least one option to this group.');
+      return;
+    }
     try {
       let groupId = editingGroupId;
 
@@ -1137,32 +1151,12 @@ export default function AdminDashboardPage() {
         groupId = group.id;
       }
 
-      const optBlocks = newGroupOptionsText.split(',');
-      const rows = [];
-      for (const block of optBlocks) {
-        if (!block.trim()) continue;
-        const parts = block.split('/');
-        const partEn = parts[0] || '';
-        const partAr = parts[1] || parts[0] || '';
-
-        const getParts = (str: string) => {
-          const colonIdx = str.lastIndexOf(':');
-          if (colonIdx === -1) return { name: str.trim(), price: 0 };
-          const name = str.substring(0, colonIdx).trim();
-          const price = parseFloat(str.substring(colonIdx + 1).trim()) || 0;
-          return { name, price };
-        };
-
-        const detailsEn = getParts(partEn);
-        const detailsAr = getParts(partAr);
-
-        rows.push({
-          group_id: groupId,
-          name_en: detailsEn.name || 'Option',
-          name_ar: detailsAr.name || 'خيار',
-          price: detailsEn.price,
-        });
-      }
+      const rows = newGroupOptionsList.map(opt => ({
+        group_id: groupId,
+        name_en: opt.name_en || 'Option',
+        name_ar: opt.name_ar || 'خيار',
+        price: opt.price || 0,
+      }));
 
       if (rows.length > 0) {
         const { error: optErr } = await supabase
@@ -1181,9 +1175,9 @@ export default function AdminDashboardPage() {
       setNewGroupNameAr('');
       setNewGroupMin('0');
       setNewGroupMax('1');
-      setNewGroupOptionsText('');
+      setNewGroupOptionsList([]);
     } catch (e: any) {
-      alert('Create customization group failed: ' + e.message);
+      alert('Save customization group failed: ' + e.message);
     }
   };
 
@@ -4212,20 +4206,37 @@ export default function AdminDashboardPage() {
                         </div>
                       </div>
 
-                      <div className="space-y-1">
-                        <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">Options list (Comma-separated)</label>
-                        <textarea
-                          placeholder="e.g. Add Cheese: 15 / إضافة جبنة: 15, Remove Cheese: 0 / إزالة جبنة: 0"
-                          value={newGroupOptionsText}
-                          onChange={(e) => setNewGroupOptionsText(e.target.value)}
-                          rows={2}
-                          className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500/50 placeholder:text-text-muted"
-                        />
-                        <span className="text-[8px] text-text-muted leading-tight block">Format: Option En: Price / Option Ar: Price, ...</span>
+                      {/* Visual Options List Manager */}
+                      <div className="space-y-1.5">
+                        <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">
+                          {locale === 'en' ? 'Group Options List' : 'قائمة خيارات المجموعة'}
+                        </label>
+                        {newGroupOptionsList.length === 0 ? (
+                          <div className="p-3 text-center border border-dashed border-card-border rounded-xl text-text-muted text-[10px]">
+                            {locale === 'en' ? 'No options added yet' : 'لم يتم إضافة خيارات بعد'}
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5 p-2 bg-[#131316] border border-card-border rounded-xl">
+                            {newGroupOptionsList.map((opt, idx) => (
+                              <div key={idx} className="flex items-center gap-1.5 px-2.5 py-1 bg-[#18181B] border border-card-border rounded-lg text-[10px] text-white">
+                                <span>{locale === 'en' ? `${opt.name_en} (+${opt.price} EGP)` : `${opt.name_ar} (+${opt.price} ج.م)`}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => setNewGroupOptionsList(newGroupOptionsList.filter((_, i) => i !== idx))}
+                                  className="text-red-500 hover:text-red-400 font-bold ml-1 text-xs cursor-pointer focus:outline-none"
+                                >
+                                  &times;
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
                       {/* Select & Import from Menu Items */}
-                      <div className="mt-4 p-3 bg-[#131316] border border-card-border rounded-xl space-y-3">
+                      <div className="p-3 bg-[#131316] border border-card-border rounded-xl space-y-2">
                         <label className="text-[10px] text-[#fbbf24] block font-black uppercase tracking-wider">
-                          {locale === 'en' ? 'Quick Add option from Menu' : 'إضافة خيار سريع من المنيو'}
+                          {locale === 'en' ? 'Option A: Add from Menu Items' : 'الخيار أ: إضافة من عناصر المنيو'}
                         </label>
                         
                         <div className="space-y-2">
@@ -4287,8 +4298,10 @@ export default function AdminDashboardPage() {
                                   const prod = products.find(p => p.id === quickAddSelectedId);
                                   if (!prod) return;
                                   const finalPrice = quickAddFree ? 0 : parseFloat(quickAddPrice) || 0;
-                                  const optionString = `${prod.nameEn}: ${finalPrice} / ${prod.nameAr}: ${finalPrice}`;
-                                  setNewGroupOptionsText(prev => prev ? `${prev}, ${optionString}` : optionString);
+                                  setNewGroupOptionsList([
+                                    ...newGroupOptionsList,
+                                    { name_en: prod.nameEn, name_ar: prod.nameAr, price: finalPrice }
+                                  ]);
                                   
                                   setQuickAddSelectedId('');
                                   setQuickAddPrice('');
@@ -4302,6 +4315,79 @@ export default function AdminDashboardPage() {
                           )}
                         </div>
                       </div>
+
+                      {/* Manual custom option builder */}
+                      <div className="p-3 bg-[#131316] border border-card-border rounded-xl space-y-3">
+                        <label className="text-[10px] text-[#fbbf24] block font-black uppercase tracking-wider">
+                          {locale === 'en' ? 'Option B: Add Custom Option Manually' : 'الخيار ب: إضافة خيار مخصص يدوياً'}
+                        </label>
+                        
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <label className="text-[8px] text-text-muted block font-bold uppercase">{locale === 'en' ? 'Name (En)' : 'الاسم (En)'}</label>
+                            <input
+                              type="text"
+                              placeholder="e.g. Extra Cheese"
+                              value={manualOptNameEn}
+                              onChange={(e) => setManualOptNameEn(e.target.value)}
+                              className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-2 py-1.5 text-white focus:outline-none"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] text-text-muted block font-bold uppercase">{locale === 'en' ? 'Name (Ar)' : 'الاسم (Ar)'}</label>
+                            <input
+                              type="text"
+                              placeholder="مثال: جبن إضافي"
+                              value={manualOptNameAr}
+                              onChange={(e) => setManualOptNameAr(e.target.value)}
+                              className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-2 py-1.5 text-white focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex gap-3 items-center">
+                          <div className="flex-1 space-y-1">
+                            <label className="text-[8px] text-text-muted block font-bold uppercase">{locale === 'en' ? 'Price' : 'السعر'}</label>
+                            <input
+                              type="number"
+                              disabled={manualOptFree}
+                              value={manualOptFree ? '0' : manualOptPrice}
+                              onChange={(e) => setManualOptPrice(e.target.value)}
+                              className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-2 py-1.5 text-white focus:outline-none disabled:opacity-50"
+                            />
+                          </div>
+                          <label className="flex items-center gap-1.5 text-xs text-text-muted cursor-pointer pt-4 font-bold select-none">
+                            <input
+                              type="checkbox"
+                              checked={manualOptFree}
+                              onChange={(e) => setManualOptFree(e.target.checked)}
+                              className="accent-primary-red"
+                            />
+                            <span>{locale === 'en' ? 'Free Option' : 'خيار مجاني'}</span>
+                          </label>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!manualOptNameEn.trim() || !manualOptNameAr.trim()) {
+                                alert(locale === 'en' ? 'Please fill out names' : 'يرجى ملء الأسماء');
+                                return;
+                              }
+                              const finalPrice = manualOptFree ? 0 : parseFloat(manualOptPrice) || 0;
+                              setNewGroupOptionsList([
+                                ...newGroupOptionsList,
+                                { name_en: manualOptNameEn.trim(), name_ar: manualOptNameAr.trim(), price: finalPrice }
+                              ]);
+                              setManualOptNameEn('');
+                              setManualOptNameAr('');
+                              setManualOptPrice('');
+                              setManualOptFree(false);
+                            }}
+                            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase rounded-lg transition-colors mt-4"
+                          >
+                            {locale === 'en' ? 'Add' : 'إضافة'}
+                          </button>
+                        </div>
                       </div>
 
                       <button
@@ -4360,8 +4446,12 @@ export default function AdminDashboardPage() {
                                 setNewGroupNameAr(group.name_ar || group.nameAr || '');
                                 setNewGroupMin((group.min_selected !== undefined ? group.min_selected : group.minSelected || 0).toString());
                                 setNewGroupMax((group.max_selected !== undefined ? group.max_selected : group.maxSelected || 1).toString());
-                                const optStr = group.customization_options?.map((o: any) => `${o.name_en || o.nameEn}: ${o.price} / ${o.name_ar || o.nameAr}: ${o.price}`).join(', ') || '';
-                                setNewGroupOptionsText(optStr);
+                                const opts = group.customization_options?.map((o: any) => ({
+                                  name_en: o.name_en || o.nameEn || '',
+                                  name_ar: o.name_ar || o.nameAr || '',
+                                  price: o.price || 0
+                                })) || [];
+                                setNewGroupOptionsList(opts);
                                 setShowAddGroupForm(true);
                               }}
                               className="p-1 rounded bg-[#1A1A1E] hover:bg-[#27272C] text-indigo-400 border border-card-border hover:text-white transition-colors"
