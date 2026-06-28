@@ -2345,6 +2345,62 @@ export default function AdminDashboardPage() {
                     })()}
                   </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-[#27272A]/50">
+                    {(() => {
+                      const priceS = settings.find((s: any) => s.key === 'combo_price_s') || { value: '30' };
+                      return (
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">
+                            {locale === 'en' ? 'Combo Price - Small (EGP)' : 'سعر الكومبو - صغير (ج.م)'}
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            defaultValue={priceS.value}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-primary-red/50"
+                            onBlur={(e) => saveSettingMutation.mutate({ key: 'combo_price_s', value: e.target.value })}
+                          />
+                        </div>
+                      );
+                    })()}
+
+                    {(() => {
+                      const priceM = settings.find((s: any) => s.key === 'combo_price_m') || { value: '40' };
+                      return (
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">
+                            {locale === 'en' ? 'Combo Price - Medium (EGP)' : 'سعر الكومبو - وسط (ج.م)'}
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            defaultValue={priceM.value}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-primary-red/50"
+                            onBlur={(e) => saveSettingMutation.mutate({ key: 'combo_price_m', value: e.target.value })}
+                          />
+                        </div>
+                      );
+                    })()}
+
+                    {(() => {
+                      const priceF = settings.find((s: any) => s.key === 'combo_price_f') || { value: '80' };
+                      return (
+                        <div className="space-y-1">
+                          <label className="text-[9px] text-text-muted block font-bold uppercase tracking-wider">
+                            {locale === 'en' ? 'Combo Price - Family (EGP)' : 'سعر الكومبو - عائلي (ج.م)'}
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            defaultValue={priceF.value}
+                            className="w-full text-xs bg-card border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-primary-red/50"
+                            onBlur={(e) => saveSettingMutation.mutate({ key: 'combo_price_f', value: e.target.value })}
+                          />
+                        </div>
+                      );
+                    })()}
+                  </div>
+
                   {/* Select Combo Items Checklist */}
                   {(() => {
                     const comboItemsSetting = settings.find((s: any) => s.key === 'combo_items_list') || { value: '' };
