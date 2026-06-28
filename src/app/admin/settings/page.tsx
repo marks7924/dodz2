@@ -35,15 +35,37 @@ export default function SettingsPage() {
 
   const saveSettingMutation = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
-      const { error } = await supabase
+      const { data, error: selectErr } = await supabase
         .from('restaurant_settings')
-        .upsert({
-          key,
-          value,
-          updated_by: user?.id,
-          updated_at: new Date().toISOString(),
-        });
-      if (error) throw error;
+        .select('id')
+        .eq('key', key)
+        .is('branch_id', null);
+      
+      if (selectErr) throw selectErr;
+
+      if (data && data.length > 0) {
+        const { error } = await supabase
+          .from('restaurant_settings')
+          .update({
+            value,
+            updated_by: user?.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('key', key)
+          .is('branch_id', null);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('restaurant_settings')
+          .insert({
+            key,
+            value,
+            branch_id: null,
+            updated_by: user?.id,
+            updated_at: new Date().toISOString(),
+          });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-settings-list'] });

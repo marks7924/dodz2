@@ -539,10 +539,27 @@ export default function AdminDashboardPage() {
 
   const toggleReviewsActiveMutation = useMutation({
     mutationFn: async (newValue: string) => {
-      const { error } = await supabase
+      const { data, error: selectErr } = await supabase
         .from('restaurant_settings')
-        .upsert({ key: 'reviews_active', value: newValue }, { onConflict: 'key' });
-      if (error) throw error;
+        .select('id')
+        .eq('key', 'reviews_active')
+        .is('branch_id', null);
+      
+      if (selectErr) throw selectErr;
+
+      if (data && data.length > 0) {
+        const { error } = await supabase
+          .from('restaurant_settings')
+          .update({ value: newValue })
+          .eq('key', 'reviews_active')
+          .is('branch_id', null);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('restaurant_settings')
+          .insert({ key: 'reviews_active', value: newValue, branch_id: null });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
@@ -634,14 +651,35 @@ export default function AdminDashboardPage() {
 
   const saveSettingMutation = useMutation({
     mutationFn: async ({ key, value }: { key: string; value: string }) => {
-      const { error } = await supabase
+      const { data, error: selectErr } = await supabase
         .from('restaurant_settings')
-        .upsert({
-          key,
-          value,
-          updated_at: new Date().toISOString(),
-        });
-      if (error) throw error;
+        .select('id')
+        .eq('key', key)
+        .is('branch_id', null);
+      
+      if (selectErr) throw selectErr;
+
+      if (data && data.length > 0) {
+        const { error } = await supabase
+          .from('restaurant_settings')
+          .update({
+            value,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('key', key)
+          .is('branch_id', null);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('restaurant_settings')
+          .insert({
+            key,
+            value,
+            branch_id: null,
+            updated_at: new Date().toISOString(),
+          });
+        if (error) throw error;
+      }
     },
     onSuccess: () => {
       refetchSettings();

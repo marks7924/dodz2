@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import { useLanguage } from '@/context/LanguageContext';
 import { Eye, EyeOff, Flame, AlertCircle, Loader2, Lock, Mail } from 'lucide-react';
 
-type UserRole = 'CUSTOMER' | 'DRIVER' | 'STAFF' | 'ADMIN' | 'HEAD_ADMIN' | 'DEVELOPER' | 'OWNER';
+type UserRole = 'CUSTOMER' | 'DRIVER' | 'STAFF' | 'ADMIN' | 'HEAD_ADMIN' | 'DEVELOPER' | 'OWNER' | 'CUSTOMER_SERVICE';
 
 const ROLE_REDIRECTS: Record<UserRole, string> = {
   OWNER: '/admin',
@@ -15,6 +15,7 @@ const ROLE_REDIRECTS: Record<UserRole, string> = {
   ADMIN: '/admin',
   DEVELOPER: '/admin',
   STAFF: '/admin',
+  CUSTOMER_SERVICE: '/admin',
   DRIVER: '/driver',
   CUSTOMER: '/',
 };
@@ -69,7 +70,9 @@ export default function LoginPage() {
         }
 
         const role = (profile?.role as UserRole) || 'CUSTOMER';
-        const redirectPath = ROLE_REDIRECTS[role] || '/';
+        const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+        const nextParam = searchParams ? searchParams.get('next') : null;
+        const redirectPath = nextParam || ROLE_REDIRECTS[role] || '/';
         router.push(redirectPath);
         router.refresh();
       }
@@ -147,6 +150,13 @@ export default function LoginPage() {
                 className="px-3 py-1 bg-accent-amber/10 border border-accent-amber/30 text-accent-amber text-[10px] font-bold rounded-lg hover:bg-accent-amber hover:text-black transition-all"
               >
                 Staff
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEmail('customerservice@dodz.com'); setPassword('customerservice123'); }}
+                className="px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-[10px] font-bold rounded-lg hover:bg-indigo-500 hover:text-white transition-all"
+              >
+                Customer Service
               </button>
               <button
                 type="button"

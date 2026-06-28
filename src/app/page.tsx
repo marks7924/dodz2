@@ -51,11 +51,47 @@ function BannerAnnouncement() {
   const save = async (newText: string, newActive: boolean) => {
     setSaving(true);
     try {
-      const { error } = await supabase.from('restaurant_settings').upsert([
-        { key: 'promo_banner_text', value: newText, branch_id: null, updated_at: new Date().toISOString() },
-        { key: 'promo_banner_active', value: newActive ? 'true' : 'false', branch_id: null, updated_at: new Date().toISOString() },
-      ]);
-      if (error) throw error;
+      const { data: textData } = await supabase
+        .from('restaurant_settings')
+        .select('id')
+        .eq('key', 'promo_banner_text')
+        .is('branch_id', null);
+        
+      if (textData && textData.length > 0) {
+        const { error } = await supabase
+          .from('restaurant_settings')
+          .update({ value: newText, updated_at: new Date().toISOString() })
+          .eq('key', 'promo_banner_text')
+          .is('branch_id', null);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('restaurant_settings')
+          .insert({ key: 'promo_banner_text', value: newText, branch_id: null, updated_at: new Date().toISOString() });
+        if (error) throw error;
+      }
+
+      const { data: activeData } = await supabase
+        .from('restaurant_settings')
+        .select('id')
+        .eq('key', 'promo_banner_active')
+        .is('branch_id', null);
+        
+      const activeStr = newActive ? 'true' : 'false';
+      if (activeData && activeData.length > 0) {
+        const { error } = await supabase
+          .from('restaurant_settings')
+          .update({ value: activeStr, updated_at: new Date().toISOString() })
+          .eq('key', 'promo_banner_active')
+          .is('branch_id', null);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('restaurant_settings')
+          .insert({ key: 'promo_banner_active', value: activeStr, branch_id: null, updated_at: new Date().toISOString() });
+        if (error) throw error;
+      }
+
       setText(newText);
       setActive(newActive);
       setIsEditing(false);
@@ -158,11 +194,49 @@ export default function Home() {
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
   const [justAddedId, setJustAddedId] = useState<string | null>(null);
+  const [isCombo, setIsCombo] = useState(false);
+  const [comboSize, setComboSize] = useState<'S' | 'M' | 'L' | 'F'>('M');
+  const [selectedComboSideId, setSelectedComboSideId] = useState<string>('');
+  const [selectedComboDrinkId, setSelectedComboDrinkId] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatText, setChatText] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const categoriesNavRef = useRef<HTMLDivElement>(null);
+
+  const allowedSides = products.filter((p) => {
+    const cat = categories.find((c) => c.id === p.categoryId);
+    if (!cat) return false;
+    const catName = (cat.nameEn + ' ' + cat.nameAr).toLowerCase();
+    return catName.includes('side') || catName.includes('appetizer') || catName.includes('add-on') ||
+           catName.includes('جانبي') || catName.includes('مقبلات') || catName.includes('إضافات');
+  });
+
+  const allowedDrinks = products.filter((p) => {
+    const cat = categories.find((c) => c.id === p.categoryId);
+    if (!cat) return false;
+    const catName = (cat.nameEn + ' ' + cat.nameAr).toLowerCase();
+    return catName.includes('drink') || catName.includes('juice') || catName.includes('soda') ||
+           catName.includes('مشروب') || catName.includes('مشروبات') || catName.includes('عصير');
+  });
+
+  const baseSide = allowedSides.length > 0 ? allowedSides.reduce((min, p) => p.priceSingle < min.priceSingle ? p : min, allowedSides[0]) : null;
+  const baseDrink = allowedDrinks.length > 0 ? allowedDrinks.reduce((min, p) => p.priceSingle < min.priceSingle ? p : min, allowedDrinks[0]) : null;
+
+  useEffect(() => {
+    if (customizationProduct) {
+      setIsCombo(false);
+      setComboSize('M');
+      if (allowedSides.length > 0) {
+        const fries = allowedSides.find(s => s.nameEn.toLowerCase().includes('fries') || s.nameAr.includes('بطاطس'));
+        setSelectedComboSideId(fries?.id || allowedSides[0].id);
+      }
+      if (allowedDrinks.length > 0) {
+        const cola = allowedDrinks.find(d => d.nameEn.toLowerCase().includes('cola') || d.nameEn.toLowerCase().includes('pepsi') || d.nameAr.includes('بيبسي') || d.nameAr.includes('كولا'));
+        setSelectedComboDrinkId(cola?.id || allowedDrinks[0].id);
+      }
+    }
+  }, [customizationProduct, allowedSides, allowedDrinks]);
 
   const scrollCategories = (direction: 'left' | 'right') => {
     if (categoriesNavRef.current) {
@@ -427,7 +501,6 @@ export default function Home() {
     customizations: { optionId: string; nameEn: string; nameAr: string; price: number }[] = [],
     extras: { id: string; nameEn: string; nameAr: string; price: number; quantity: number; isStandard: boolean }[] = []
   ) => {
-    // Apply discounts logic to the price before adding to cart
     let basePrice = product.priceSingle;
     if (size === 'DOUBLE' && product.priceDouble) basePrice = product.priceDouble;
     else if (size === 'TRIPLE' && product.priceTriple) basePrice = product.priceTriple;
@@ -445,11 +518,9 @@ export default function Home() {
       if (discount.discountType === 'PERCENT') finalPrice = Math.max(0, basePrice * (1 - discount.discountValue / 100));
     }
 
-    // Add sum of customizations price!
     const customizationSum = customizations.reduce((sum, c) => sum + c.price, 0);
     finalPrice += customizationSum;
 
-    // Add sum of extras price!
     const extrasSum = extras.reduce((sum, e) => sum + (e.isStandard ? 0 : e.price * e.quantity), 0);
     finalPrice += extrasSum;
 
@@ -469,15 +540,6 @@ export default function Home() {
     setTimeout(() => {
       setJustAddedId(null);
     }, 1500);
-
-    // Show combo offer for burger/chicken items ONLY if not customized
-    if (customizations.length === 0) {
-      const cat = categories.find(c => c.id === product.categoryId);
-      const catName = (cat?.nameEn || '').toLowerCase();
-      if (COMBO_CATEGORIES.some(kw => catName.includes(kw) || product.nameEn.toLowerCase().includes(kw))) {
-        setComboModal({ product });
-      }
-    }
   };
 
   const handleAddToCartClicked = (product: Product, size: string) => {
@@ -491,10 +553,14 @@ export default function Home() {
       return;
     }
 
+    const mainCat = categories.find(c => c.id === product.categoryId);
+    const mainCatName = (mainCat?.nameEn || '').toLowerCase();
+    const isComboAvailable = mainCatName.includes('burger') || mainCatName.includes('chicken') || mainCatName.includes('meal') || mainCatName.includes('sandwich');
+
     const hasGroups = product.customizationGroups && product.customizationGroups.length > 0;
     const hasExtras = product.extrasConfig && product.extrasConfig.length > 0;
 
-    if (hasGroups || hasExtras) {
+    if (hasGroups || hasExtras || isComboAvailable) {
       setCustomizationProduct({ product, size });
       setSelectedCustomizations([]);
       const initialExtras = (product.extrasConfig || []).map((item: any) => ({
@@ -516,13 +582,14 @@ export default function Home() {
     e.preventDefault();
     if (!selectedProduct || !reviewComment.trim()) return;
 
-    // Get current user details from localStorage
-    const savedUser = localStorage.getItem('user');
-    const user = savedUser ? JSON.parse(savedUser) : { id: 'user-cust', name: 'Mina Ramzy' };
+    if (!isAuthenticated || !user) {
+      alert(locale === 'en' ? 'Please log in first!' : 'يرجى تسجيل الدخول أولاً!');
+      return;
+    }
 
     submitReviewMutation.mutate({
       userId: user.id,
-      userName: reviewName.trim() || user.name || 'Anonymous',
+      userName: reviewName.trim() || profile?.full_name || user.email?.split('@')[0] || 'Anonymous',
       productId: selectedProduct.id,
       rating: reviewRating,
       comment: reviewComment.trim(),
@@ -1221,53 +1288,7 @@ export default function Home() {
           </div>
         )}
       </div>
-      {/* Combo Offer Modal */}
-      {comboModal && (() => {
-        const comboItemsSetting = settings.find((s: any) => s.key === 'combo_items_list');
-        let comboItems: typeof products = [];
-        
-        if (comboItemsSetting?.value) {
-          const selectedIds = comboItemsSetting.value.split(',');
-          comboItems = products.filter(p => selectedIds.includes(p.id));
-        }
-        
-        if (comboItems.length === 0) {
-          const fries = products.find(p => p.nameEn.toLowerCase().includes('fries') || p.nameAr.includes('بطاطس'));
-          const drink = products.find(p => {
-            const cat = categories.find(c => c.id === p.categoryId);
-            return (cat?.nameEn || '').toLowerCase().includes('drink') || p.nameEn.toLowerCase().includes('drink') || p.nameAr.includes('مشروب');
-          });
-          comboItems = [fries, drink].filter(Boolean) as typeof products;
-        }
-        
-        if (comboItems.length === 0) { setComboModal(null); return null; }
-        const originalPrice = comboItems.reduce((s, i) => s + i.priceSingle, 0);
-        const comboPrice = comboFixedPrice !== null && comboFixedPrice !== undefined
-          ? comboFixedPrice
-          : Math.round(originalPrice * ((100 - comboDiscount) / 100));
-        return (
-          <ComboOfferModal
-            triggerItemName={locale === 'en' ? comboModal.product.nameEn : comboModal.product.nameAr}
-            comboItems={comboItems.map(p => ({ id: p.id, nameEn: p.nameEn, nameAr: p.nameAr, price: p.priceSingle, imageUrl: p.imageUrl }))}
-            comboPrice={comboPrice}
-            originalPrice={originalPrice}
-            onAccept={() => {
-              const ratio = comboPrice / (originalPrice || 1);
-              comboItems.forEach((p, idx) => {
-                let itemPrice = Math.round(p.priceSingle * ratio);
-                if (idx === comboItems.length - 1) {
-                  const sumOthers = comboItems.slice(0, -1).reduce((sum, item) => sum + Math.round(item.priceSingle * ratio), 0);
-                  itemPrice = comboPrice - sumOthers;
-                }
-                addItem({ productId: p.id, nameEn: p.nameEn, nameAr: p.nameAr, price: itemPrice, size: 'NONE', imageUrl: p.imageUrl, categoryId: p.categoryId });
-              });
-              setComboModal(null);
-              setCartOpen(true);
-            }}
-            onDecline={() => setComboModal(null)}
-          />
-        );
-      })()}
+
 
       {/* Hero Inline Edit Modal */}
       {heroEditOpen && (
@@ -1356,7 +1377,29 @@ export default function Home() {
         const basePrice = size === 'DOUBLE' && product.priceDouble ? product.priceDouble : product.priceSingle;
         const customizationSum = selectedCustomizations.reduce((sum, c) => sum + c.price, 0);
         const extrasSum = selectedExtras.reduce((sum, e) => sum + (e.isStandard ? 0 : e.price * e.quantity), 0);
-        const finalPrice = basePrice + customizationSum + extrasSum;
+
+        const mainCat = categories.find(c => c.id === product.categoryId);
+        const mainCatName = (mainCat?.nameEn || '').toLowerCase();
+        const isComboAvailable = mainCatName.includes('burger') || mainCatName.includes('chicken') || mainCatName.includes('meal') || mainCatName.includes('sandwich');
+
+        const getSettingVal = (key: string, def: string) => {
+          return settings.find((s) => s.key === key)?.value || def;
+        };
+        const comboPrices = {
+          S: Number(getSettingVal('combo_price_s', '30')),
+          M: Number(getSettingVal('combo_price_m', '40')),
+          L: Number(getSettingVal('combo_price_l', '50')),
+          F: Number(getSettingVal('combo_price_f', '80')),
+        };
+
+        const sizeBaseComboPrice = isCombo ? comboPrices[comboSize] : 0;
+        const selectedSide = allowedSides.find(s => s.id === selectedComboSideId);
+        const selectedDrink = allowedDrinks.find(d => d.id === selectedComboDrinkId);
+        const sidePriceDiff = (isCombo && selectedSide && baseSide) ? Math.max(0, selectedSide.priceSingle - baseSide.priceSingle) : 0;
+        const drinkPriceDiff = (isCombo && selectedDrink && baseDrink) ? Math.max(0, selectedDrink.priceSingle - baseDrink.priceSingle) : 0;
+        
+        const comboAddon = isCombo ? (sizeBaseComboPrice + sidePriceDiff + drinkPriceDiff) : 0;
+        const finalPrice = basePrice + customizationSum + extrasSum + comboAddon;
 
         return (
           <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
@@ -1455,6 +1498,136 @@ export default function Home() {
                     </div>
                   );
                 })}
+
+                {/* ── MAKE IT A COMBO SECTION ── */}
+                {isComboAvailable && (
+                  <div className="space-y-4 pt-4 border-t border-card-border/50">
+                    <div className="flex justify-between items-center bg-[#18181B] px-3.5 py-3 rounded-2xl border border-card-border/30">
+                      <div className="flex items-center gap-2">
+                        <Flame className="h-4.5 w-4.5 text-accent-amber animate-pulse" />
+                        <div>
+                          <h4 className="text-xs font-black text-white">
+                            {locale === 'en' ? 'Make it a Combo Meal!' : 'اجعلها وجبة كومبو!'}
+                          </h4>
+                          <p className="text-[10px] text-text-muted">
+                            {locale === 'en' ? 'Add a side and a drink at a discounted price' : 'أضف بطاطس ومشروب بسعر مميز'}
+                          </p>
+                        </div>
+                      </div>
+                      
+                      <button
+                        type="button"
+                        onClick={() => setIsCombo(!isCombo)}
+                        className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                          isCombo
+                            ? 'bg-primary-red text-white shadow-lg shadow-primary-red/20'
+                            : 'bg-card-border text-text-muted hover:text-white'
+                        }`}
+                      >
+                        {isCombo 
+                          ? (locale === 'en' ? 'Combo Active' : 'تم تفعيل الكومبو') 
+                          : (locale === 'en' ? 'Add Combo' : 'إضافة كومبو')}
+                      </button>
+                    </div>
+
+                    {isCombo && (
+                      <div className="space-y-4 p-4 rounded-2xl bg-[#111113] border border-card-border/50 animate-in fade-in duration-200">
+                        {/* 1. Combo Size */}
+                        <div className="space-y-2">
+                          <label className="text-[10px] text-text-muted font-bold block uppercase tracking-wider">
+                            {locale === 'en' ? 'Combo Size' : 'حجم الكومبو'}
+                          </label>
+                          <div className="grid grid-cols-4 gap-2">
+                            {[
+                              { code: 'S', label: locale === 'en' ? 'Small' : 'صغير', price: comboPrices.S },
+                              { code: 'M', label: locale === 'en' ? 'Medium' : 'وسط', price: comboPrices.M },
+                              { code: 'L', label: locale === 'en' ? 'Large' : 'كبير', price: comboPrices.L },
+                              { code: 'F', label: locale === 'en' ? 'Family' : 'عائلي', price: comboPrices.F },
+                            ].map((sz) => (
+                              <button
+                                key={sz.code}
+                                type="button"
+                                onClick={() => setComboSize(sz.code as any)}
+                                className={`py-2 px-1 text-center rounded-xl border text-[10px] font-black transition-all cursor-pointer ${
+                                  comboSize === sz.code
+                                    ? 'bg-primary-red/10 border-primary-red text-white'
+                                    : 'bg-card border-card-border text-text-muted hover:text-white'
+                                }`}
+                              >
+                                <span className="block text-white font-extrabold">{sz.code} ({sz.label})</span>
+                                <span className="block text-[8px] text-accent-amber mt-0.5 font-mono">+{sz.price} EGP</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* 2. Side Item Select */}
+                        {allowedSides.length > 0 && (
+                          <div className="space-y-2">
+                            <label className="text-[10px] text-text-muted font-bold block uppercase tracking-wider">
+                              {locale === 'en' ? 'Choose Side / Appetizer' : 'اختر الجانب / المقبلات'}
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {allowedSides.map((side) => {
+                                const diff = baseSide ? Math.max(0, side.priceSingle - baseSide.priceSingle) : 0;
+                                const isSel = selectedComboSideId === side.id;
+                                return (
+                                  <button
+                                    key={side.id}
+                                    type="button"
+                                    onClick={() => setSelectedComboSideId(side.id)}
+                                    className={`flex items-center justify-between p-2.5 rounded-xl border text-left rtl:text-right text-[11px] font-bold transition-all cursor-pointer ${
+                                      isSel
+                                        ? 'bg-primary-red/10 border-primary-red text-white'
+                                        : 'bg-card border-card-border text-text-muted hover:text-white'
+                                    }`}
+                                  >
+                                    <span className="truncate pr-1">{locale === 'en' ? side.nameEn : side.nameAr}</span>
+                                    <span className="text-[9px] text-accent-amber font-mono flex-shrink-0">
+                                      {diff > 0 ? `+${diff} EGP` : (locale === 'en' ? 'Included' : 'مشمول')}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 3. Drink Select */}
+                        {allowedDrinks.length > 0 && (
+                          <div className="space-y-2">
+                            <label className="text-[10px] text-text-muted font-bold block uppercase tracking-wider">
+                              {locale === 'en' ? 'Choose Drink' : 'اختر المشروب'}
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {allowedDrinks.map((drk) => {
+                                const diff = baseDrink ? Math.max(0, drk.priceSingle - baseDrink.priceSingle) : 0;
+                                const isSel = selectedComboDrinkId === drk.id;
+                                return (
+                                  <button
+                                    key={drk.id}
+                                    type="button"
+                                    onClick={() => setSelectedComboDrinkId(drk.id)}
+                                    className={`flex items-center justify-between p-2.5 rounded-xl border text-left rtl:text-right text-[11px] font-bold transition-all cursor-pointer ${
+                                      isSel
+                                        ? 'bg-primary-red/10 border-primary-red text-white'
+                                        : 'bg-card border-card-border text-text-muted hover:text-white'
+                                    }`}
+                                  >
+                                    <span className="truncate pr-1">{locale === 'en' ? drk.nameEn : drk.nameAr}</span>
+                                    <span className="text-[9px] text-accent-amber font-mono flex-shrink-0">
+                                      {diff > 0 ? `+${diff} EGP` : (locale === 'en' ? 'Included' : 'مشمول')}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Sandwich Extras Configuration */}
                 {selectedExtras.length > 0 && (
@@ -1572,7 +1745,34 @@ export default function Home() {
                       return;
                     }
 
-                    handleAddProductToCart(product, size, selectedCustomizations, selectedExtras);
+                    let finalCustomizations = [...selectedCustomizations];
+                    if (isCombo && selectedSide && selectedDrink) {
+                      finalCustomizations.push({
+                        optionId: `combo-size-${comboSize}`,
+                        groupId: 'combo-group-size',
+                        nameEn: `Combo Size: ${comboSize === 'S' ? 'Small' : comboSize === 'M' ? 'Medium' : comboSize === 'L' ? 'Large' : 'Family'} (+${sizeBaseComboPrice} EGP)`,
+                        nameAr: `حجم الكومبو: ${comboSize === 'S' ? 'صغير' : comboSize === 'M' ? 'وسط' : comboSize === 'L' ? 'كبير' : 'عائلي'} (+${sizeBaseComboPrice} ج.م)`,
+                        price: sizeBaseComboPrice,
+                      });
+
+                      finalCustomizations.push({
+                        optionId: `combo-side-${selectedSide.id}`,
+                        groupId: 'combo-group-side',
+                        nameEn: `Combo Side: ${selectedSide.nameEn} ${sidePriceDiff > 0 ? `(+${sidePriceDiff} EGP)` : '(Included)'}`,
+                        nameAr: `جانبي الكومبو: ${selectedSide.nameAr} ${sidePriceDiff > 0 ? `(+${sidePriceDiff} ج.م)` : '(مشمول)'}`,
+                        price: sidePriceDiff,
+                      });
+
+                      finalCustomizations.push({
+                        optionId: `combo-drink-${selectedDrink.id}`,
+                        groupId: 'combo-group-drink',
+                        nameEn: `Combo Drink: ${selectedDrink.nameEn} ${drinkPriceDiff > 0 ? `(+${drinkPriceDiff} EGP)` : '(Included)'}`,
+                        nameAr: `مشروب الكومبو: ${selectedDrink.nameAr} ${drinkPriceDiff > 0 ? `(+${drinkPriceDiff} ج.م)` : '(مشمول)'}`,
+                        price: drinkPriceDiff,
+                      });
+                    }
+
+                    handleAddProductToCart(product, size, finalCustomizations, selectedExtras);
                     setCustomizationProduct(null);
                     setCartOpen(true);
                   }}

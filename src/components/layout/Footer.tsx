@@ -56,9 +56,10 @@ export default function Footer() {
       try {
         const { data, error } = await supabase
           .from('branches')
-          .select('*');
+          .select('*')
+          .eq('is_active', true);
         if (!error && data) {
-          setDbBranches(data.filter((b: any) => b.status !== 'DELETED'));
+          setDbBranches(data);
         }
       } catch (e) {
         console.warn('Error reading branches for footer:', e);
