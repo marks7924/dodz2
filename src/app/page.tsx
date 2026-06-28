@@ -1631,11 +1631,10 @@ export default function Home() {
                           <label className="text-[10px] text-text-muted font-bold block uppercase tracking-wider">
                             {locale === 'en' ? 'Combo Size' : 'حجم الكومبو'}
                           </label>
-                          <div className="grid grid-cols-4 gap-2">
+                          <div className="grid grid-cols-3 gap-2">
                             {[
                               { code: 'S', label: locale === 'en' ? 'Small' : 'صغير', price: comboPrices.S },
                               { code: 'M', label: locale === 'en' ? 'Medium' : 'وسط', price: comboPrices.M },
-                              { code: 'L', label: locale === 'en' ? 'Large' : 'كبير', price: comboPrices.L },
                               { code: 'F', label: locale === 'en' ? 'Family' : 'عائلي', price: comboPrices.F },
                             ].map((sz) => (
                               <button
@@ -1648,7 +1647,7 @@ export default function Home() {
                                     : 'bg-card border-card-border text-text-muted hover:text-white'
                                 }`}
                               >
-                                <span className="block text-white font-extrabold">{sz.code} ({sz.label})</span>
+                                <span className="block text-white font-extrabold">{sz.label}</span>
                                 <span className="block text-[8px] text-accent-amber mt-0.5 font-mono">+{sz.price} EGP</span>
                               </button>
                             ))}
