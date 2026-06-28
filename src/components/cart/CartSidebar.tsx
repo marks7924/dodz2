@@ -304,18 +304,8 @@ export default function CartSidebar() {
             </div>
 
             <Link
-              href={isClosed ? '#' : '/checkout'}
-              onClick={async (e) => {
-                if (isClosed) {
-                  e.preventDefault();
-                  await alert(
-                    locale === 'en'
-                      ? 'The store is currently closed. You can start ordering again during working hours.'
-                      : 'المطعم مغلق حالياً. يمكنك بدء الطلب مرة أخرى خلال ساعات العمل.',
-                    locale === 'en' ? 'Store Closed' : 'المطعم مغلق'
-                  );
-                  return;
-                }
+              href="/checkout"
+              onClick={() => {
                 setCartOpen(false);
               }}
               className="w-full flex items-center justify-center gap-2 py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all pulse-glow-red cursor-pointer text-center"
