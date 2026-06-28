@@ -1380,14 +1380,34 @@ export default function Home() {
                   }
                   
                   // Persist featured product selection in settings
-                  await supabase
+                  const { data: existingSetting, error: selectErr } = await supabase
                     .from('restaurant_settings')
-                    .upsert({
-                      key: 'featured_product_id',
-                      value: heroEditProductId,
-                      branch_id: null,
-                      updated_at: new Date().toISOString()
-                    });
+                    .select('id')
+                    .eq('key', 'featured_product_id')
+                    .is('branch_id', null);
+
+                  if (selectErr) throw selectErr;
+
+                  if (existingSetting && existingSetting.length > 0) {
+                    const { error: updateErr } = await supabase
+                      .from('restaurant_settings')
+                      .update({
+                        value: heroEditProductId,
+                        updated_at: new Date().toISOString()
+                      })
+                      .eq('id', existingSetting[0].id);
+                    if (updateErr) throw updateErr;
+                  } else {
+                    const { error: insertErr } = await supabase
+                      .from('restaurant_settings')
+                      .insert({
+                        key: 'featured_product_id',
+                        value: heroEditProductId,
+                        branch_id: null,
+                        updated_at: new Date().toISOString()
+                      });
+                    if (insertErr) throw insertErr;
+                  }
 
                   queryClient.invalidateQueries({ queryKey: ['products'] });
                   queryClient.invalidateQueries({ queryKey: ['restaurant-settings'] });
