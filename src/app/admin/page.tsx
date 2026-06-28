@@ -2479,6 +2479,176 @@ export default function AdminDashboardPage() {
                       </div>
                     );
                   })()}
+
+                  {/* Free Items Selection per Combo Size */}
+                  {(() => {
+                    const adminSides = products.filter((p: any) => {
+                      const cat = adminCategories.find((c: any) => c.id === p.categoryId);
+                      if (!cat) return false;
+                      const catName = ((cat.name_en || cat.nameEn || '') + ' ' + (cat.name_ar || cat.nameAr || '')).toLowerCase();
+                      return catName.includes('side') || catName.includes('appetizer') || catName.includes('addon') ||
+                             catName.includes('add-on') || catName.includes('add on') || catName.includes('extra') ||
+                             catName.includes('جانب') || catName.includes('مقبلات') || catName.includes('إضاف');
+                    });
+
+                    const adminDrinks = products.filter((p: any) => {
+                      const cat = adminCategories.find((c: any) => c.id === p.categoryId);
+                      if (!cat) return false;
+                      const catName = ((cat.name_en || cat.nameEn || '') + ' ' + (cat.name_ar || cat.nameAr || '')).toLowerCase();
+                      return catName.includes('drink') || catName.includes('juice') || catName.includes('soda') ||
+                             catName.includes('مشروب') || catName.includes('مشروبات') || catName.includes('عصير');
+                    });
+
+                    return (
+                      <div className="pt-4 border-t border-[#27272A] space-y-3">
+                        <label className="text-[10px] text-accent-amber block font-bold uppercase tracking-wider">
+                          {locale === 'en' ? 'Free Side & Drink Configuration per Size' : 'تحديد الجانبي والمشروب المجاني لكل حجم'}
+                        </label>
+                        <p className="text-[9px] text-text-muted leading-tight">
+                          {locale === 'en'
+                            ? 'Configure which specific side item and drink are included for free in each combo size upgrade. Any other option selected by the customer will calculate dynamic markups automatically.'
+                            : 'حدد الجانبي والمشروب المشمول مجاناً في كل حجم كومبو. أي خيار آخر يختاره العميل سيحسب تكلفة إضافية تلقائياً.'}
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          {/* Small Combo config */}
+                          <div className="bg-card border border-card-border/40 rounded-xl p-3 space-y-2.5">
+                            <p className="text-[10px] font-bold text-white border-b border-card-border/20 pb-1">
+                              {locale === 'en' ? 'Small Combo Upgrade' : 'ترقية كومبو صغير'}
+                            </p>
+                            {(() => {
+                              const freeSideS = settings.find((s: any) => s.key === 'combo_free_side_s') || { value: '' };
+                              const freeDrinkS = settings.find((s: any) => s.key === 'combo_free_drink_s') || { value: '' };
+                              return (
+                                <div className="space-y-2">
+                                  <div className="space-y-1">
+                                    <label className="text-[8px] text-text-muted block font-bold uppercase">
+                                      {locale === 'en' ? 'Free Side' : 'الجانبي المجاني'}
+                                    </label>
+                                    <select
+                                      value={freeSideS.value}
+                                      onChange={(e) => saveSettingMutation.mutate({ key: 'combo_free_side_s', value: e.target.value })}
+                                      className="w-full text-[11px] bg-[#18181B] border border-card-border rounded-lg px-2 py-1 text-white focus:outline-none focus:border-primary-red/50"
+                                    >
+                                      <option value="">{locale === 'en' ? '-- Select Side --' : '-- اختر الجانبي --'}</option>
+                                      {adminSides.map((p: any) => (
+                                        <option key={p.id} value={p.id}>{locale === 'en' ? p.nameEn : p.nameAr} ({p.priceSingle} EGP)</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[8px] text-text-muted block font-bold uppercase">
+                                      {locale === 'en' ? 'Free Drink' : 'المشروب المجاني'}
+                                    </label>
+                                    <select
+                                      value={freeDrinkS.value}
+                                      onChange={(e) => saveSettingMutation.mutate({ key: 'combo_free_drink_s', value: e.target.value })}
+                                      className="w-full text-[11px] bg-[#18181B] border border-card-border rounded-lg px-2 py-1 text-white focus:outline-none focus:border-primary-red/50"
+                                    >
+                                      <option value="">{locale === 'en' ? '-- Select Drink --' : '-- اختر المشروب --'}</option>
+                                      {adminDrinks.map((p: any) => (
+                                        <option key={p.id} value={p.id}>{locale === 'en' ? p.nameEn : p.nameAr} ({p.priceSingle} EGP)</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Medium Combo config */}
+                          <div className="bg-card border border-card-border/40 rounded-xl p-3 space-y-2.5">
+                            <p className="text-[10px] font-bold text-white border-b border-card-border/20 pb-1">
+                              {locale === 'en' ? 'Medium Combo Upgrade' : 'ترقية كومبو وسط'}
+                            </p>
+                            {(() => {
+                              const freeSideM = settings.find((s: any) => s.key === 'combo_free_side_m') || { value: '' };
+                              const freeDrinkM = settings.find((s: any) => s.key === 'combo_free_drink_m') || { value: '' };
+                              return (
+                                <div className="space-y-2">
+                                  <div className="space-y-1">
+                                    <label className="text-[8px] text-text-muted block font-bold uppercase">
+                                      {locale === 'en' ? 'Free Side' : 'الجانبي المجاني'}
+                                    </label>
+                                    <select
+                                      value={freeSideM.value}
+                                      onChange={(e) => saveSettingMutation.mutate({ key: 'combo_free_side_m', value: e.target.value })}
+                                      className="w-full text-[11px] bg-[#18181B] border border-card-border rounded-lg px-2 py-1 text-white focus:outline-none focus:border-primary-red/50"
+                                    >
+                                      <option value="">{locale === 'en' ? '-- Select Side --' : '-- اختر الجانبي --'}</option>
+                                      {adminSides.map((p: any) => (
+                                        <option key={p.id} value={p.id}>{locale === 'en' ? p.nameEn : p.nameAr} ({p.priceSingle} EGP)</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[8px] text-text-muted block font-bold uppercase">
+                                      {locale === 'en' ? 'Free Drink' : 'المشروب المجاني'}
+                                    </label>
+                                    <select
+                                      value={freeDrinkM.value}
+                                      onChange={(e) => saveSettingMutation.mutate({ key: 'combo_free_drink_m', value: e.target.value })}
+                                      className="w-full text-[11px] bg-[#18181B] border border-card-border rounded-lg px-2 py-1 text-white focus:outline-none focus:border-primary-red/50"
+                                    >
+                                      <option value="">{locale === 'en' ? '-- Select Drink --' : '-- اختر المشروب --'}</option>
+                                      {adminDrinks.map((p: any) => (
+                                        <option key={p.id} value={p.id}>{locale === 'en' ? p.nameEn : p.nameAr} ({p.priceSingle} EGP)</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Family Combo config */}
+                          <div className="bg-card border border-card-border/40 rounded-xl p-3 space-y-2.5">
+                            <p className="text-[10px] font-bold text-white border-b border-card-border/20 pb-1">
+                              {locale === 'en' ? 'Family Combo Upgrade' : 'ترقية كومبو عائلي'}
+                            </p>
+                            {(() => {
+                              const freeSideF = settings.find((s: any) => s.key === 'combo_free_side_f') || { value: '' };
+                              const freeDrinkF = settings.find((s: any) => s.key === 'combo_free_drink_f') || { value: '' };
+                              return (
+                                <div className="space-y-2">
+                                  <div className="space-y-1">
+                                    <label className="text-[8px] text-text-muted block font-bold uppercase">
+                                      {locale === 'en' ? 'Free Side' : 'الجانبي المجاني'}
+                                    </label>
+                                    <select
+                                      value={freeSideF.value}
+                                      onChange={(e) => saveSettingMutation.mutate({ key: 'combo_free_side_f', value: e.target.value })}
+                                      className="w-full text-[11px] bg-[#18181B] border border-card-border rounded-lg px-2 py-1 text-white focus:outline-none focus:border-primary-red/50"
+                                    >
+                                      <option value="">{locale === 'en' ? '-- Select Side --' : '-- اختر الجانبي --'}</option>
+                                      {adminSides.map((p: any) => (
+                                        <option key={p.id} value={p.id}>{locale === 'en' ? p.nameEn : p.nameAr} ({p.priceSingle} EGP)</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <label className="text-[8px] text-text-muted block font-bold uppercase">
+                                      {locale === 'en' ? 'Free Drink' : 'المشروب المجاني'}
+                                    </label>
+                                    <select
+                                      value={freeDrinkF.value}
+                                      onChange={(e) => saveSettingMutation.mutate({ key: 'combo_free_drink_f', value: e.target.value })}
+                                      className="w-full text-[11px] bg-[#18181B] border border-card-border rounded-lg px-2 py-1 text-white focus:outline-none focus:border-primary-red/50"
+                                    >
+                                      <option value="">{locale === 'en' ? '-- Select Drink --' : '-- اختر المشروب --'}</option>
+                                      {adminDrinks.map((p: any) => (
+                                        <option key={p.id} value={p.id}>{locale === 'en' ? p.nameEn : p.nameAr} ({p.priceSingle} EGP)</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* ── Often Ordered With (Upsells) ── */}

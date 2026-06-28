@@ -1502,37 +1502,60 @@ export default function Home() {
         const selectedSide = allowedSides.find(s => s.id === selectedComboSideId);
         const selectedDrink = allowedDrinks.find(d => d.id === selectedComboDrinkId);
 
-        // Determine free side based on comboSize
+        // Determine free side based on comboSize settings
         const freeSide = (() => {
+          const key = `combo_free_side_${comboSize.toLowerCase()}`;
+          const configId = settings.find(s => s.key === key)?.value;
+          if (configId) {
+            const found = allowedSides.find(s => s.id === configId);
+            if (found) return found;
+          }
           if (comboSize === 'F') {
-            // Family fries
             const famFries = allowedSides.find(s => s.nameEn.toLowerCase().includes('family') || s.nameAr.includes('عائلي'));
             return famFries || baseSide;
           }
-          // Small/Medium: Regular French Fries
           const regFries = allowedSides.find(s => s.nameEn.toLowerCase().includes('regular french') || s.nameEn.toLowerCase().includes('french fries') || s.nameAr.includes('بطاطس مقلية') || s.nameAr.includes('بطاطس محمرة'));
           return regFries || baseSide;
         })();
 
-        // Determine if selected drink is free (water or soft drink/pepsi/cola/7up/mirinda)
-        const isFreeDrink = selectedDrink && (
-          selectedDrink.nameEn.toLowerCase().includes('water') ||
-          selectedDrink.nameEn.toLowerCase().includes('soft drink') ||
-          selectedDrink.nameEn.toLowerCase().includes('pepsi') ||
-          selectedDrink.nameEn.toLowerCase().includes('cola') ||
-          selectedDrink.nameEn.toLowerCase().includes('7up') ||
-          selectedDrink.nameEn.toLowerCase().includes('mirinda') ||
-          selectedDrink.nameAr.includes('مياه') ||
-          selectedDrink.nameAr.includes('مشروب غازي') ||
-          selectedDrink.nameAr.includes('بيبسي')
-        );
+        // Determine if selected drink is free based on comboSize settings
+        const isFreeDrink = (() => {
+          if (!selectedDrink) return false;
+          const key = `combo_free_drink_${comboSize.toLowerCase()}`;
+          const configId = settings.find(s => s.key === key)?.value;
+          if (configId) {
+            return selectedDrink.id === configId;
+          }
+          return (
+            selectedDrink.nameEn.toLowerCase().includes('water') ||
+            selectedDrink.nameEn.toLowerCase().includes('soft drink') ||
+            selectedDrink.nameEn.toLowerCase().includes('pepsi') ||
+            selectedDrink.nameEn.toLowerCase().includes('cola') ||
+            selectedDrink.nameEn.toLowerCase().includes('7up') ||
+            selectedDrink.nameEn.toLowerCase().includes('mirinda') ||
+            selectedDrink.nameAr.includes('مياه') ||
+            selectedDrink.nameAr.includes('مشروب غازي') ||
+            selectedDrink.nameAr.includes('بيبسي')
+          );
+        })();
+
+        // Base price of the free drink to calculate markup of premium drinks
+        const freeDrinkPrice = (() => {
+          const key = `combo_free_drink_${comboSize.toLowerCase()}`;
+          const configId = settings.find(s => s.key === key)?.value;
+          if (configId) {
+            const found = allowedDrinks.find(d => d.id === configId);
+            if (found) return found.priceSingle;
+          }
+          return 20; // default standard soft drink price fallback
+        })();
 
         const sidePriceDiff = (isCombo && selectedSide && freeSide) 
           ? Math.max(0, selectedSide.priceSingle - freeSide.priceSingle) 
           : 0;
 
         const drinkPriceDiff = (isCombo && selectedDrink)
-          ? (isFreeDrink ? 0 : Math.max(0, selectedDrink.priceSingle - 20))
+          ? (isFreeDrink ? 0 : Math.max(0, selectedDrink.priceSingle - freeDrinkPrice))
           : 0;
         
         const comboAddon = isCombo ? (sizeBaseComboPrice + sidePriceDiff + drinkPriceDiff) : 0;
@@ -1708,6 +1731,12 @@ export default function Home() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {allowedSides.map((side) => {
                                 const freeSideForSize = (() => {
+                                  const key = `combo_free_side_${comboSize.toLowerCase()}`;
+                                  const configId = settings.find(s => s.key === key)?.value;
+                                  if (configId) {
+                                    const found = allowedSides.find(s => s.id === configId);
+                                    if (found) return found;
+                                  }
                                   if (comboSize === 'F') {
                                     const famFries = allowedSides.find(s => s.nameEn.toLowerCase().includes('family') || s.nameAr.includes('عائلي'));
                                     return famFries || baseSide;
@@ -1747,16 +1776,30 @@ export default function Home() {
                             </label>
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {allowedDrinks.map((drk) => {
-                                const isFree = drk.nameEn.toLowerCase().includes('water') ||
-                                               drk.nameEn.toLowerCase().includes('soft drink') ||
-                                               drk.nameEn.toLowerCase().includes('pepsi') ||
-                                               drk.nameEn.toLowerCase().includes('cola') ||
-                                               drk.nameEn.toLowerCase().includes('7up') ||
-                                               drk.nameEn.toLowerCase().includes('mirinda') ||
-                                               drk.nameAr.includes('مياه') ||
-                                               drk.nameAr.includes('مشروب غازي') ||
-                                               drk.nameAr.includes('بيبسي');
-                                const diff = isFree ? 0 : Math.max(0, drk.priceSingle - 20);
+                                const isFree = (() => {
+                                  const key = `combo_free_drink_${comboSize.toLowerCase()}`;
+                                  const configId = settings.find(s => s.key === key)?.value;
+                                  if (configId) return drk.id === configId;
+                                  return drk.nameEn.toLowerCase().includes('water') ||
+                                         drk.nameEn.toLowerCase().includes('soft drink') ||
+                                         drk.nameEn.toLowerCase().includes('pepsi') ||
+                                         drk.nameEn.toLowerCase().includes('cola') ||
+                                         drk.nameEn.toLowerCase().includes('7up') ||
+                                         drk.nameEn.toLowerCase().includes('mirinda') ||
+                                         drk.nameAr.includes('مياه') ||
+                                         drk.nameAr.includes('مشروب غازي') ||
+                                         drk.nameAr.includes('بيبسي');
+                                })();
+                                const freePrice = (() => {
+                                  const key = `combo_free_drink_${comboSize.toLowerCase()}`;
+                                  const configId = settings.find(s => s.key === key)?.value;
+                                  if (configId) {
+                                    const found = allowedDrinks.find(d => d.id === configId);
+                                    if (found) return found.priceSingle;
+                                  }
+                                  return 20;
+                                })();
+                                const diff = isFree ? 0 : Math.max(0, drk.priceSingle - freePrice);
                                 const isSel = selectedComboDrinkId === drk.id;
                                 return (
                                   <button
