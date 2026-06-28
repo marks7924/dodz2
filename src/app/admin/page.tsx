@@ -4244,11 +4244,19 @@ export default function AdminDashboardPage() {
                             className="w-full text-xs bg-[#18181B] border border-card-border rounded-xl px-3 py-2 text-white focus:outline-none focus:border-indigo-500/50"
                           >
                             <option value="">-- {locale === 'en' ? 'Select Menu Item' : 'اختر عنصر من المنيو'} --</option>
-                            {products.map((p) => (
-                              <option key={p.id} value={p.id}>
-                                {locale === 'en' ? `${p.nameEn} (${p.priceSingle} EGP)` : `${p.nameAr} (${p.priceSingle} ج.م)`}
-                              </option>
-                            ))}
+                            {categories.map((cat) => {
+                              const catProducts = products.filter(p => p.categoryId === cat.id);
+                              if (catProducts.length === 0) return null;
+                              return (
+                                <optgroup key={cat.id} label={locale === 'en' ? cat.nameEn : cat.nameAr} className="bg-[#18181B] text-indigo-400 font-bold">
+                                  {catProducts.map((p) => (
+                                    <option key={p.id} value={p.id} className="text-white bg-[#131316]">
+                                      {locale === 'en' ? `${p.nameEn} (${p.priceSingle} EGP)` : `${p.nameAr} (${p.priceSingle} ج.م)`}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              );
+                            })}
                           </select>
 
                           {quickAddSelectedId && (
