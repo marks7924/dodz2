@@ -203,41 +203,6 @@ export default function Home() {
   const [chatText, setChatText] = useState('');
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const categoriesNavRef = useRef<HTMLDivElement>(null);
-
-  const allowedSides = products.filter((p) => {
-    const cat = categories.find((c) => c.id === p.categoryId);
-    if (!cat) return false;
-    const catName = (cat.nameEn + ' ' + cat.nameAr).toLowerCase();
-    return catName.includes('side') || catName.includes('appetizer') || catName.includes('add-on') ||
-           catName.includes('جانبي') || catName.includes('مقبلات') || catName.includes('إضافات');
-  });
-
-  const allowedDrinks = products.filter((p) => {
-    const cat = categories.find((c) => c.id === p.categoryId);
-    if (!cat) return false;
-    const catName = (cat.nameEn + ' ' + cat.nameAr).toLowerCase();
-    return catName.includes('drink') || catName.includes('juice') || catName.includes('soda') ||
-           catName.includes('مشروب') || catName.includes('مشروبات') || catName.includes('عصير');
-  });
-
-  const baseSide = allowedSides.length > 0 ? allowedSides.reduce((min, p) => p.priceSingle < min.priceSingle ? p : min, allowedSides[0]) : null;
-  const baseDrink = allowedDrinks.length > 0 ? allowedDrinks.reduce((min, p) => p.priceSingle < min.priceSingle ? p : min, allowedDrinks[0]) : null;
-
-  useEffect(() => {
-    if (customizationProduct) {
-      setIsCombo(false);
-      setComboSize('M');
-      if (allowedSides.length > 0) {
-        const fries = allowedSides.find(s => s.nameEn.toLowerCase().includes('fries') || s.nameAr.includes('بطاطس'));
-        setSelectedComboSideId(fries?.id || allowedSides[0].id);
-      }
-      if (allowedDrinks.length > 0) {
-        const cola = allowedDrinks.find(d => d.nameEn.toLowerCase().includes('cola') || d.nameEn.toLowerCase().includes('pepsi') || d.nameAr.includes('بيبسي') || d.nameAr.includes('كولا'));
-        setSelectedComboDrinkId(cola?.id || allowedDrinks[0].id);
-      }
-    }
-  }, [customizationProduct, allowedSides, allowedDrinks]);
-
   const scrollCategories = (direction: 'left' | 'right') => {
     if (categoriesNavRef.current) {
       const offset = 200;
@@ -460,6 +425,40 @@ export default function Home() {
     queryKey: ['products', selectedBranchId],
     queryFn: () => db.getProducts(undefined, selectedBranchId || undefined),
   });
+
+  const allowedSides = products.filter((p) => {
+    const cat = categories.find((c) => c.id === p.categoryId);
+    if (!cat) return false;
+    const catName = (cat.nameEn + ' ' + cat.nameAr).toLowerCase();
+    return catName.includes('side') || catName.includes('appetizer') || catName.includes('add-on') ||
+           catName.includes('جانبي') || catName.includes('مقبلات') || catName.includes('إضافات');
+  });
+
+  const allowedDrinks = products.filter((p) => {
+    const cat = categories.find((c) => c.id === p.categoryId);
+    if (!cat) return false;
+    const catName = (cat.nameEn + ' ' + cat.nameAr).toLowerCase();
+    return catName.includes('drink') || catName.includes('juice') || catName.includes('soda') ||
+           catName.includes('مشروب') || catName.includes('مشروبات') || catName.includes('عصير');
+  });
+
+  const baseSide = allowedSides.length > 0 ? allowedSides.reduce((min, p) => p.priceSingle < min.priceSingle ? p : min, allowedSides[0]) : null;
+  const baseDrink = allowedDrinks.length > 0 ? allowedDrinks.reduce((min, p) => p.priceSingle < min.priceSingle ? p : min, allowedDrinks[0]) : null;
+
+  useEffect(() => {
+    if (customizationProduct) {
+      setIsCombo(false);
+      setComboSize('M');
+      if (allowedSides.length > 0) {
+        const fries = allowedSides.find(s => s.nameEn.toLowerCase().includes('fries') || s.nameAr.includes('بطاطس'));
+        setSelectedComboSideId(fries?.id || allowedSides[0].id);
+      }
+      if (allowedDrinks.length > 0) {
+        const cola = allowedDrinks.find(d => d.nameEn.toLowerCase().includes('cola') || d.nameEn.toLowerCase().includes('pepsi') || d.nameAr.includes('بيبسي') || d.nameAr.includes('كولا'));
+        setSelectedComboDrinkId(cola?.id || allowedDrinks[0].id);
+      }
+    }
+  }, [customizationProduct, allowedSides, allowedDrinks]);
 
   const featuredProductIdSetting = settings.find((s: any) => s.key === 'featured_product_id');
   const featuredProductId = featuredProductIdSetting?.value;
