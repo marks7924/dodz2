@@ -303,10 +303,11 @@ export default function CartSidebar() {
               </div>
             </div>
 
-            {/* Checkout CTA */}
-            <button
-              onClick={async () => {
+            <Link
+              href={isClosed ? '#' : '/checkout'}
+              onClick={async (e) => {
                 if (isClosed) {
+                  e.preventDefault();
                   await alert(
                     locale === 'en'
                       ? 'The store is currently closed. You can start ordering again during working hours.'
@@ -316,13 +317,12 @@ export default function CartSidebar() {
                   return;
                 }
                 setCartOpen(false);
-                router.push('/checkout');
               }}
-              className="w-full flex items-center justify-center gap-2 py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all pulse-glow-red cursor-pointer"
+              className="w-full flex items-center justify-center gap-2 py-3 bg-primary-red hover:bg-primary-red-hover text-white text-xs font-bold rounded-xl transition-all pulse-glow-red cursor-pointer text-center"
             >
               <span>{t('checkoutBtn')}</span>
               {dir === 'ltr' ? <ArrowRight className="h-4 w-4" /> : <ArrowLeft className="h-4 w-4" />}
-            </button>
+            </Link>
           </div>
         )}
       </div>
