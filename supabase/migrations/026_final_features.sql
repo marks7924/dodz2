@@ -29,8 +29,12 @@ ALTER TABLE public.branch_menu_items ADD COLUMN IF NOT EXISTS price_family NUMER
 ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS extras JSONB DEFAULT '[]'::jsonb;
 
 -- 8. Add settings key for review toggle and footer settings in restaurant_settings if missing
-INSERT INTO public.restaurant_settings (key, value) VALUES ('reviews_active', 'true') ON CONFLICT (key) DO NOTHING;
-INSERT INTO public.restaurant_settings (key, value) VALUES ('footer_settings', '{"phone": "19999", "facebook": "", "instagram": "", "whatsapp": ""}') ON CONFLICT (key) DO NOTHING;
+INSERT INTO public.restaurant_settings (key, value, branch_id)
+  VALUES ('reviews_active', 'true', NULL)
+  ON CONFLICT (key) WHERE branch_id IS NULL DO NOTHING;
+INSERT INTO public.restaurant_settings (key, value, branch_id)
+  VALUES ('footer_settings', '{"phone": "19999", "facebook": "", "instagram": "", "whatsapp": ""}', NULL)
+  ON CONFLICT (key) WHERE branch_id IS NULL DO NOTHING;
  
 -- 9. Allow everyone to read settings (public settings like delivery fee, status, socials, reviews)
 DROP POLICY IF EXISTS "settings_select_all" ON public.restaurant_settings;
